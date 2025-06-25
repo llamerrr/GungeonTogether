@@ -10,6 +10,10 @@ The mod is free (because im not weird).
 - Steam P2P networking (no dedicated servers required), no parsec or streaming required
 - Real-time player synchronization
 - Debug controls for testing
+  
+## Planned Features
+- Unlimited players
+- EVERYTHING synced 
 
 ## Installation
 1. Install BepInEx for Enter the Gungeon
