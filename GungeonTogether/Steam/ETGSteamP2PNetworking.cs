@@ -302,13 +302,23 @@ namespace GungeonTogether.Steam
             }
         }
         
+        // Cache for Steam ID to prevent repeated expensive reflection calls
+        private static ulong cachedSteamId = 0;
+        private static bool steamIdCached = false;
+        
         /// <summary>
-        /// Get current Steam user ID
+        /// Get current Steam user ID (cached to prevent log spam)
         /// </summary>
         public ulong GetSteamID()
         {
             try
             {
+                // Return cached value if available
+                if (steamIdCached && cachedSteamId != 0)
+                {
+                    return cachedSteamId;
+                }
+                
                 EnsureInitialized();
                 
                 if (!object.ReferenceEquals(getSteamIdMethod, null))
@@ -316,30 +326,27 @@ namespace GungeonTogether.Steam
                     object result = getSteamIdMethod.Invoke(null, null);
                     if (!object.ReferenceEquals(result, null))
                     {
-                        Debug.Log($"[ETGSteamP2P] Steam ID method returned: {result} (Type: {result.GetType().FullName})");
-                        
                         // Try different casting approaches for different Steamworks types
                         try
                         {
                             // First try direct cast for primitive types
                             if (result is ulong directULong)
                             {
-                                Debug.Log($"[ETGSteamP2P] Got Steam ID (direct ulong): {directULong}");
+                                cachedSteamId = directULong;
+                                steamIdCached = true;
                                 return directULong;
                             }
                             
                             // Try direct convert for numeric types
                             ulong steamId = Convert.ToUInt64(result);
-                            Debug.Log($"[ETGSteamP2P] Got Steam ID (convert): {steamId}");
+                            cachedSteamId = steamId;
+                            steamIdCached = true;
                             return steamId;
                         }
-                        catch (Exception castEx)
+                        catch (Exception)
                         {
-                            Debug.Log($"[ETGSteamP2P] Direct cast failed: {castEx.Message}");
-                            
                             // Try accessing struct fields if it's a struct
                             Type resultType = result.GetType();
-                            Debug.Log($"[ETGSteamP2P] Steam ID result type: {resultType.FullName}");
                             
                             // Check for common Steamworks struct field names
                             var idField = resultType.GetField("m_SteamID") ?? 
@@ -353,41 +360,56 @@ namespace GungeonTogether.Steam
                                 object fieldValue = idField.GetValue(result);
                                 if (!object.ReferenceEquals(fieldValue, null))
                                 {
-                                    Debug.Log($"[ETGSteamP2P] Field {idField.Name} value: {fieldValue} (Type: {fieldValue.GetType().FullName})");
                                     ulong fieldSteamId = Convert.ToUInt64(fieldValue);
-                                    Debug.Log($"[ETGSteamP2P] Got Steam ID from field: {fieldSteamId}");
+                                    cachedSteamId = fieldSteamId;
+                                    steamIdCached = true;
                                     return fieldSteamId;
                                 }
                             }
                             
                             // Try ToString() as last resort
                             string stringValue = result.ToString();
-                            Debug.Log($"[ETGSteamP2P] Trying to parse string value: '{stringValue}'");
                             if (ulong.TryParse(stringValue, out ulong parsedId))
                             {
-                                Debug.Log($"[ETGSteamP2P] Got Steam ID from string: {parsedId}");
+                                cachedSteamId = parsedId;
+                                steamIdCached = true;
                                 return parsedId;
                             }
                             
-                            Debug.LogWarning($"[ETGSteamP2P] Could not extract Steam ID from type {resultType.FullName}, value: {result}");
+                            // Only log warning once, not on every call
+                            if (!steamIdCached)
+                            {
+                                Debug.LogWarning($"[ETGSteamP2P] Could not extract Steam ID from type {resultType.FullName}");
+                            }
                         }
                     }
                     else
                     {
-                        Debug.LogWarning("[ETGSteamP2P] GetSteamID method returned null");
+                        // Only log warning once
+                        if (!steamIdCached)
+                        {
+                            Debug.LogWarning("[ETGSteamP2P] GetSteamID method returned null");
+                        }
                     }
                 }
                 else
                 {
-                    Debug.LogWarning("[ETGSteamP2P] GetSteamID method not found");
+                    // Only log warning once
+                    if (!steamIdCached)
+                    {
+                        Debug.LogWarning("[ETGSteamP2P] GetSteamID method not found");
+                    }
                 }
                 
-                Debug.LogWarning("[ETGSteamP2P] Could not get Steam ID - returning 0");
                 return 0;
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error getting Steam ID: {e.Message}\nStack trace: {e.StackTrace}");
+                // Only log error once
+                if (!steamIdCached)
+                {
+                    Debug.LogError($"[ETGSteamP2P] Error getting Steam ID: {e.Message}");
+                }
                 return 0;
             }
         }
@@ -421,10 +443,8 @@ namespace GungeonTogether.Steam
                 
                 if (!object.ReferenceEquals(result, null) && result is bool success)
                 {
-                    if (success)
-                    {
-                        Debug.Log($"[ETGSteamP2P] Sent P2P packet to {targetSteamId} ({data.Length} bytes)");
-                    }
+                    // Only log successful sends in debug mode or for important packets
+                    // This prevents spam when sending frequent updates
                     return success;
                 }
                 
@@ -501,7 +521,10 @@ namespace GungeonTogether.Steam
                         object result = acceptP2PSessionMethod.Invoke(null, new object[] { steamIdParam });
                         if (!object.ReferenceEquals(result, null) && result is bool success)
                         {
-                            Debug.Log($"[ETGSteamP2P] Accepted P2P session with {steamId}: {success}");
+                            if (success)
+                            {
+                                Debug.Log($"[ETGSteamP2P] Accepted P2P session with {steamId}");
+                            }
                             return success;
                         }
                     }
@@ -511,7 +534,10 @@ namespace GungeonTogether.Steam
                         object result = acceptP2PSessionMethod.Invoke(null, new object[] { steamId });
                         if (!object.ReferenceEquals(result, null) && result is bool success)
                         {
-                            Debug.Log($"[ETGSteamP2P] Accepted P2P session with {steamId}: {success}");
+                            if (success)
+                            {
+                                Debug.Log($"[ETGSteamP2P] Accepted P2P session with {steamId}");
+                            }
                             return success;
                         }
                     }

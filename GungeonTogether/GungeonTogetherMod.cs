@@ -3,11 +3,13 @@ using BepInEx;
 using UnityEngine;
 using GungeonTogether.Game;
 using GungeonTogether.Steam;
+using GungeonTogether.UI;
 
 namespace GungeonTogether
 {
     /// <summary>
     /// GungeonTogether mod for Enter the Gungeon using BepInEx
+    /// Now includes beautiful modern UI for multiplayer functionality
     /// </summary>
     [BepInPlugin(GUID, NAME, VERSION)]
     [BepInDependency(ETGModMainBehaviour.GUID)]
@@ -16,11 +18,15 @@ namespace GungeonTogether
         // Mod metadata
         public const string GUID = "liamspc.etg.gungeontogether";
         public const string NAME = "GungeonTogether";
-        public const string VERSION = "0.0.1";
+        public const string VERSION = "0.0.2"; // Updated version for UI release
         public static GungeonTogetherMod Instance { get; private set; }
-        private SimpleSessionManager _sessionManager;
-        //private Game.BasicGameManager _gameManager;
-        //private Game.SimpleSessionManager _fallbackManager;
+        public SimpleSessionManager _sessionManager; // Made public for UI access
+        
+        // Public property for UI access
+        public SimpleSessionManager SessionManager => _sessionManager;
+        
+        // UI System
+        private bool uiInitialized = false;
         
         public void Awake()
         {
@@ -31,7 +37,8 @@ namespace GungeonTogether
             {
                 // Register event hooks
                 SetupEventHooks();
-                  Logger.LogInfo("GungeonTogether mod loaded successfully!");
+                
+                Logger.LogInfo("GungeonTogether mod loaded successfully!");
                 Logger.LogInfo("Waiting for GameManager to be alive...");
             }
             catch (Exception e)
@@ -40,7 +47,8 @@ namespace GungeonTogether
                 Logger.LogError($"Stack trace: {e.StackTrace}");
             }
         }
-          public void Start()
+        
+        public void Start()
         {
             Logger.LogInfo("Start() called, waiting for GameManager...");
             ETGModMainBehaviour.WaitForGameManagerStart(GMStart);
@@ -57,7 +65,11 @@ namespace GungeonTogether
                 Logger.LogInfo("Initializing SimpleSessionManager (bypassing BasicGameManager)...");
                 _sessionManager = new SimpleSessionManager();
                 Logger.LogInfo("SimpleSessionManager created successfully!");
-                  Logger.LogInfo("Setting up Steam integration...");
+                
+                // Initialize UI System
+                InitializeUISystem();
+                
+                Logger.LogInfo("Setting up Steam integration...");
                 try
                 {
                     SteamSessionHelper.Initialize(_sessionManager);
@@ -77,8 +89,7 @@ namespace GungeonTogether
                 Logger.LogInfo("Setting up debug controls...");
                 SetupDebugControls();
                 
-                Logger.LogInfo("GungeonTogether initialized successfully with SimpleSessionManager!");
-                Logger.LogInfo("Debug controls: F3=Host, F4=Join, F5=Stop, F6=Status");
+            Logger.LogInfo("GungeonTogether initialized successfully!!!!!!! YAY!!!!!!!!!!!!!!!!!!");
             }
             catch (Exception e)
             {
@@ -86,43 +97,223 @@ namespace GungeonTogether
                 Logger.LogError($"Stack trace: {e.StackTrace}");
             }        }
 
+        /// <summary>
+        /// Initialize the modern UI system
+        /// </summary>
+        private void InitializeUISystem()
+        {
+            try
+            {
+                Logger.LogInfo("Initializing modern UI system...");
+                
+                // Initialize the UI manager
+                MultiplayerUIManager.Initialize();
+                
+                // Set the session manager reference for the UI
+                if (_sessionManager is not null)
+                {
+                    MultiplayerUIManager.SetSessionManager(_sessionManager);
+                }
+                
+                uiInitialized = true;
+                Logger.LogInfo("Modern UI system initialized successfully!");
+                Logger.LogInfo("Press Ctrl+M to open the multiplayer menu");
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"Failed to initialize UI system: {e.Message}");
+                uiInitialized = false;
+            }
+        }
+        
         private void SetupEventHooks()
         {
             Logger.LogDebug("Setting up ETGMod event hooks...");
               // Hook into BepInEx event system - will use Update() and scene detection instead
             
             Logger.LogDebug("Event hooks registered");
-        }          private void SetupDebugControls()
-        {
-            Logger.LogInfo("🎮 AUTOMATIC Multiplayer System Enabled!");
-            Logger.LogInfo("No manual Steam ID setup required - everything is automatic!");
-            Logger.LogInfo("");
-            Logger.LogInfo("Debug controls:");
-            Logger.LogInfo("  F3 - Start hosting (auto-registers as discoverable host)");
-            Logger.LogInfo("  F4 - Auto-join best available host or pending invite");
-            Logger.LogInfo("  F5 - Stop multiplayer session");
-            Logger.LogInfo("  F6 - Show status, your Steam ID, and available hosts");
-            Logger.LogInfo("  F7 - Scan for available hosts");
-            Logger.LogInfo("  F8 - Show Steam invite dialog");
-            Logger.LogInfo("  F9 - Simulate Steam overlay 'Join Game' click");
-            Logger.LogInfo("  F10 - Run ETG Steam diagnostics");
-            Logger.LogInfo("");
-            Logger.LogInfo("🚀 How to use (SUPER SIMPLE):");
-            Logger.LogInfo("1. Player 1: Press F3 to host (auto-discoverable)");
-            Logger.LogInfo("2. Player 2: Press F4 to auto-join Player 1");
-            Logger.LogInfo("3. That's it! No Steam IDs, no manual setup!");
-            Logger.LogInfo("");
-            Logger.LogInfo("Or use Steam overlay 'Join Game' for instant connection!");
-        }        void Update()
+        }          void Update()
         {
             // Update the session manager each frame (includes P2P networking and player sync)
             _sessionManager?.Update();
             
+            // CRITICAL: Prevent game pausing when hosting a multiplayer session
+            if (_sessionManager is not null && _sessionManager.IsActive && _sessionManager.IsHost)
+            {
+                PreventGamePauseWhenHosting();
+            }
+            
             // Handle debug input
             HandleDebugInput();
-        }private void HandleDebugInput()
+            
+            // Handle UI input
+            HandleUIInput();
+        }
+        
+        /// <summary>
+        /// Prevent the game from pausing when hosting a multiplayer session
+        /// This ensures the server continues running even when ESC is pressed or menus are opened
+        /// </summary>
+        private void PreventGamePauseWhenHosting()
         {
-            if (_sessionManager == null) return;
+            try
+            {
+                // Ensure Time.timeScale stays at 1.0 when hosting
+                if (Time.timeScale != 1.0f)
+                {
+                    Time.timeScale = 1.0f;
+                    Logger.LogInfo("[Multiplayer] Prevented game pause - keeping server running (timeScale restored to 1.0)");
+                }
+                
+                // Try to access ETG's GameManager to prevent pause
+                var gameManagerType = System.Type.GetType("GameManager, Assembly-CSharp");
+                if (gameManagerType is not null)
+                {
+                    var instanceProperty = gameManagerType.GetProperty("Instance", 
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                    
+                    if (instanceProperty is not null)
+                    {
+                        var gameManager = instanceProperty.GetValue(null);
+                        if (gameManager is not null)
+                        {
+                            // Try to find and manipulate pause-related fields/properties
+                            var pausedField = gameManagerType.GetField("IsPaused", 
+                                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                            
+                            if (pausedField is not null && (bool)pausedField.GetValue(gameManager) == true)
+                            {
+                                pausedField.SetValue(gameManager, false);
+                                Logger.LogInfo("[Multiplayer] Overrode GameManager pause state - server continues running");
+                            }
+                            
+                            // Also try common pause field names
+                            var isPausedField = gameManagerType.GetField("m_isPaused", 
+                                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                            
+                            if (isPausedField is not null && (bool)isPausedField.GetValue(gameManager) == true)
+                            {
+                                isPausedField.SetValue(gameManager, false);
+                                Logger.LogInfo("[Multiplayer] Overrode GameManager internal pause state - server continues running");
+                            }
+                            
+                            // Try to find pause property
+                            var pausedProperty = gameManagerType.GetProperty("IsPaused", 
+                                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                            
+                            if (pausedProperty is not null && pausedProperty.CanWrite)
+                            {
+                                if ((bool)pausedProperty.GetValue(gameManager) == true)
+                                {
+                                    pausedProperty.SetValue(gameManager, false);
+                                    Logger.LogInfo("[Multiplayer] Overrode GameManager pause property - server continues running");
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Try to prevent BraveTime pausing (ETG's custom time system)
+                var braveTimeType = System.Type.GetType("BraveTime, Assembly-CSharp");
+                if (braveTimeType is not null)
+                {
+                    var deltaTimeProperty = braveTimeType.GetProperty("DeltaTime", 
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                    
+                    if (deltaTimeProperty is not null && deltaTimeProperty.CanWrite)
+                    {
+                        // Ensure DeltaTime doesn't get set to 0 (which would pause the game)
+                        float deltaTime = (float)deltaTimeProperty.GetValue(null);
+                        if (deltaTime == 0f)
+                        {
+                            deltaTimeProperty.SetValue(null, Time.unscaledDeltaTime);
+                        }
+                    }
+                }
+            }
+            catch (System.Exception e)
+            {
+                // Silently handle reflection errors - not all ETG versions may have the same structure
+                // Only log once to avoid spam
+                if (Time.frameCount % 300 == 0) // Log every ~5 seconds at 60fps
+                {
+                    Logger.LogWarning($"[Multiplayer] Could not access pause system (game version difference): {e.Message}");
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Handle UI-specific input
+        /// </summary>
+        private void HandleUIInput()
+        {
+            try
+            {
+                // Ctrl+M to toggle main multiplayer UI
+                if (Input.GetKeyDown(KeyCode.M) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)))
+                {
+                    if (uiInitialized)
+                    {
+                        Logger.LogInfo("multiplayer ui toggled");
+                        MultiplayerUIManager.ToggleUI();
+                        
+                        // If hosting, inform about pause override
+                        if (_sessionManager is not null)
+                        {
+                            if (_sessionManager.IsActive && _sessionManager.IsHost)
+                            {
+                                MultiplayerUIManager.ShowNotification("Hosting server", 4f);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Logger.LogWarning("UI broken idk");
+                    }
+                }
+                
+                // ESC key handling - intercept when hosting to inform user
+                if (Input.GetKeyDown(KeyCode.Escape))
+                {
+                    // Check if we're hosting a multiplayer session
+                    if (_sessionManager is not null && _sessionManager.IsActive && _sessionManager.IsHost)
+                    {
+                        // When hosting: close UI if open, show notification, but don't pause game
+                        if (uiInitialized)
+                        {
+                            MultiplayerUIManager.HideUI();
+                            MultiplayerUIManager.ShowNotification("Game cannot pause while hosting multiplayer server", 3f);
+                        }
+                        Logger.LogInfo("[Multiplayer] ESC pressed while hosting - UI closed, pause prevented to keep server running");
+                    }
+                    else
+                    {
+                        // Not hosting, allow normal ESC behavior (close our UI if open)
+                        if (uiInitialized)
+                        {
+                            MultiplayerUIManager.HideUI();
+                        }
+                    }
+                }
+                
+                // Ctrl+N to show notification test
+                if (Input.GetKeyDown(KeyCode.N) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)))
+                {
+                    if (uiInitialized)
+                    {
+                        MultiplayerUIManager.ShowNotification("UI test notification - System working perfectly!", 3f);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"Error in UI input handling: {e.Message}");
+            }
+        }
+        
+        private void HandleDebugInput()
+        {
+            if (_sessionManager is null) return;
             
             try
             {
@@ -155,12 +346,6 @@ namespace GungeonTogether
                 {
                     Logger.LogInfo("F7: Attempting to join a Steam friend for testing...");
                     TryJoinSteamFriend();
-                }
-                
-                if (Input.GetKeyDown(KeyCode.F8))
-                {
-                    Logger.LogInfo("F8: Showing Steam invite dialog...");
-                    ShowSteamInviteDialog();
                 }
                 
                 if (Input.GetKeyDown(KeyCode.F8))
@@ -199,25 +384,42 @@ namespace GungeonTogether
             // Main menu is loaded, we could add UI elements here in the future
         }
         
-        // Multiplayer API
+        // Multiplayer API with UI integration
         public void StartHosting()
         {
             try
             {
-                if (_sessionManager != null)
+                if (_sessionManager is not null)
                 {
                     _sessionManager.StartSession();
                     Logger.LogInfo("Started hosting session with SimpleSessionManager!");
                     Logger.LogInfo($"Manager Active: {_sessionManager.IsActive}");
+                    
+                    // Notify UI and user about hosting status and pause prevention
+                    if (uiInitialized)
+                    {
+                        MultiplayerUIManager.OnSessionStateChanged(true, true);
+                        MultiplayerUIManager.ShowNotification("Hosting multiplayer server - game will not pause!", 5f);
+                    }
+                    
+                    Logger.LogInfo("[Multiplayer] Game pause prevention is now active - server will continue running even when menus are opened");
                 }
                 else
                 {
                     Logger.LogError("No session manager available");
+                    if (uiInitialized)
+                    {
+                        MultiplayerUIManager.ShowNotification("Session manager not available", 3f);
+                    }
                 }
             }
             catch (Exception e)
             {
                 Logger.LogError($"Failed to start hosting: {e.Message}");
+                if (uiInitialized)
+                {
+                    MultiplayerUIManager.ShowNotification($"Failed to start hosting: {e.Message}", 4f);
+                }
             }
         }
         
@@ -225,9 +427,13 @@ namespace GungeonTogether
         {
             try
             {
-                if (_sessionManager == null)
+                if (_sessionManager is null)
                 {
                     Logger.LogError("SessionManager not initialized");
+                    if (uiInitialized)
+                    {
+                        MultiplayerUIManager.ShowNotification("Session manager not initialized", 3f);
+                    }
                     return;
                 }
 
@@ -240,15 +446,29 @@ namespace GungeonTogether
                     
                     Logger.LogInfo($"Attempting to join session: {sessionId}");
                     _sessionManager.JoinSession(sessionId);
+                    
+                    // Notify UI
+                    if (uiInitialized)
+                    {
+                        MultiplayerUIManager.ShowNotification($"Connecting to host: {steamIdString}", 3f);
+                    }
                 }
                 else
                 {
                     Logger.LogError($"Invalid Steam ID format: {steamIdString}");
+                    if (uiInitialized)
+                    {
+                        MultiplayerUIManager.ShowNotification($"Invalid Steam ID: {steamIdString}", 3f);
+                    }
                 }
             }
             catch (Exception e)
             {
                 Logger.LogError($"Failed to join session: {e.Message}");
+                if (uiInitialized)
+                {
+                    MultiplayerUIManager.ShowNotification($"Failed to join: {e.Message}", 4f);
+                }
             }
         }
         
@@ -256,25 +476,42 @@ namespace GungeonTogether
         {
             try
             {
-                if (_sessionManager != null)
+                if (_sessionManager is not null)
                 {
                     _sessionManager.StopSession();
                     Logger.LogInfo("Stopped session with SimpleSessionManager!");
+                    
+                    // Notify UI and user that hosting has stopped
+                    if (uiInitialized)
+                    {
+                        MultiplayerUIManager.OnSessionStateChanged(false, false);
+                        MultiplayerUIManager.ShowNotification("Multiplayer session ended - normal pause behavior restored", 3f);
+                    }
+                    
+                    Logger.LogInfo("[Multiplayer] Game pause prevention deactivated - normal pause behavior restored");
                 }
                 else
                 {
                     Logger.LogError("No session manager available to stop");
+                    if (uiInitialized)
+                    {
+                        MultiplayerUIManager.ShowNotification("No session to stop", 2f);
+                    }
                 }
             }
             catch (Exception e)
             {
                 Logger.LogError($"Failed to stop multiplayer: {e.Message}");
+                if (uiInitialized)
+                {
+                    MultiplayerUIManager.ShowNotification($"Failed to stop: {e.Message}", 3f);
+                }
             }
         }        public void ShowStatus()
         {
             Logger.LogInfo("=== GungeonTogether Status ===");
             
-            if (_sessionManager != null)
+            if (_sessionManager is not null)
             {
                 Logger.LogInfo("Using: SimpleSessionManager with AUTOMATIC Steam Integration");
                 Logger.LogInfo($"Session Active: {_sessionManager.IsActive}");
@@ -284,14 +521,14 @@ namespace GungeonTogether
                 try
                 {
                     var steamNet = SteamNetworkingFactory.TryCreateSteamNetworking();
-                    if (steamNet != null && steamNet.IsAvailable())
+                    if (steamNet is not null && steamNet.IsAvailable())
                     {
                         ulong mySteamId = steamNet.GetSteamID();
                         Logger.LogInfo($"Your Steam ID: {mySteamId}");
                         
                         if (_sessionManager.IsActive && _sessionManager.IsHost)
                         {
-                            Logger.LogInfo($"� HOSTING: You are automatically discoverable!");
+                            Logger.LogInfo($"Server hosting!");
                             Logger.LogInfo("Friends can join you by:");
                             Logger.LogInfo("  • Using Steam overlay 'Join Game'");
                             Logger.LogInfo("  • Pressing F4 to auto-find your session");
@@ -304,20 +541,20 @@ namespace GungeonTogether
                             Logger.LogInfo($"🔍 Available hosts ({availableHosts.Length}):");
                             for (int i = 0; i < availableHosts.Length; i++)
                             {
-                                Logger.LogInfo($"   🏠 {availableHosts[i]}");
+                                Logger.LogInfo($"{availableHosts[i]}");
                             }
                             Logger.LogInfo("Press F4 to auto-join the best available host!");
                         }
                         else
                         {
-                            Logger.LogInfo("🔍 No available hosts found");
+                            Logger.LogInfo("No available hosts found");
                         }
                         
                         // Show last invite info if available
                         ulong lastInvite = ETGSteamP2PNetworking.GetLastInviterSteamId();
-                        if (lastInvite != 0)
+                        if (lastInvite > 0)
                         {
-                            Logger.LogInfo($"📨 Priority invite from: {lastInvite}");
+                            Logger.LogInfo($"Priority invite from: {lastInvite}");
                         }
                     }
                 }
@@ -331,12 +568,9 @@ namespace GungeonTogether
                 Logger.LogInfo("Status: No manager initialized");
                 Logger.LogInfo("Error: Mod failed to initialize properly");
             }
-            
-            Logger.LogInfo("Debug Controls: F3=Host, F4=Auto-Join, F5=Stop, F6=Status");
-            Logger.LogInfo("Steam Features: F7=Scan Hosts, F8=Friends, F9=Overlay Join, F10=Diagnostics");
         }        private void TryJoinSteamFriend()
         {
-            Logger.LogInfo("🔍 F7: Scanning for available hosts...");
+            Logger.LogInfo("F7: Scanning for available hosts...");
             
             try
             {
@@ -345,36 +579,36 @@ namespace GungeonTogether
                 
                 if (availableHosts.Length == 0)
                 {
-                    Logger.LogInfo("❌ No available hosts found");
-                    Logger.LogInfo("💡 To find hosts:");
+                    Logger.LogInfo("No available hosts found");
+                    Logger.LogInfo("To find hosts:");
                     Logger.LogInfo("   • Wait for friends to start hosting (F3)");
                     Logger.LogInfo("   • Hosts automatically broadcast their availability");
                     Logger.LogInfo("   • Use Steam overlay 'Join Game' for instant connection");
                 }
                 else
                 {
-                    Logger.LogInfo($"✅ Found {availableHosts.Length} available host(s):");
+                    Logger.LogInfo($"Found {availableHosts.Length} available host(s):");
                     for (int i = 0; i < availableHosts.Length; i++)
                     {
-                        Logger.LogInfo($"   🏠 Host {i + 1}: Steam ID {availableHosts[i]}");
+                        Logger.LogInfo($"Host {i + 1}: Steam ID {availableHosts[i]}");
                     }
                     
-                    Logger.LogInfo("🎮 Press F4 to automatically join the best available host!");
+                    Logger.LogInfo("Press F4 to automatically join the best available host!");
                     
                     // If there's exactly one host, we could auto-select it
                     if (availableHosts.Length == 1)
                     {
                         ulong selectedHost = availableHosts[0];
-                        Logger.LogInfo($"🎯 Auto-selected host: {selectedHost}");
+                        Logger.LogInfo($"Auto-selected host: {selectedHost}");
                         Logger.LogInfo("Press F4 to join this host!");
                     }
                 }
                 
                 // Show current invite status
                 ulong lastInvite = ETGSteamP2PNetworking.GetLastInviterSteamId();
-                if (lastInvite != 0)
+                if (lastInvite > 0)
                 {
-                    Logger.LogInfo($"📨 Active invite from: {lastInvite} (priority join target)");
+                    Logger.LogInfo($"Active invite from: {lastInvite} (priority join target)");
                 }
             }
             catch (Exception e)
@@ -386,7 +620,7 @@ namespace GungeonTogether
         {
             try
             {
-                if (_sessionManager == null || !_sessionManager.IsActive)
+                if (_sessionManager is null || !_sessionManager.IsActive)
                 {
                     Logger.LogWarning("Cannot show invite dialog - no active session");
                     return;
@@ -435,15 +669,24 @@ namespace GungeonTogether
         {
             try
             {
-                Logger.LogInfo($"🚀 REAL Steam overlay 'Join Game' event received for host: {hostSteamId}");
-                Logger.LogInfo("This is a REAL overlay join event, not a simulation!");
+                Logger.LogInfo($"'Join Game' event received for host: {hostSteamId}");
+                
+                // Notify UI
+                if (uiInitialized)
+                {
+                    MultiplayerUIManager.OnSteamJoinRequested(hostSteamId);
+                }
                 
                 // Use the Steam session helper to handle the join
                 SteamSessionHelper.HandleJoinGameRequest($"steam_lobby_{hostSteamId}");
             }
             catch (Exception e)
             {
-                Logger.LogError($"Failed to handle real Steam overlay join event: {e.Message}");
+                Logger.LogError($"Failed to handle join event: {e.Message}");
+                if (uiInitialized)
+                {
+                    MultiplayerUIManager.OnSteamConnectionFailed(e.Message);
+                }
             }
         }
         
@@ -471,11 +714,11 @@ namespace GungeonTogether
         {
             try
             {
-                Logger.LogInfo($"🎮 F9: Simulating Steam overlay 'Join Game' click...");
+                Logger.LogInfo($"F9: Simulating Steam overlay 'Join Game' click...");
                 
                 // Test direct overlay join event firing
                 var steamNetwork = SteamNetworkingFactory.TryCreateSteamNetworking();
-                if (steamNetwork != null && steamNetwork.IsAvailable())
+                if (steamNetwork is not null && steamNetwork.IsAvailable())
                 {
                     ulong mySteamId = steamNetwork.GetSteamID();
                     
@@ -486,30 +729,23 @@ namespace GungeonTogether
                     {
                         // Use the first available host for simulation
                         ulong simulatedHostSteamId = availableHosts[0];
-                        Logger.LogInfo($"📡 Found real host, simulating overlay invite from: {simulatedHostSteamId}");
+                        Logger.LogInfo($"Found real host, simulating overlay invite from: {simulatedHostSteamId}");
                         
                         // Set up the invite as if it came from Steam overlay
                         ETGSteamP2PNetworking.SetInviteInfo(simulatedHostSteamId, steamLobbyId);
                         
                         // Fire the overlay join event directly using public method
-                        Logger.LogInfo($"🔥 Firing OnOverlayJoinRequested event for Steam ID: {simulatedHostSteamId}");
+                        Logger.LogInfo($"Firing OnOverlayJoinRequested event for Steam ID: {simulatedHostSteamId}");
                         ETGSteamP2PNetworking.TriggerOverlayJoinEvent(simulatedHostSteamId.ToString());
                         
-                        Logger.LogInfo("✅ Steam overlay join simulation complete - check for join activity!");
+                        Logger.LogInfo("Steam overlay join simulation complete - check for join activity!");
                     }
                     else
                     {
-                        Logger.LogWarning("❌ No available hosts found for overlay join simulation");
-                        Logger.LogInfo("💡 To test overlay join properly:");
-                        Logger.LogInfo("   1. First press F3 to start hosting");
-                        Logger.LogInfo("   2. Then press F9 to simulate someone joining your session");
-                        Logger.LogInfo("   3. Or test with a friend hosting on another computer");
-                        Logger.LogInfo("");
-                        Logger.LogInfo("🔧 Creating fake host for testing overlay join system...");
-                        
+
                         // Create a fake host for testing the overlay join system
                         ulong fakeHostId = mySteamId + 1;
-                        Logger.LogInfo($"🎭 Testing with fake host: {fakeHostId}");
+                        Logger.LogInfo($"Testing with fake host: {fakeHostId}");
                         Logger.LogInfo("(This tests the overlay join flow, but P2P connection will fail as expected)");
                         
                         ETGSteamP2PNetworking.SetInviteInfo(fakeHostId, steamLobbyId);
@@ -518,7 +754,7 @@ namespace GungeonTogether
                 }
                 else
                 {
-                    Logger.LogError("❌ Steam networking not available for overlay join simulation");
+                    Logger.LogError("Steam networking not available for overlay join simulation");
                 }
             }
             catch (Exception e)
@@ -554,6 +790,12 @@ namespace GungeonTogether
                 // Clean up session manager
                 _sessionManager?.StopSession();
                 
+                // Clean up UI system
+                if (uiInitialized)
+                {
+                    MultiplayerUIManager.Cleanup();
+                }
+                
                 Logger.LogInfo("GungeonTogether mod cleanup completed");
             }
             catch (Exception e)
@@ -566,7 +808,7 @@ namespace GungeonTogether
         {
             try
             {
-                if (_sessionManager == null)
+                if (_sessionManager is null)
                 {
                     Logger.LogError("No session manager available for joining");
                     return;
@@ -574,25 +816,25 @@ namespace GungeonTogether
                 
                 // AUTOMATIC: Find the best available host
                 var steamNet = SteamNetworkingFactory.TryCreateSteamNetworking();
-                if (steamNet != null && steamNet.IsAvailable())
+                if (steamNet is not null && steamNet.IsAvailable())
                 {
                     // Get the best available host automatically
                     ulong hostSteamId = ETGSteamP2PNetworking.GetBestAvailableHost();
                     
-                    if (hostSteamId != 0)
+                    if (hostSteamId > 0)
                     {
                         ulong mySteamId = steamNet.GetSteamID();
                         if (mySteamId == hostSteamId)
                         {
-                            Logger.LogInfo("🚫 Cannot join yourself!");
+                            Logger.LogInfo("Cannot join yourself!");
                             return;
                         }
                         
-                        Logger.LogInfo($"🎯 F4: Auto-joining host Steam ID: {hostSteamId}");
+                        Logger.LogInfo($"F4: Auto-joining host Steam ID: {hostSteamId}");
                         
                         // Join using the automatically selected host
                         SteamSessionHelper.HandleJoinGameRequest($"auto_join_{hostSteamId}");
-                        Logger.LogInfo($"✅ Automatically joined session: {hostSteamId}");
+                        Logger.LogInfo($"Automatically joined session: {hostSteamId}");
                     }
                     else
                     {
@@ -601,8 +843,8 @@ namespace GungeonTogether
                         
                         if (availableHosts.Length == 0)
                         {
-                            Logger.LogInfo("🔍 F4: No available hosts found");
-                            Logger.LogInfo("💡 How to connect:");
+                            Logger.LogInfo("F4: No available hosts found");
+                            Logger.LogInfo("How to connect:");
                             Logger.LogInfo("   1. Have someone host a session (F3)");
                             Logger.LogInfo("   2. They will automatically appear as available");
                             Logger.LogInfo("   3. Press F4 again to auto-join them");
@@ -610,11 +852,11 @@ namespace GungeonTogether
                         }
                         else
                         {
-                            Logger.LogInfo($"🤔 Found {availableHosts.Length} hosts but none are suitable for joining");
+                            Logger.LogInfo($" Found {availableHosts.Length} hosts but none are suitable for joining");
                             Logger.LogInfo("Available hosts:");
                             for (int i = 0; i < availableHosts.Length; i++)
                             {
-                                Logger.LogInfo($"   🏠 Host {i + 1}: Steam ID {availableHosts[i]}");
+                                Logger.LogInfo($"Host {i + 1}: Steam ID {availableHosts[i]}");
                             }
                         }
                     }
@@ -652,7 +894,7 @@ namespace GungeonTogether
                         Logger.LogInfo($"[Steam Args] Found Steam connect command: {args[i]} {connectTarget}");
                         
                         // Try to parse as Steam ID
-                        if (ulong.TryParse(connectTarget, out ulong steamId) && steamId != 0)
+                        if (ulong.TryParse(connectTarget, out ulong steamId) && steamId > 0)
                         {
                             Logger.LogInfo($"[Steam Args] Detected Steam overlay join request for Steam ID: {steamId}");
                             
@@ -671,7 +913,7 @@ namespace GungeonTogether
                         Logger.LogInfo($"[Steam Args] Found Steam lobby connect command: {args[i]} {lobbyId}");
                         
                         // Try to parse lobby ID and extract host Steam ID
-                        if (ulong.TryParse(lobbyId, out ulong parsedLobbyId) && parsedLobbyId != 0)
+                        if (ulong.TryParse(lobbyId, out ulong parsedLobbyId) && parsedLobbyId > 0)
                         {
                             Logger.LogInfo($"[Steam Args] Detected Steam lobby join request for lobby: {parsedLobbyId}");
                             
@@ -720,7 +962,7 @@ namespace GungeonTogether
         {
             try
             {
-                if (scheduledJoinTarget != 0 && _sessionManager != null)
+                if (scheduledJoinTarget > 0 && _sessionManager is not null)
                 {
                     Logger.LogInfo($"[Steam Args] Executing scheduled join for Steam ID: {scheduledJoinTarget}");
                     
@@ -735,6 +977,13 @@ namespace GungeonTogether
             {
                 Logger.LogError($"[Steam Args] Error executing scheduled join: {e.Message}");
             }
+        }
+        
+        /// <summary>
+        /// Setup debug controls and display help information
+        /// </summary>
+        private void SetupDebugControls()
+        {
         }
     }
 }
