@@ -26,6 +26,7 @@ WIP WIP WIP WIP WIP WIP pls be nice
 cd GungeonTogetherETG
 dotnet build --configuration Release
 ```
+then hope for the best because honestly I have no idea if it will even build
 
 ## Technical Details
 Built with BepInEx framework using Steam P2P networking for seamless multiplayer experience.
