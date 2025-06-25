@@ -158,86 +158,78 @@ namespace GungeonTogether
         {
             try
             {
-                // Ensure Time.timeScale stays at 1.0 when hosting
+                // Ensure Time.timeScale stays at 1.0 when hosting (this is the most reliable method)
                 if (Time.timeScale != 1.0f)
                 {
                     Time.timeScale = 1.0f;
-                    Logger.LogInfo("[Multiplayer] Prevented game pause - keeping server running (timeScale restored to 1.0)");
+                    
+                    // Log once per pause attempt to inform user
+                    if (Time.frameCount % 60 == 0) // Log once per second at 60fps
+                    {
+                        Logger.LogInfo("[Multiplayer] Game pause prevented - keeping server running (timeScale forced to 1.0)");
+                    }
                 }
                 
-                // Try to access ETG's GameManager to prevent pause
-                var gameManagerType = System.Type.GetType("GameManager, Assembly-CSharp");
-                if (gameManagerType is not null)
+                // Try a safer approach using method invocation instead of property access
+                try
                 {
-                    var instanceProperty = gameManagerType.GetProperty("Instance", 
-                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                    
-                    if (instanceProperty is not null)
+                    var gameManagerType = System.Type.GetType("GameManager, Assembly-CSharp");
+                    if (gameManagerType is not null)
                     {
-                        var gameManager = instanceProperty.GetValue(null);
-                        if (gameManager is not null)
+                        // Get the static Instance field instead of property to avoid reflection issues
+                        var instanceField = gameManagerType.GetField("Instance", 
+                            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                        
+                        if (instanceField is not null)
                         {
-                            // Try to find and manipulate pause-related fields/properties
-                            var pausedField = gameManagerType.GetField("IsPaused", 
-                                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                            
-                            if (pausedField is not null && (bool)pausedField.GetValue(gameManager) == true)
+                            var gameManager = instanceField.GetValue(null);
+                            if (gameManager is not null)
                             {
-                                pausedField.SetValue(gameManager, false);
-                                Logger.LogInfo("[Multiplayer] Overrode GameManager pause state - server continues running");
-                            }
-                            
-                            // Also try common pause field names
-                            var isPausedField = gameManagerType.GetField("m_isPaused", 
-                                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                            
-                            if (isPausedField is not null && (bool)isPausedField.GetValue(gameManager) == true)
-                            {
-                                isPausedField.SetValue(gameManager, false);
-                                Logger.LogInfo("[Multiplayer] Overrode GameManager internal pause state - server continues running");
-                            }
-                            
-                            // Try to find pause property
-                            var pausedProperty = gameManagerType.GetProperty("IsPaused", 
-                                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                            
-                            if (pausedProperty is not null && pausedProperty.CanWrite)
-                            {
-                                if ((bool)pausedProperty.GetValue(gameManager) == true)
+                                // Try to find and manipulate pause-related fields only (avoiding properties)
+                                var isPausedField = gameManagerType.GetField("m_isPaused", 
+                                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                                
+                                if (isPausedField is not null)
                                 {
-                                    pausedProperty.SetValue(gameManager, false);
-                                    Logger.LogInfo("[Multiplayer] Overrode GameManager pause property - server continues running");
+                                    var pausedValue = isPausedField.GetValue(gameManager);
+                                    if (pausedValue is bool isPaused && isPaused)
+                                    {
+                                        isPausedField.SetValue(gameManager, false);
+                                        Logger.LogInfo("[Multiplayer] Overrode GameManager pause state - server continues running");
+                                    }
+                                }
+                                
+                                // Try alternative field names
+                                var pausedField = gameManagerType.GetField("IsPaused", 
+                                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                                
+                                if (pausedField is not null)
+                                {
+                                    var pausedValue = pausedField.GetValue(gameManager);
+                                    if (pausedValue is bool isPaused && isPaused)
+                                    {
+                                        pausedField.SetValue(gameManager, false);
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                
-                // Try to prevent BraveTime pausing (ETG's custom time system)
-                var braveTimeType = System.Type.GetType("BraveTime, Assembly-CSharp");
-                if (braveTimeType is not null)
+                catch (System.Exception ex)
                 {
-                    var deltaTimeProperty = braveTimeType.GetProperty("DeltaTime", 
-                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                    
-                    if (deltaTimeProperty is not null && deltaTimeProperty.CanWrite)
+                    // Only log reflection errors once every 5 seconds to avoid spam
+                    if (Time.frameCount % 300 == 0)
                     {
-                        // Ensure DeltaTime doesn't get set to 0 (which would pause the game)
-                        float deltaTime = (float)deltaTimeProperty.GetValue(null);
-                        if (deltaTime == 0f)
-                        {
-                            deltaTimeProperty.SetValue(null, Time.unscaledDeltaTime);
-                        }
+                        Logger.LogWarning($"[Multiplayer] GameManager pause override failed (using timeScale fallback): {ex.Message}");
                     }
                 }
             }
             catch (System.Exception e)
             {
-                // Silently handle reflection errors - not all ETG versions may have the same structure
-                // Only log once to avoid spam
+                // Fallback error handling
                 if (Time.frameCount % 300 == 0) // Log every ~5 seconds at 60fps
                 {
-                    Logger.LogWarning($"[Multiplayer] Could not access pause system (game version difference): {e.Message}");
+                    Logger.LogWarning($"[Multiplayer] Pause prevention error (timeScale fallback active): {e.Message}");
                 }
             }
         }
@@ -580,10 +572,6 @@ namespace GungeonTogether
                 if (availableHosts.Length == 0)
                 {
                     Logger.LogInfo("No available hosts found");
-                    Logger.LogInfo("To find hosts:");
-                    Logger.LogInfo("   • Wait for friends to start hosting (F3)");
-                    Logger.LogInfo("   • Hosts automatically broadcast their availability");
-                    Logger.LogInfo("   • Use Steam overlay 'Join Game' for instant connection");
                 }
                 else
                 {
@@ -592,8 +580,6 @@ namespace GungeonTogether
                     {
                         Logger.LogInfo($"Host {i + 1}: Steam ID {availableHosts[i]}");
                     }
-                    
-                    Logger.LogInfo("Press F4 to automatically join the best available host!");
                     
                     // If there's exactly one host, we could auto-select it
                     if (availableHosts.Length == 1)
