@@ -9,19 +9,21 @@ Successfully resolved the TypeLoadException by:
 
 ## Step-by-Step Restoration Plan
 
-### Phase 1: Verify Basic Loading (CURRENT)
+### Phase 1: Verify Basic Loading ✅ **COMPLETED**
 - [x] SimpleGameManager loads without TypeLoadException  
 - [x] Basic BepInEx integration works
 - [x] Debug controls functional
 - [x] **DISCOVERED**: Root cause is Steamworks dependency causing TypeLoadException
 - [x] **SOLUTION**: Created MinimalGameManager with zero external dependencies
-- [ ] **TEST**: Launch ETG and verify MinimalGameManager loads without TypeLoadException
+- [x] **✅ CONFIRMED**: MinimalGameManager loads successfully in ETG without TypeLoadException
+- [x] **✅ VERIFIED**: F3 debug control works and starts session in test mode
 
-### Phase 2: Add Basic Networking Layer
-- [ ] Restore SteamNetworkManager (simplified version)
-- [ ] Add basic packet interfaces (IPacketData, etc.)
-- [ ] Test Steam initialization without complex packets
-- [ ] Verify no TypeLoadException with basic networking
+### Phase 2: Add Basic Networking Layer (CURRENT)
+- [ ] Research how other ETG mods handle Steamworks.NET integration
+- [ ] Create Steamworks wrapper system for optional runtime loading
+- [ ] Add basic packet interfaces (IPacketData, etc.) without Steamworks dependencies
+- [ ] Test Steam initialization with proper runtime detection
+- [ ] Verify no TypeLoadException with basic networking layer
 
 ### Phase 3: Restore Packet System
 - [ ] Add LoginRequestPacket and LoginResponsePacket
