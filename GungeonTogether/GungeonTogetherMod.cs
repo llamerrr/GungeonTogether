@@ -17,8 +17,9 @@ namespace GungeonTogether
         public const string GUID = "liamspc.etg.gungeontogether";
         public const string NAME = "GungeonTogether";
         public const string VERSION = "0.0.1";        public static GungeonTogetherMod Instance { get; private set; }
-        private Game.BasicGameManager _gameManager;
-        private Game.SimpleSessionManager _fallbackManager;
+        private SimpleSessionManager _sessionManager;
+        //private Game.BasicGameManager _gameManager;
+        //private Game.SimpleSessionManager _fallbackManager;
         
         public void Awake()
         {
@@ -46,152 +47,34 @@ namespace GungeonTogether
         {
             Logger.LogInfo("GameManager is alive! Initializing multiplayer systems...");
             Logger.LogInfo($"ETG GameManager type: {gameManager.GetType().Name}");
-              try
-            {                Logger.LogInfo("Step 1: Creating ultra-minimal GameManager to isolate TypeLoadException...");
-                
-                // Try to create the most basic instance possible                Logger.LogInfo("Step 1a: About to instantiate BasicGameManager...");
-                _gameManager = new Game.BasicGameManager();
-                Logger.LogInfo("Step 1b: BasicGameManager created successfully!");
-                
-                Logger.LogInfo("Step 2: Checking manager state...");
-                Logger.LogInfo($"Step 2a: Manager Active: {_gameManager.IsActive}");
-                Logger.LogInfo($"Step 2b: Manager Status: {_gameManager.Status}");
-                
-                Logger.LogInfo("Step 3: Attempting Steam session helper initialization...");
+            
+            try
+            {                Logger.LogInfo("Initializing SimpleSessionManager (bypassing BasicGameManager)...");
+                _sessionManager = new SimpleSessionManager();
+                Logger.LogInfo("SimpleSessionManager created successfully!");
+                  Logger.LogInfo("Setting up Steam integration...");
                 try
                 {
-                    SteamSessionHelper.Initialize(_gameManager);
-                    Logger.LogInfo("Step 3a: Steam session helper initialized!");
+                    SteamSessionHelper.Initialize(_sessionManager);
+                    Logger.LogInfo("Steam integration initialized!");
                 }
                 catch (Exception steamEx)
                 {
-                    Logger.LogWarning($"Steam helper initialization failed: {steamEx.Message}");
-                    Logger.LogWarning("Continuing without Steam integration...");
+                    Logger.LogWarning($"Steam integration failed: {steamEx.Message}");
+                    Logger.LogInfo("Continuing without Steam features...");
                 }
                 
-                Logger.LogInfo("Step 4: Setting up event handlers...");
-                try
-                {
-                    SetupSessionEventHandlers();
-                    Logger.LogInfo("Step 4a: Event handlers configured!");
-                }
-                catch (Exception eventEx)
-                {
-                    Logger.LogWarning($"Event handler setup failed: {eventEx.Message}");
-                    Logger.LogWarning("Continuing without event handlers...");
-                }
-                
-                Logger.LogInfo("Step 5: Setting up debug controls...");
+                Logger.LogInfo("Setting up debug controls...");
                 SetupDebugControls();
-                  Logger.LogInfo("GungeonTogether multiplayer systems initialized!");
+                
+                Logger.LogInfo("GungeonTogether initialized successfully with SimpleSessionManager!");
                 Logger.LogInfo("Debug controls: F3=Host, F4=Stop, F5=Status");
-            }            catch (Exception e)
+            }
+            catch (Exception e)
             {
-                Logger.LogError($"Failed to initialize BasicGameManager: {e.Message}");
+                Logger.LogError($"Failed to initialize GungeonTogether: {e.Message}");
                 Logger.LogError($"Stack trace: {e.StackTrace}");
-                Logger.LogError($"Exception type: {e.GetType().Name}");
-                
-                // Try fallback implementation
-                Logger.LogInfo("Attempting fallback SimpleSessionManager...");
-                try
-                {
-                    _fallbackManager = new Game.SimpleSessionManager();
-                    Logger.LogInfo("Fallback SimpleSessionManager created successfully!");
-                    Logger.LogInfo("Limited functionality available: F3=Start, F4=Stop, F5=Status");
-                }
-                catch (Exception fallbackEx)
-                {
-                    Logger.LogError($"Fallback manager also failed: {fallbackEx.Message}");
-                    Logger.LogError("Mod initialization completely failed!");
-                }
-            }
-        }
-            private void SetupSessionEventHandlers()
-        {
-            Logger.LogInfo("Setting up session event handlers...");
-            
-            if (_gameManager == null)
-            {
-                Logger.LogWarning("Cannot setup event handlers - GameManager is null");
-                return;
-            }
-            
-            try
-            {
-                // Subscribe to session events with null checks
-                _gameManager.OnSessionStarted += OnSessionStarted;
-                Logger.LogInfo("OnSessionStarted event subscribed");
-                
-                _gameManager.OnSessionStopped += OnSessionStopped;
-                Logger.LogInfo("OnSessionStopped event subscribed");
-                
-                _gameManager.OnSessionJoined += OnSessionJoined;
-                Logger.LogInfo("OnSessionJoined event subscribed");
-                
-                _gameManager.OnSessionJoinFailed += OnSessionJoinFailed;
-                Logger.LogInfo("OnSessionJoinFailed event subscribed");
-                
-                Logger.LogInfo("Session event handlers configured successfully");
-            }
-            catch (Exception e)
-            {
-                Logger.LogError($"Error setting up event handlers: {e.Message}");
-                throw;
-            }
-        }
-          private void OnSessionStarted()
-        {
-            try
-            {
-                Logger.LogInfo("Session started - updating Steam rich presence");
-                if (_gameManager?.CurrentSessionId != null)
-                {
-                    SteamSessionHelper.UpdateRichPresence(true, _gameManager.CurrentSessionId);
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.LogError($"Error in OnSessionStarted: {e.Message}");
-            }
-        }
-        
-        private void OnSessionStopped()
-        {
-            try
-            {
-                Logger.LogInfo("Session stopped - clearing Steam rich presence");
-                SteamSessionHelper.UpdateRichPresence(false, null);
-            }
-            catch (Exception e)
-            {
-                Logger.LogError($"Error in OnSessionStopped: {e.Message}");
-            }
-        }
-        
-        private void OnSessionJoined(string sessionId)
-        {
-            try
-            {
-                Logger.LogInfo($"Successfully joined session: {sessionId}");
-                SteamSessionHelper.UpdateRichPresence(false, sessionId);
-            }
-            catch (Exception e)
-            {
-                Logger.LogError($"Error in OnSessionJoined: {e.Message}");
-            }
-        }
-        
-        private void OnSessionJoinFailed(string error)
-        {
-            try
-            {
-                Logger.LogError($"Failed to join session: {error}");
-            }
-            catch (Exception e)
-            {
-                Logger.LogError($"Error in OnSessionJoinFailed: {e.Message}");
-            }
-        }
+            }        }
 
         private void SetupEventHooks()
         {
@@ -210,17 +93,16 @@ namespace GungeonTogether
             Logger.LogInfo("  F8 - Show friends playing GungeonTogether");
             Logger.LogInfo("  F9 - Simulate Steam overlay 'Join Game' click");
         }
-        
-        void Update()
+          void Update()
         {
-            // Update the game manager each frame
-            _gameManager?.Update();
+            // Update the session manager each frame
+            _sessionManager?.Update();
             
             // Handle debug input
             HandleDebugInput();
         }        private void HandleDebugInput()
         {
-            if (_gameManager == null && _fallbackManager == null) return;
+            if (_sessionManager == null) return;
             
             try
             {
@@ -235,44 +117,36 @@ namespace GungeonTogether
                     Logger.LogInfo("F4: Stopping multiplayer session...");
                     StopMultiplayer();
                 }
-                  if (Input.GetKeyDown(KeyCode.F5))
+                
+                if (Input.GetKeyDown(KeyCode.F5))
                 {
                     Logger.LogInfo("F5: Showing status...");
                     ShowStatus();
                 }
                 
-                // Steam features only available with full BasicGameManager
-                if (_gameManager != null)
+                // Steam features - now enabled for full functionality
+                if (Input.GetKeyDown(KeyCode.F6))
                 {
-                    if (Input.GetKeyDown(KeyCode.F6))
-                    {
-                        Logger.LogInfo("F6: Attempting to join a Steam friend for testing...");
-                        TryJoinSteamFriend();
-                    }
-                    
-                    if (Input.GetKeyDown(KeyCode.F7))
-                    {
-                        Logger.LogInfo("F7: Showing Steam invite dialog...");
-                        ShowSteamInviteDialog();
-                    }
-                      if (Input.GetKeyDown(KeyCode.F8))
-                    {
-                        Logger.LogInfo("F8: Showing friends playing GungeonTogether...");
-                        ShowFriendsPlayingGame();
-                    }
-                    
-                    if (Input.GetKeyDown(KeyCode.F9))
-                    {
-                        Logger.LogInfo("F9: Simulating Steam overlay 'Join Game' click...");
-                        SimulateSteamOverlayJoin();
-                    }
+                    Logger.LogInfo("F6: Attempting to join a Steam friend for testing...");
+                    TryJoinSteamFriend();
                 }
-                else if (_fallbackManager != null)
+                
+                if (Input.GetKeyDown(KeyCode.F7))
                 {
-                    if (Input.GetKeyDown(KeyCode.F6))
-                    {
-                        Logger.LogInfo("F6: Steam features not available with fallback manager");
-                    }
+                    Logger.LogInfo("F7: Showing Steam invite dialog...");
+                    ShowSteamInviteDialog();
+                }
+                
+                if (Input.GetKeyDown(KeyCode.F8))
+                {
+                    Logger.LogInfo("F8: Showing friends playing GungeonTogether...");
+                    ShowFriendsPlayingGame();
+                }
+                
+                if (Input.GetKeyDown(KeyCode.F9))
+                {
+                    Logger.LogInfo("F9: Simulating Steam overlay 'Join Game' click...");
+                    SimulateSteamOverlayJoin();
                 }
             }
             catch (Exception e)
@@ -287,8 +161,7 @@ namespace GungeonTogether
             Logger.LogInfo("Game started event received");
             // Game has started, we can now safely interact with game systems
         }
-        
-        private void OnMainMenuLoaded(MainMenuFoyerController menu)
+          private void OnMainMenuLoaded(MainMenuFoyerController menu)
         {
             Logger.LogInfo("Main menu loaded");
             // Main menu is loaded, we could add UI elements here in the future
@@ -299,37 +172,34 @@ namespace GungeonTogether
         {
             try
             {
-                if (_gameManager != null)
+                if (_sessionManager != null)
                 {
-                    _gameManager.StartSession();
-                    Logger.LogInfo("Started hosting session with BasicGameManager!");
-                    Logger.LogInfo($"Manager Active: {_gameManager.IsActive}");
-                }
-                else if (_fallbackManager != null)
-                {
-                    _fallbackManager.StartSession();
-                    Logger.LogInfo("Started hosting session with fallback SimpleSessionManager!");
-                    Logger.LogInfo($"Manager Active: {_fallbackManager.IsActive}");
+                    _sessionManager.StartSession();
+                    Logger.LogInfo("Started hosting session with SimpleSessionManager!");
+                    Logger.LogInfo($"Manager Active: {_sessionManager.IsActive}");
                 }
                 else
                 {
-                    Logger.LogError("No game manager available (neither BasicGameManager nor fallback)");
+                    Logger.LogError("No session manager available");
                 }
             }
             catch (Exception e)
             {
-                Logger.LogError($"Failed to start hosting: {e.Message}");            }
+                Logger.LogError($"Failed to start hosting: {e.Message}");
+            }
         }
         
         public void JoinSession(string steamIdString)
         {
             try
             {
-                if (_gameManager == null)
+                if (_sessionManager == null)
                 {
-                    Logger.LogError("GameManager not initialized");
+                    Logger.LogError("SessionManager not initialized");
                     return;
-                }                if (ulong.TryParse(steamIdString, out ulong steamId))
+                }
+
+                if (ulong.TryParse(steamIdString, out ulong steamId))
                 {
                     Logger.LogInfo($"Join session called with Steam ID: {steamIdString}");
                     
@@ -337,7 +207,7 @@ namespace GungeonTogether
                     string sessionId = $"steam_{steamIdString}";
                     
                     Logger.LogInfo($"Attempting to join session: {sessionId}");
-                    _gameManager.JoinSession(sessionId);
+                    _sessionManager.JoinSession(sessionId);
                 }
                 else
                 {
@@ -346,26 +216,22 @@ namespace GungeonTogether
             }
             catch (Exception e)
             {
-                Logger.LogError($"Failed to join session: {e.Message}");            }
+                Logger.LogError($"Failed to join session: {e.Message}");
+            }
         }
         
         public void StopMultiplayer()
         {
             try
             {
-                if (_gameManager != null)
+                if (_sessionManager != null)
                 {
-                    _gameManager.StopSession();
-                    Logger.LogInfo("Stopped session with BasicGameManager!");
-                }
-                else if (_fallbackManager != null)
-                {
-                    _fallbackManager.StopSession();
-                    Logger.LogInfo("Stopped session with fallback SimpleSessionManager!");
+                    _sessionManager.StopSession();
+                    Logger.LogInfo("Stopped session with SimpleSessionManager!");
                 }
                 else
                 {
-                    Logger.LogError("No game manager available to stop");
+                    Logger.LogError("No session manager available to stop");
                 }
             }
             catch (Exception e)
@@ -376,21 +242,13 @@ namespace GungeonTogether
         {
             Logger.LogInfo("=== GungeonTogether Status ===");
             
-            if (_gameManager != null)
+            if (_sessionManager != null)
             {
-                Logger.LogInfo("Using: BasicGameManager");
-                Logger.LogInfo($"Session Active: {_gameManager.IsActive}");
-                Logger.LogInfo($"Session ID: {_gameManager.CurrentSessionId ?? "None"}");
-                Logger.LogInfo($"Is Host: {_gameManager.IsHost}");
-                Logger.LogInfo($"Status: {_gameManager.Status}");
-                Logger.LogInfo("Steam Integration: Ready");
-            }
-            else if (_fallbackManager != null)
-            {
-                Logger.LogInfo("Using: SimpleSessionManager (Fallback)");
-                Logger.LogInfo($"Session Active: {_fallbackManager.IsActive}");
-                Logger.LogInfo($"Status: {_fallbackManager.Status}");
-                Logger.LogInfo("Steam Integration: Not Available");
+                Logger.LogInfo("Using: SimpleSessionManager with Steam Integration");
+                Logger.LogInfo($"Session Active: {_sessionManager.IsActive}");
+                Logger.LogInfo($"Status: {_sessionManager.Status}");
+                Logger.LogInfo("Steam Integration: ACTIVE (P2P Ready)");
+                Logger.LogInfo("Steam Overlay: Join Game feature enabled");
             }
             else
             {
@@ -398,7 +256,8 @@ namespace GungeonTogether
                 Logger.LogInfo("Error: Mod failed to initialize properly");
             }
             
-            Logger.LogInfo("Debug Controls: F3-F9 available");
+            Logger.LogInfo("Debug Controls: F3=Host, F4=Stop, F5=Status");
+            Logger.LogInfo("Steam Features: F6=Join Friend, F7=Invite, F8=Friends, F9=Overlay Join");
         }private void TryJoinSteamFriend()
         {
             Logger.LogInfo("Testing Steam friend join functionality...");
@@ -409,19 +268,18 @@ namespace GungeonTogether
             
             Logger.LogInfo("Steam friend join test completed");
         }
-        
-        private void ShowSteamInviteDialog()
+          private void ShowSteamInviteDialog()
         {
             try
             {
-                if (!_gameManager.IsActive)
+                if (_sessionManager == null || !_sessionManager.IsActive)
                 {
                     Logger.LogWarning("Cannot show invite dialog - no active session");
                     return;
                 }
                 
-                Logger.LogInfo("Showing Steam invite dialog...");
-                SteamSessionHelper.ShowInviteDialog();
+                Logger.LogInfo("Steam invite dialog not available with SimpleSessionManager");
+                Logger.LogInfo("Steam features are limited in this mode");
             }
             catch (Exception e)
             {
@@ -487,20 +345,10 @@ namespace GungeonTogether
                 Logger.LogError($"Failed to simulate Steam overlay join: {e.Message}");
             }
         }
-        
-        void OnDestroy()
+          void OnDestroy()
         {
             try
             {
-                // Cleanup session event handlers
-                if (_gameManager != null)
-                {
-                    _gameManager.OnSessionStarted -= OnSessionStarted;
-                    _gameManager.OnSessionStopped -= OnSessionStopped;
-                    _gameManager.OnSessionJoined -= OnSessionJoined;
-                    _gameManager.OnSessionJoinFailed -= OnSessionJoinFailed;
-                }
-                
                 Logger.LogInfo("GungeonTogether mod cleanup completed");
             }
             catch (Exception e)

@@ -11,6 +11,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
   </PropertyGroup>  <ItemGroup>
     <PackageReference Include="EtG.ModTheGungeonAPI" Version="1.9.2" />
+    <PackageReference Include="Steamworks.NET" Version="20.2.0" />
   </ItemGroup>
 
   <!-- Copy the compiled DLL to the mod directory after build -->
