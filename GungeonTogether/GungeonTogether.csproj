@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+ <Project Sdk="Microsoft.NET.Sdk"> 
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
     <LangVersion>latest</LangVersion>
@@ -9,9 +9,12 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <DefineConstants>DEBUG;TRACE</DefineConstants>
-  </PropertyGroup>  <ItemGroup>
+  </PropertyGroup>
+
+  <ItemGroup>
     <PackageReference Include="EtG.ModTheGungeonAPI" Version="1.9.2" />
-    <PackageReference Include="Steamworks.NET" Version="20.2.0" />
+    <!-- <PackageReference Include="Facepunch.Steamworks" Version="2.3.3" /> -->
+    <!-- Commented out - ETG already has Steamworks built-in -->
   </ItemGroup>
 
   <!-- Copy the compiled DLL to the mod directory after build -->

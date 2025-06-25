@@ -16,7 +16,8 @@ namespace GungeonTogether
         // Mod metadata
         public const string GUID = "liamspc.etg.gungeontogether";
         public const string NAME = "GungeonTogether";
-        public const string VERSION = "0.0.1";        public static GungeonTogetherMod Instance { get; private set; }
+        public const string VERSION = "0.0.1";
+        public static GungeonTogetherMod Instance { get; private set; }
         private SimpleSessionManager _sessionManager;
         //private Game.BasicGameManager _gameManager;
         //private Game.SimpleSessionManager _fallbackManager;
@@ -68,7 +69,7 @@ namespace GungeonTogether
                 SetupDebugControls();
                 
                 Logger.LogInfo("GungeonTogether initialized successfully with SimpleSessionManager!");
-                Logger.LogInfo("Debug controls: F3=Host, F4=Stop, F5=Status");
+                Logger.LogInfo("Debug controls: F3=Host, F4=Join, F5=Stop, F6=Status");
             }
             catch (Exception e)
             {
@@ -86,21 +87,22 @@ namespace GungeonTogether
         {
             Logger.LogInfo("Debug controls enabled:");
             Logger.LogInfo("  F3 - Start hosting a multiplayer session");
-            Logger.LogInfo("  F4 - Stop multiplayer session");
-            Logger.LogInfo("  F5 - Show connection status");
-            Logger.LogInfo("  F6 - Join Steam friend session (test)");
-            Logger.LogInfo("  F7 - Show Steam invite dialog");
+            Logger.LogInfo("  F4 - Join a host session (testing)");
+            Logger.LogInfo("  F5 - Stop multiplayer session");
+            Logger.LogInfo("  F6 - Show connection status");
+            Logger.LogInfo("  F7 - Join Steam friend session (test)");
+            Logger.LogInfo("  F8 - Show Steam invite dialog");
             Logger.LogInfo("  F8 - Show friends playing GungeonTogether");
             Logger.LogInfo("  F9 - Simulate Steam overlay 'Join Game' click");
-        }
-          void Update()
+            Logger.LogInfo("  F10 - Run ETG Steam diagnostics (explore available Steam types)");
+        }        void Update()
         {
-            // Update the session manager each frame
+            // Update the session manager each frame (includes P2P networking and player sync)
             _sessionManager?.Update();
             
             // Handle debug input
             HandleDebugInput();
-        }        private void HandleDebugInput()
+        }private void HandleDebugInput()
         {
             if (_sessionManager == null) return;
             
@@ -114,26 +116,32 @@ namespace GungeonTogether
                 
                 if (Input.GetKeyDown(KeyCode.F4))
                 {
-                    Logger.LogInfo("F4: Stopping multiplayer session...");
-                    StopMultiplayer();
+                    Logger.LogInfo("F4: Attempting to join host session (testing)...");
+                    TryJoinHost();
                 }
                 
                 if (Input.GetKeyDown(KeyCode.F5))
                 {
-                    Logger.LogInfo("F5: Showing status...");
+                    Logger.LogInfo("F5: Stopping multiplayer session...");
+                    StopMultiplayer();
+                }
+                
+                if (Input.GetKeyDown(KeyCode.F6))
+                {
+                    Logger.LogInfo("F6: Showing status...");
                     ShowStatus();
                 }
                 
                 // Steam features - now enabled for full functionality
-                if (Input.GetKeyDown(KeyCode.F6))
+                if (Input.GetKeyDown(KeyCode.F7))
                 {
-                    Logger.LogInfo("F6: Attempting to join a Steam friend for testing...");
+                    Logger.LogInfo("F7: Attempting to join a Steam friend for testing...");
                     TryJoinSteamFriend();
                 }
                 
-                if (Input.GetKeyDown(KeyCode.F7))
+                if (Input.GetKeyDown(KeyCode.F8))
                 {
-                    Logger.LogInfo("F7: Showing Steam invite dialog...");
+                    Logger.LogInfo("F8: Showing Steam invite dialog...");
                     ShowSteamInviteDialog();
                 }
                 
@@ -147,6 +155,12 @@ namespace GungeonTogether
                 {
                     Logger.LogInfo("F9: Simulating Steam overlay 'Join Game' click...");
                     SimulateSteamOverlayJoin();
+                }
+                
+                if (Input.GetKeyDown(KeyCode.F10))
+                {
+                    Logger.LogInfo("F10: Running ETG Steam diagnostics...");
+                    RunSteamDiagnostics();
                 }
             }
             catch (Exception e)
@@ -345,6 +359,23 @@ namespace GungeonTogether
                 Logger.LogError($"Failed to simulate Steam overlay join: {e.Message}");
             }
         }
+        
+        /// <summary>
+        /// Run Steam diagnostics to explore ETG's available Steam types
+        /// </summary>
+        private void RunSteamDiagnostics()
+        {
+            try
+            {
+                Logger.LogInfo("Starting ETG Steam diagnostics...");
+                ETGSteamDiagnostics.DiagnoseETGSteamTypes();
+                Logger.LogInfo("Steam diagnostics completed - check Unity console for details");
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"Failed to run Steam diagnostics: {e.Message}");
+            }
+        }
           void OnDestroy()
         {
             try
@@ -354,6 +385,55 @@ namespace GungeonTogether
             catch (Exception e)
             {
                 Logger.LogError($"Error during cleanup: {e.Message}");
+            }
+        }
+
+        public void TryJoinHost()
+        {
+            try
+            {
+                if (_sessionManager == null)
+                {
+                    Logger.LogError("No session manager available for joining");
+                    return;
+                }
+                
+                // For testing, try to join the last known host Steam ID
+                // In a real scenario, this would come from Steam overlay "Join Game" click
+                var steamNet = SteamNetworkingFactory.TryCreateSteamNetworking();
+                if (steamNet != null && steamNet.IsAvailable())
+                {
+                    ulong mySteamId = steamNet.GetSteamID();
+                    
+                    // For testing, use a placeholder host Steam ID (in real usage, this comes from Steam)
+                    // You can replace this with a real Steam ID for testing
+                    ulong testHostSteamId = 76561198126223978; // Replace with actual host Steam ID
+                    
+                    if (mySteamId == testHostSteamId)
+                    {
+                        Logger.LogInfo("Cannot join yourself! Start hosting on one account and join from another.");
+                        return;
+                    }
+                    
+                    Logger.LogInfo($"Attempting to join host Steam ID: {testHostSteamId}");
+                    
+                    // Simulate join request
+                    steamNet.SimulateJoinRequest(testHostSteamId);
+                    
+                    // Join session using session manager
+                    string sessionId = $"steam_{testHostSteamId}";
+                    _sessionManager.JoinSession(sessionId);
+                    
+                    Logger.LogInfo($"Join request sent to host: {testHostSteamId}");
+                }
+                else
+                {
+                    Logger.LogError("Steam networking not available for joining");
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"Failed to join host: {e.Message}");
             }
         }
     }

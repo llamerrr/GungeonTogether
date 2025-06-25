@@ -6,6 +6,7 @@ GungeonTogetherETG/bin/
 GungeonTogetherETG/obj/
 *.dll
 *.pdb
+*.md
 
 # Visual Studio / Rider
 .vs/

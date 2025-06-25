@@ -1,417 +1,333 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using GungeonTogether.Networking.Packet.Data;
+using GungeonTogether.Steam;
 
 namespace GungeonTogether.Game
 {
     /// <summary>
     /// Handles synchronization of player positions, animations, and states across multiplayer sessions.
+    /// Ready for real networking implementation
     /// </summary>
     public class PlayerSynchronizer
     {
-        private GameManager gameManager;
+        private object gameManager;
         
         // Player tracking
         private PlayerController localPlayer;
-        private Dictionary<ushort, RemotePlayerData> remotePlayers;
-        private float lastUpdateTime;
-        private const float UPDATE_RATE = 1f / 20f; // 20 updates per second
+        private Dictionary<ulong, RemotePlayer> remotePlayers;
+        private float lastSyncTime;
+        private const float SYNC_INTERVAL = 0.1f; // 10 FPS for position updates
         
-        // Remote player data storage
-        private class RemotePlayerData
+        // Player data for networking
+        public struct PlayerState
         {
-            public ushort ClientId;
-            public Vector2 Position;
-            public Vector2 Velocity;
-            public bool IsFacingRight;
-            public bool IsGrounded;
-            public bool IsRolling;
-            public bool IsShooting;
-            public float AimDirection;
-            public string CurrentAnimation;
-            public string CurrentRoom;
-            public GameObject PlayerObject;
-            public tk2dSpriteAnimator Animator;
-            public float LastUpdateTime;
+            public Vector2 position;
+            public Vector2 velocity;
+            public bool isMoving;
+            public float facing;
+            public string currentAnimation;
+            public string currentRoom;
+            public int health;
+            public int armor;
         }
-          public PlayerSynchronizer(GameManager gameManager)
+        
+        private class RemotePlayer
+        {
+            public ulong steamId;
+            public PlayerState state;
+            public GameObject gameObject;
+            public PlayerController controller;
+            public float lastUpdateTime;
+        }
+        
+        public PlayerSynchronizer(object gameManager)
         {
             this.gameManager = gameManager;
-            this.remotePlayers = new Dictionary<ushort, RemotePlayerData>();
+            this.remotePlayers = new Dictionary<ulong, RemotePlayer>();
             
-            // Subscribe to multiplayer events
-            gameManager.OnMultiplayerStarted += OnMultiplayerStarted;
-            gameManager.OnMultiplayerStopped += OnMultiplayerStopped;
-        }
-          private void OnMultiplayerStarted()
-        {
-            Debug.Log("[PlayerSync] Player synchronization started");
-            
-            // Find the local player
-            FindLocalPlayer();
-            
-            // Hook into player events
-            HookPlayerEvents();
+            Debug.Log("[PlayerSync] PlayerSynchronizer initialized (ready for networking implementation)");
         }
         
-        private void OnMultiplayerStopped()
-        {
-            Debug.Log("[PlayerSync] Player synchronization stopped");
-            
-            // Clean up remote players
-            CleanupRemotePlayers();
-            
-            // Unhook events
-            UnhookPlayerEvents();
-        }
-        
-        private void FindLocalPlayer()
-        {            try
-            {
-                // Try to get the primary player from the actual ETG GameManager
-                var etgGameManager = global::GameManager.Instance;
-                if (etgGameManager != null && etgGameManager.PrimaryPlayer != null)
-                {
-                    localPlayer = etgGameManager.PrimaryPlayer;
-                    Debug.Log("[PlayerSync] Found local player via GameManager.Instance.PrimaryPlayer");
-                    return;
-                }
-                
-                // Fallback: search for PlayerController in scene
-                PlayerController[] players = UnityEngine.Object.FindObjectsOfType<PlayerController>();                if (players != null && players.Length > 0)
-                {
-                    localPlayer = players[0]; // Take the first player found
-                    Debug.Log($"[PlayerSync] Found local player via FindObjectsOfType (found {players.Length} players)");
-                    return;
-                }
-                
-                Debug.LogWarning("[PlayerSync] Could not find local player - will retry later");
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[PlayerSync] Error finding local player: {e.Message}");
-            }
-        }
-        
-        private void HookPlayerEvents()
-        {
-            try
-            {
-                // We'll hook into game events here once we have access to them
-                // For now, we'll rely on Update() calls to track player state
-                Debug.Log("[PlayerSync] Player event hooks installed");
-            }
-            catch (Exception e)
-            {
-                Debug.LogError("[PlayerSync] " + $"Failed to hook player events: {e.Message}");
-            }
-        }
-        
-        private void UnhookPlayerEvents()
-        {
-            try
-            {
-                // Unhook any events we've registered
-                Debug.Log("[PlayerSync] Player event hooks removed");
-            }
-            catch (Exception e)
-            {
-                Debug.LogError("[PlayerSync] " + $"Failed to unhook player events: {e.Message}");
-            }
-        }
-        
+        /// <summary>
+        /// Update player synchronization - call this every frame
+        /// </summary>
         public void Update()
         {
-            if (!gameManager.IsMultiplayerActive)
-                return;
-                
-            // Try to find local player if we don't have it
-            if (localPlayer == null)
-            {
-                FindLocalPlayer();
-                return;
-            }
-            
-            // Send player updates at regular intervals
-            if (Time.time - lastUpdateTime >= UPDATE_RATE)
-            {
-                SendPlayerUpdate();
-                lastUpdateTime = Time.time;
-            }
-            
-            // Update remote player interpolation
-            UpdateRemotePlayers();
-        }
-        
-        private void SendPlayerUpdate()
-        {
             try
-            {                if (localPlayer == null || !gameManager.IsMultiplayerActive)
-                    return;
+            {
+                UpdateLocalPlayer();
+                UpdateRemotePlayers();
                 
-                // Get current player state
-                var packet = new PlayerUpdatePacket
+                // Send updates at regular intervals
+                if (Time.time - lastSyncTime >= SYNC_INTERVAL)
                 {
-                    Position = localPlayer.CenterPosition,
-                    Velocity = localPlayer.specRigidbody?.Velocity ?? Vector2.zero,
-                    IsFacingRight = !localPlayer.sprite.FlipX, // Use sprite flip to determine facing direction
-                    IsGrounded = localPlayer.IsGrounded,
-                    IsRolling = localPlayer.IsDodgeRolling,
-                    IsShooting = localPlayer.IsFiring,
-                    AimDirection = localPlayer.m_currentGunAngle,
-                    CurrentAnimation = GetCurrentAnimation(),
-                    CurrentRoom = GetCurrentRoomName()
-                };
-                
-                // Send to all connected clients
-                if (gameManager.IsHost)
-                {
-                    gameManager.ServerManager?.BroadcastPacket(packet);
-                }
-                else
-                {
-                    gameManager.ClientManager?.SendPacket(packet);
+                    BroadcastPlayerUpdate();
+                    lastSyncTime = Time.time;
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError("[PlayerSync] " + $"Error sending player update: {e.Message}");
+                Debug.LogError($"[PlayerSync] Error in Update: {e.Message}");
             }
         }
         
-        private string GetCurrentAnimation()
+        /// <summary>
+        /// Find and track the local player
+        /// </summary>
+        private void UpdateLocalPlayer()
         {
             try
             {
-                if (localPlayer?.spriteAnimator != null)
+                if (localPlayer == null)
                 {
-                    var currentClip = localPlayer.spriteAnimator.CurrentClip;
-                    return currentClip?.name ?? "idle";
+                    // Try to find the local player
+                    localPlayer = GameManager.Instance?.PrimaryPlayer;
+                    
+                    if (localPlayer != null)
+                    {
+                        Debug.Log("[PlayerSync] Local player found and tracked");
+                    }
                 }
             }
             catch (Exception e)
             {
-                Debug.Log("[PlayerSync] " + $"Error getting animation: {e.Message}");
+                Debug.LogError($"[PlayerSync] Error updating local player: {e.Message}");
             }
-            return "idle";
         }
         
+        /// <summary>
+        /// Update positions and states of remote players
+        /// </summary>
+        private void UpdateRemotePlayers()
+        {
+            // TODO: Implement remote player interpolation and state updates
+            // This will be filled in when we add real networking
+        }
+        
+        /// <summary>
+        /// Broadcast local player update to all connected players
+        /// </summary>
+        private void BroadcastPlayerUpdate()
+        {
+            try
+            {
+                if (localPlayer == null) return;
+                
+                var playerState = GetLocalPlayerState();
+                
+                // TODO: Send player state over network
+                // This is where we'll integrate with the real networking solution
+                Debug.Log($"[PlayerSync] Would broadcast: Pos={playerState.position}, Room={playerState.currentRoom}");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[PlayerSync] Error broadcasting player update: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Get current state of local player
+        /// </summary>
+        private PlayerState GetLocalPlayerState()
+        {
+            var state = new PlayerState();
+            
+            if (localPlayer != null)
+            {
+                state.position = localPlayer.transform.position;
+                state.velocity = Vector2.zero; // TODO: Get actual velocity
+                state.isMoving = localPlayer.IsInCombat; // Use available property as placeholder
+                
+                // Use safe reflection to access gun angle
+                state.facing = GetPlayerFacing(localPlayer);
+                
+                state.currentAnimation = "default"; // TODO: Get actual animation state
+                state.currentRoom = GetCurrentRoomName();
+                state.health = (int)(localPlayer.healthHaver?.GetCurrentHealth() ?? 0f);
+                state.armor = (int)(localPlayer.healthHaver?.Armor ?? 0f);
+            }
+            
+            return state;
+        }
+        
+        /// <summary>
+        /// Safely get player facing direction using reflection if needed
+        /// </summary>
+        private float GetPlayerFacing(PlayerController player)
+        {
+            try
+            {
+                // Try to access the field using reflection
+                var fieldInfo = typeof(PlayerController).GetField("m_currentGunAngle", 
+                    System.Reflection.BindingFlags.Instance | 
+                    System.Reflection.BindingFlags.NonPublic | 
+                    System.Reflection.BindingFlags.Public);
+                
+                if (!object.ReferenceEquals(fieldInfo, null))
+                {
+                    object value = fieldInfo.GetValue(player);
+                    if (!object.ReferenceEquals(value, null))
+                    {
+                        return (float)value;
+                    }
+                }
+                
+                // Fallback: use transform rotation
+                return player.transform.eulerAngles.z;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[PlayerSync] Could not get player facing: {e.Message}");
+                // Fallback: use transform rotation
+                return player.transform.eulerAngles.z;
+            }
+        }
+        
+        /// <summary>
+        /// Get the name/ID of the current room
+        /// </summary>
         private string GetCurrentRoomName()
         {
             try
             {
-                if (localPlayer?.CurrentRoom != null)
-                {
-                    return localPlayer.CurrentRoom.GetRoomName();
-                }
+                var currentRoom = GameManager.Instance?.Dungeon?.data?.GetAbsoluteRoomFromPosition(localPlayer.transform.position.IntXY());
+                return currentRoom?.GetRoomName() ?? "unknown";
             }
-            catch (Exception e)
+            catch
             {
-                Debug.Log("[PlayerSync] " + $"Error getting room name: {e.Message}");
-            }
-            return "unknown";
-        }
-        
-        public void OnPlayerUpdateReceived(ushort clientId, PlayerUpdatePacket packet)
-        {
-            try
-            {
-                // Don't process our own updates
-                if (gameManager.IsHost && clientId == 0) // Host is always client 0
-                    return;
-                    
-                if (!gameManager.IsHost && clientId == gameManager.ClientManager?.ClientId)
-                    return;
-                
-                // Update or create remote player data
-                if (!remotePlayers.ContainsKey(clientId))
-                {
-                    CreateRemotePlayer(clientId);
-                }
-                
-                var remotePlayer = remotePlayers[clientId];
-                remotePlayer.Position = packet.Position;
-                remotePlayer.Velocity = packet.Velocity;
-                remotePlayer.IsFacingRight = packet.IsFacingRight;
-                remotePlayer.IsGrounded = packet.IsGrounded;
-                remotePlayer.IsRolling = packet.IsRolling;
-                remotePlayer.IsShooting = packet.IsShooting;
-                remotePlayer.AimDirection = packet.AimDirection;
-                remotePlayer.CurrentAnimation = packet.CurrentAnimation;
-                remotePlayer.CurrentRoom = packet.CurrentRoom;
-                remotePlayer.LastUpdateTime = Time.time;
-                
-                Debug.Log("[PlayerSync] " + $"Updated remote player {clientId} at position {packet.Position}");
-            }
-            catch (Exception e)
-            {
-                Debug.LogError("[PlayerSync] " + $"Error processing player update for client {clientId}: {e.Message}");
+                return "unknown";
             }
         }
         
-        private void CreateRemotePlayer(ushort clientId)
+        /// <summary>
+        /// Handle incoming player update from network
+        /// </summary>
+        public void OnPlayerUpdate(ulong steamId, PlayerState state)
         {
             try
             {
-                Debug.Log("[PlayerSync] " + $"Creating remote player for client {clientId}");
-                
-                // Create a visual representation of the remote player
-                // For now, we'll create a simple sprite-based representation
-                GameObject remotePlayerObj = new GameObject($"RemotePlayer_{clientId}");
-                
-                // Add a sprite renderer to make the player visible
-                var spriteRenderer = remotePlayerObj.AddComponent<SpriteRenderer>();                // Try to get the player sprite from the local player
-                if (localPlayer?.sprite != null && localPlayer.sprite.renderer != null)
+                if (!remotePlayers.ContainsKey(steamId))
                 {
-                    // Try to copy material and settings, but create our own sprite
-                    spriteRenderer.material = localPlayer.sprite.renderer.material;
-                    // We'll create a fallback sprite since accessing the current sprite is complex
+                    CreateRemotePlayer(steamId);
                 }
                 
-                // Create a simple colored square for the remote player
-                var texture = new Texture2D(16, 16);
-                for (int x = 0; x < 16; x++)
-                {
-                    for (int y = 0; y < 16; y++)
-                    {
-                        texture.SetPixel(x, y, Color.cyan); // Different color for remote players
-                    }
-                }
-                texture.Apply();
-                spriteRenderer.sprite = Sprite.Create(texture, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f));
+                var remotePlayer = remotePlayers[steamId];
+                remotePlayer.state = state;
+                remotePlayer.lastUpdateTime = Time.time;
                 
-                // Add animator if possible
-                tk2dSpriteAnimator animator = null;
-                if (localPlayer?.spriteAnimator != null)
-                {
-                    animator = remotePlayerObj.AddComponent<tk2dSpriteAnimator>();
-                    // Copy animation library if available
-                    if (localPlayer.spriteAnimator.Library != null)
-                    {
-                        animator.Library = localPlayer.spriteAnimator.Library;
-                    }
-                }
+                // Update visual representation
+                UpdateRemotePlayerVisuals(remotePlayer);
                 
-                var remotePlayer = new RemotePlayerData
+                Debug.Log($"[PlayerSync] Updated remote player {steamId} at {state.position}");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[PlayerSync] Error handling player update: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Create a visual representation for a remote player
+        /// </summary>
+        private void CreateRemotePlayer(ulong steamId)
+        {
+            try
+            {
+                // TODO: Create actual remote player GameObject
+                // For now, just track in dictionary
+                var remotePlayer = new RemotePlayer
                 {
-                    ClientId = clientId,
-                    PlayerObject = remotePlayerObj,
-                    Animator = animator,
-                    LastUpdateTime = Time.time
+                    steamId = steamId,
+                    gameObject = null, // Will create when we have proper player prefabs
+                    controller = null,
+                    lastUpdateTime = Time.time
                 };
                 
-                remotePlayers[clientId] = remotePlayer;
-                
-                Debug.Log("[PlayerSync] " + $"Remote player {clientId} created successfully");
+                remotePlayers[steamId] = remotePlayer;
+                Debug.Log($"[PlayerSync] Created remote player tracking for {steamId}");
             }
             catch (Exception e)
             {
-                Debug.LogError("[PlayerSync] " + $"Failed to create remote player {clientId}: {e.Message}");
+                Debug.LogError($"[PlayerSync] Error creating remote player: {e.Message}");
             }
         }
         
-        private void UpdateRemotePlayers()
+        /// <summary>
+        /// Update visual representation of remote player
+        /// </summary>
+        private void UpdateRemotePlayerVisuals(RemotePlayer remotePlayer)
         {
             try
             {
-                foreach (var kvp in remotePlayers)
+                // TODO: Update remote player GameObject position, animation, etc.
+                // This will be implemented when we have proper remote player visuals
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[PlayerSync] Error updating remote player visuals: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Remove a disconnected player
+        /// </summary>
+        public void OnPlayerDisconnected(ulong steamId)
+        {
+            try
+            {
+                if (remotePlayers.ContainsKey(steamId))
                 {
-                    var remotePlayer = kvp.Value;
+                    var remotePlayer = remotePlayers[steamId];
                     
-                    // Check if the remote player is still active
-                    if (Time.time - remotePlayer.LastUpdateTime > 5f) // 5 second timeout
+                    // Destroy visual representation
+                    if (remotePlayer.gameObject != null)
                     {
-                        Debug.Log("[PlayerSync] " + $"Remote player {remotePlayer.ClientId} timed out, removing");
-                        RemoveRemotePlayer(remotePlayer.ClientId);
-                        continue;
+                        UnityEngine.Object.Destroy(remotePlayer.gameObject);
                     }
                     
-                    // Update visual representation
-                    if (remotePlayer.PlayerObject != null)
-                    {
-                        // Smooth interpolation to the target position
-                        var currentPos = remotePlayer.PlayerObject.transform.position;
-                        var targetPos = new Vector3(remotePlayer.Position.x, remotePlayer.Position.y, currentPos.z);
-                        remotePlayer.PlayerObject.transform.position = Vector3.Lerp(currentPos, targetPos, Time.deltaTime * 10f);
-                        
-                        // Update sprite facing direction
-                        var spriteRenderer = remotePlayer.PlayerObject.GetComponent<SpriteRenderer>();
-                        if (spriteRenderer != null)
-                        {
-                            spriteRenderer.flipX = !remotePlayer.IsFacingRight;
-                        }
-                        
-                        // Update animation if available
-                        if (remotePlayer.Animator != null && !string.IsNullOrEmpty(remotePlayer.CurrentAnimation))
-                        {
-                            try
-                            {
-                                if (remotePlayer.Animator.CurrentClip?.name != remotePlayer.CurrentAnimation)
-                                {
-                                    remotePlayer.Animator.Play(remotePlayer.CurrentAnimation);
-                                }
-                            }
-                            catch (Exception e)
-                            {
-                                Debug.Log("[PlayerSync] " + $"Could not play animation '{remotePlayer.CurrentAnimation}': {e.Message}");
-                            }
-                        }
-                    }
+                    remotePlayers.Remove(steamId);
+                    Debug.Log($"[PlayerSync] Removed disconnected player {steamId}");
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError("[PlayerSync] " + $"Error updating remote players: {e.Message}");
+                Debug.LogError($"[PlayerSync] Error removing disconnected player: {e.Message}");
             }
         }
         
-        public void OnClientDisconnected(ushort clientId)
+        /// <summary>
+        /// Get count of connected remote players
+        /// </summary>
+        public int GetRemotePlayerCount()
         {
-            RemoveRemotePlayer(clientId);
+            return remotePlayers.Count;
         }
         
-        private void RemoveRemotePlayer(ushort clientId)
-        {
-            try
-            {
-                if (remotePlayers.ContainsKey(clientId))
-                {
-                    var remotePlayer = remotePlayers[clientId];
-                    
-                    if (remotePlayer.PlayerObject != null)
-                    {
-                        UnityEngine.Object.Destroy(remotePlayer.PlayerObject);
-                    }
-                    
-                    remotePlayers.Remove(clientId);
-                    Debug.Log("[PlayerSync] " + $"Removed remote player {clientId}");
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogError("[PlayerSync] " + $"Error removing remote player {clientId}: {e.Message}");
-            }
-        }
-        
-        private void CleanupRemotePlayers()
+        /// <summary>
+        /// Cleanup when session ends
+        /// </summary>
+        public void Cleanup()
         {
             try
             {
-                foreach (var kvp in remotePlayers)
+                // Remove all remote players
+                foreach (var remotePlayer in remotePlayers.Values)
                 {
-                    if (kvp.Value.PlayerObject != null)
+                    if (remotePlayer.gameObject != null)
                     {
-                        UnityEngine.Object.Destroy(kvp.Value.PlayerObject);
+                        UnityEngine.Object.Destroy(remotePlayer.gameObject);
                     }
                 }
                 
                 remotePlayers.Clear();
-                Debug.Log("[PlayerSync] All remote players cleaned up");
+                localPlayer = null;
+                
+                Debug.Log("[PlayerSync] PlayerSynchronizer cleaned up");
             }
             catch (Exception e)
             {
-                Debug.LogError("[PlayerSync] " + $"Error cleaning up remote players: {e.Message}");
+                Debug.LogError($"[PlayerSync] Error during cleanup: {e.Message}");
             }
         }
     }
