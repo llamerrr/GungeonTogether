@@ -31,6 +31,9 @@ namespace GungeonTogether.Steam
         void HandleJoinRequest(ulong joinerSteamId);
         void SimulateJoinRequest(ulong hostSteamId);
         
+        // Debug and diagnostics
+        void DiscoverMethodSignatures();
+        
         // Events using custom delegates
         event PlayerJoinedHandler OnPlayerJoined;
         event PlayerLeftHandler OnPlayerLeft;

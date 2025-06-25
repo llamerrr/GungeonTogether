@@ -398,41 +398,21 @@ namespace GungeonTogether.Steam
             {
                 EnsureInitialized();
                 
-                if (!isInitialized || object.ReferenceEquals(isP2PPacketAvailableMethod, null) || object.ReferenceEquals(readP2PPacketMethod, null))
+                // Temporarily disable packet checking to prevent signature mismatch spam
+                // TODO: Need to discover the correct IsP2PPacketAvailable signature for ETG's Steamworks
+                if (!isInitialized)
                     return;
                 
-                // Check for available packets
-                try
-                {
-                    // Try different IsP2PPacketAvailable signatures
-                    object[] checkParams = { 0 }; // Channel 0
-                    object available = isP2PPacketAvailableMethod.Invoke(null, checkParams);
-                    
-                    if (!object.ReferenceEquals(available, null) && available is bool hasPacket && hasPacket)
-                    {
-                        Debug.Log("[ETGSteamP2P] P2P packet available, attempting to read...");
-                        
-                        // Try to read the packet - this will vary by Steamworks version
-                        TryReadP2PPacket();
-                    }
-                }
-                catch (Exception e)
-                {
-                    // Try simpler signature without parameters
-                    try
-                    {
-                        object available = isP2PPacketAvailableMethod.Invoke(null, null);
-                        if (!object.ReferenceEquals(available, null) && available is bool hasPacket && hasPacket)
-                        {
-                            Debug.Log("[ETGSteamP2P] P2P packet available (no-param), attempting to read...");
-                            TryReadP2PPacket();
-                        }
-                    }
-                    catch (Exception e2)
-                    {
-                        Debug.LogWarning($"[ETGSteamP2P] Could not check for packets: {e.Message} / {e2.Message}");
-                    }
-                }
+                // For now, just log that we're ready for packets without actually checking
+                // This prevents the method signature error spam while keeping the networking ready
+                
+                /* Disabled until we discover correct signatures:
+                if (object.ReferenceEquals(isP2PPacketAvailableMethod, null) || object.ReferenceEquals(readP2PPacketMethod, null))
+                    return;
+                
+                // Check for available packets with proper signature discovery
+                TryCheckForPackets();
+                */
             }
             catch (Exception e)
             {
@@ -441,43 +421,12 @@ namespace GungeonTogether.Steam
         }
         
         /// <summary>
-        /// Try to read a P2P packet using different method signatures
+        /// Try to check for packets with different method signatures (disabled for now)
         /// </summary>
-        private void TryReadP2PPacket()
+        private void TryCheckForPackets()
         {
-            try
-            {
-                // Try different ReadP2PPacket signatures
-                byte[] buffer = new byte[1024]; // Standard buffer size
-                
-                // Try signature with out parameters (buffer, size, steamId, channel)
-                object[] readParams = { buffer, buffer.Length, null, 0 };
-                object result = readP2PPacketMethod.Invoke(null, readParams);
-                
-                if (!object.ReferenceEquals(result, null) && result is bool success && success)
-                {
-                    // Extract the actual data size and sender ID from out parameters
-                    int dataSize = (int)readParams[1];
-                    ulong senderSteamId = (ulong)readParams[2];
-                    
-                    // Create final data array with correct size
-                    byte[] actualData = new byte[dataSize];
-                    Array.Copy(buffer, actualData, dataSize);
-                    
-                    Debug.Log($"[ETGSteamP2P] Received P2P packet from {senderSteamId}: {dataSize} bytes");
-                    
-                    // Fire event for received data
-                    OnDataReceived?.Invoke(senderSteamId, actualData);
-                }
-                else
-                {
-                    Debug.LogWarning("[ETGSteamP2P] ReadP2PPacket returned false or null");
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"[ETGSteamP2P] Could not read P2P packet: {e.Message}");
-            }
+            // This will be re-enabled once we discover the correct method signatures
+            // Current issue: ETG's IsP2PPacketAvailable has different parameters than expected
         }
         
         /// <summary>
@@ -847,11 +796,17 @@ namespace GungeonTogether.Steam
                 EnsureInitialized();
                 
                 // In a real implementation, this would be handled by Steam callbacks
-                // For now, we can detect join attempts through P2P connection requests
-                Debug.Log("[ETGSteamP2P] Checking for join requests...");
+                // For now, we'll rely on direct P2P packet handling instead of polling
+                // This prevents log spam while keeping the interface available
+                
+                // Join requests will be handled through the SendP2PPacket/ReceiveP2P system
+                // when someone actually tries to join via F4 or Steam overlay
+                
+                // Silently return - no logging to prevent spam
             }
             catch (Exception e)
             {
+                // Only log errors, not normal operation
                 Debug.LogError($"[ETGSteamP2P] Error checking for join requests: {e.Message}");
             }
         }
@@ -917,6 +872,52 @@ namespace GungeonTogether.Steam
             catch (Exception e)
             {
                 Debug.LogError($"[ETGSteamP2P] Error simulating join request: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Discover the correct method signatures for ETG's Steamworks P2P methods
+        /// This will help us understand what parameters IsP2PPacketAvailable expects
+        /// </summary>
+        public void DiscoverMethodSignatures()
+        {
+            try
+            {
+                Debug.Log("[ETGSteamP2P] === Discovering Method Signatures ===");
+                
+                if (!object.ReferenceEquals(steamNetworkingType, null))
+                {
+                    Debug.Log("[ETGSteamP2P] SteamNetworking methods:");
+                    
+                    MethodInfo[] methods = steamNetworkingType.GetMethods(BindingFlags.Public | BindingFlags.Static);
+                    for (int i = 0; i < methods.Length; i++)
+                    {
+                        MethodInfo method = methods[i];
+                        if (method.Name.Contains("P2P"))
+                        {
+                            var parameters = method.GetParameters();
+                            string paramString = "";
+                            
+                            for (int j = 0; j < parameters.Length; j++)
+                            {
+                                if (j > 0) paramString += ", ";
+                                paramString += $"{parameters[j].ParameterType.Name} {parameters[j].Name}";
+                            }
+                            
+                            Debug.Log($"[ETGSteamP2P]   {method.Name}({paramString}) -> {method.ReturnType.Name}");
+                        }
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning("[ETGSteamP2P] SteamNetworking type not available for signature discovery");
+                }
+                
+                Debug.Log("[ETGSteamP2P] === Method Signature Discovery Complete ===");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error discovering method signatures: {e.Message}");
             }
         }
     }
