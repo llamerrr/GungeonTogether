@@ -6,7 +6,7 @@ WIP WIP WIP WIP WIP WIP pls be nice
 
 ## Features
 - Online co-op multiplayer for Enter the Gungeon
-- Steam P2P networking (no dedicated servers required)
+- Steam P2P networking (no dedicated servers required), no parsec or streaming required
 - Real-time player synchronization
 - Debug controls for testing
 
@@ -23,10 +23,10 @@ WIP WIP WIP WIP WIP WIP pls be nice
 
 ## Building
 ```bash
-cd GungeonTogetherETG
+cd GungeonTogether
 dotnet build --configuration Release
 ```
 then hope for the best because honestly I have no idea if it will even build
 
 ## Technical Details
-Built with BepInEx framework using Steam P2P networking for seamless multiplayer experience.
+Built with BepInEx framework using Steam P2P networking for a seamless multiplayer experience.
