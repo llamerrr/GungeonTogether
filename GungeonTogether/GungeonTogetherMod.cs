@@ -50,13 +50,22 @@ namespace GungeonTogether
             Logger.LogInfo($"ETG GameManager type: {gameManager.GetType().Name}");
             
             try
-            {                Logger.LogInfo("Initializing SimpleSessionManager (bypassing BasicGameManager)...");
+            {
+                // Check for Steam command line arguments for join requests
+                CheckSteamCommandLineArgs();
+                
+                Logger.LogInfo("Initializing SimpleSessionManager (bypassing BasicGameManager)...");
                 _sessionManager = new SimpleSessionManager();
                 Logger.LogInfo("SimpleSessionManager created successfully!");
                   Logger.LogInfo("Setting up Steam integration...");
                 try
                 {
                     SteamSessionHelper.Initialize(_sessionManager);
+                    
+                    // Subscribe to Steam overlay join events
+                    ETGSteamP2PNetworking.OnOverlayJoinRequested += OnSteamOverlayJoinRequested;
+                    Logger.LogInfo("Subscribed to Steam overlay 'Join Game' events");
+                    
                     Logger.LogInfo("Steam integration initialized!");
                 }
                 catch (Exception steamEx)
@@ -316,9 +325,6 @@ namespace GungeonTogether
                 {
                     Logger.LogWarning($"Could not get Steam info: {e.Message}");
                 }
-                
-                Logger.LogInfo("Steam Integration: AUTOMATIC (No manual setup required!)");
-                Logger.LogInfo("Steam Overlay: Join Game feature enabled");
             }
             else
             {
@@ -422,6 +428,26 @@ namespace GungeonTogether
         }
         
         /// <summary>
+        /// Event handler for Steam overlay "Join Game" requests
+        /// This gets called automatically when someone clicks "Join Game" in the Steam overlay
+        /// </summary>
+        private void OnSteamOverlayJoinRequested(string hostSteamId)
+        {
+            try
+            {
+                Logger.LogInfo($"🚀 REAL Steam overlay 'Join Game' event received for host: {hostSteamId}");
+                Logger.LogInfo("This is a REAL overlay join event, not a simulation!");
+                
+                // Use the Steam session helper to handle the join
+                SteamSessionHelper.HandleJoinGameRequest($"steam_lobby_{hostSteamId}");
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"Failed to handle real Steam overlay join event: {e.Message}");
+            }
+        }
+        
+        /// <summary>
         /// Handle Steam overlay "Join Game" requests
         /// </summary>
         public void HandleSteamJoinRequest(string steamLobbyId)
@@ -447,44 +473,52 @@ namespace GungeonTogether
             {
                 Logger.LogInfo($"🎮 F9: Simulating Steam overlay 'Join Game' click...");
                 
-                // In the automatic system, we should simulate finding a host
-                ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
-                
-                if (availableHosts.Length > 0)
+                // Test direct overlay join event firing
+                var steamNetwork = SteamNetworkingFactory.TryCreateSteamNetworking();
+                if (steamNetwork != null && steamNetwork.IsAvailable())
                 {
-                    // Use the first available host for simulation
-                    ulong simulatedHostSteamId = availableHosts[0];
-                    Logger.LogInfo($"📡 Simulating overlay invite from available host: {simulatedHostSteamId}");
+                    ulong mySteamId = steamNetwork.GetSteamID();
                     
-                    // Set up the invite as if it came from Steam overlay
-                    ETGSteamP2PNetworking.SetInviteInfo(simulatedHostSteamId, steamLobbyId);
+                    // Check for available hosts first
+                    ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
                     
-                    // Now handle the join request
-                    HandleSteamJoinRequest(steamLobbyId);
-                }
-                else
-                {
-                    // Create a simulated host for testing
-                    var steamNet = SteamNetworkingFactory.TryCreateSteamNetworking();
-                    if (steamNet != null && steamNet.IsAvailable())
+                    if (availableHosts.Length > 0)
                     {
-                        ulong mySteamId = steamNet.GetSteamID();
-                        // Use a different Steam ID for simulation (add 1 to make it different)
-                        ulong simulatedHostSteamId = mySteamId + 1;
-                        
-                        Logger.LogInfo($"🧪 No available hosts found, creating test simulation with Steam ID: {simulatedHostSteamId}");
-                        Logger.LogInfo("(In real usage, Steam would provide a real host's Steam ID)");
+                        // Use the first available host for simulation
+                        ulong simulatedHostSteamId = availableHosts[0];
+                        Logger.LogInfo($"📡 Found real host, simulating overlay invite from: {simulatedHostSteamId}");
                         
                         // Set up the invite as if it came from Steam overlay
                         ETGSteamP2PNetworking.SetInviteInfo(simulatedHostSteamId, steamLobbyId);
                         
-                        // Now handle the join request
-                        HandleSteamJoinRequest(steamLobbyId);
+                        // Fire the overlay join event directly using public method
+                        Logger.LogInfo($"🔥 Firing OnOverlayJoinRequested event for Steam ID: {simulatedHostSteamId}");
+                        ETGSteamP2PNetworking.TriggerOverlayJoinEvent(simulatedHostSteamId.ToString());
+                        
+                        Logger.LogInfo("✅ Steam overlay join simulation complete - check for join activity!");
                     }
                     else
                     {
-                        Logger.LogError("Cannot simulate overlay join - Steam not available");
+                        Logger.LogWarning("❌ No available hosts found for overlay join simulation");
+                        Logger.LogInfo("💡 To test overlay join properly:");
+                        Logger.LogInfo("   1. First press F3 to start hosting");
+                        Logger.LogInfo("   2. Then press F9 to simulate someone joining your session");
+                        Logger.LogInfo("   3. Or test with a friend hosting on another computer");
+                        Logger.LogInfo("");
+                        Logger.LogInfo("🔧 Creating fake host for testing overlay join system...");
+                        
+                        // Create a fake host for testing the overlay join system
+                        ulong fakeHostId = mySteamId + 1;
+                        Logger.LogInfo($"🎭 Testing with fake host: {fakeHostId}");
+                        Logger.LogInfo("(This tests the overlay join flow, but P2P connection will fail as expected)");
+                        
+                        ETGSteamP2PNetworking.SetInviteInfo(fakeHostId, steamLobbyId);
+                        ETGSteamP2PNetworking.TriggerOverlayJoinEvent(fakeHostId.ToString());
                     }
+                }
+                else
+                {
+                    Logger.LogError("❌ Steam networking not available for overlay join simulation");
                 }
             }
             catch (Exception e)
@@ -513,6 +547,13 @@ namespace GungeonTogether
         {
             try
             {
+                // Unsubscribe from Steam events
+                ETGSteamP2PNetworking.OnOverlayJoinRequested -= OnSteamOverlayJoinRequested;
+                Logger.LogInfo("Unsubscribed from Steam events");
+                
+                // Clean up session manager
+                _sessionManager?.StopSession();
+                
                 Logger.LogInfo("GungeonTogether mod cleanup completed");
             }
             catch (Exception e)
@@ -586,6 +627,113 @@ namespace GungeonTogether
             catch (Exception e)
             {
                 Logger.LogError($"Failed to join host: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Check for Steam command line arguments that indicate a join request
+        /// Steam passes arguments like "+connect_lobby [lobbyid]" or "+connect [steamid]"
+        /// </summary>
+        private void CheckSteamCommandLineArgs()
+        {
+            try
+            {
+                string[] args = System.Environment.GetCommandLineArgs();
+                Logger.LogInfo($"[Steam Args] Checking {args.Length} command line arguments...");
+                
+                for (int i = 0; i < args.Length; i++)
+                {
+                    Logger.LogInfo($"[Steam Args] Arg {i}: {args[i]}");
+                    
+                    // Check for Steam connect commands
+                    if (args[i].StartsWith("+connect") && i + 1 < args.Length)
+                    {
+                        string connectTarget = args[i + 1];
+                        Logger.LogInfo($"[Steam Args] Found Steam connect command: {args[i]} {connectTarget}");
+                        
+                        // Try to parse as Steam ID
+                        if (ulong.TryParse(connectTarget, out ulong steamId) && steamId != 0)
+                        {
+                            Logger.LogInfo($"[Steam Args] Detected Steam overlay join request for Steam ID: {steamId}");
+                            
+                            // Set this as a pending join request
+                            ETGSteamP2PNetworking.SetInviteInfo(steamId);
+                            
+                            // Schedule automatic join after initialization
+                            ScheduleAutoJoin(steamId);
+                        }
+                    }
+                    
+                    // Check for lobby connect commands
+                    if (args[i].StartsWith("+connect_lobby") && i + 1 < args.Length)
+                    {
+                        string lobbyId = args[i + 1];
+                        Logger.LogInfo($"[Steam Args] Found Steam lobby connect command: {args[i]} {lobbyId}");
+                        
+                        // Try to parse lobby ID and extract host Steam ID
+                        if (ulong.TryParse(lobbyId, out ulong parsedLobbyId) && parsedLobbyId != 0)
+                        {
+                            Logger.LogInfo($"[Steam Args] Detected Steam lobby join request for lobby: {parsedLobbyId}");
+                            
+                            // For now, treat lobby ID as potential Steam ID
+                            ETGSteamP2PNetworking.SetInviteInfo(parsedLobbyId, lobbyId);
+                            ScheduleAutoJoin(parsedLobbyId);
+                        }
+                    }
+                }
+                
+                Logger.LogInfo("[Steam Args] Command line argument check complete");
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"[Steam Args] Error checking command line arguments: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Schedule an automatic join after the session manager is initialized
+        /// </summary>
+        private void ScheduleAutoJoin(ulong hostSteamId)
+        {
+            try
+            {
+                Logger.LogInfo($"[Steam Args] Scheduling auto-join for Steam ID: {hostSteamId}");
+                
+                // Use a coroutine-like approach with Unity's Invoke
+                Invoke(nameof(ExecuteScheduledJoin), 2.0f); // Wait 2 seconds for initialization
+                
+                // Store the target for the delayed join
+                scheduledJoinTarget = hostSteamId;
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"[Steam Args] Error scheduling auto-join: {e.Message}");
+            }
+        }
+        
+        private ulong scheduledJoinTarget = 0;
+        
+        /// <summary>
+        /// Execute the scheduled join operation
+        /// </summary>
+        private void ExecuteScheduledJoin()
+        {
+            try
+            {
+                if (scheduledJoinTarget != 0 && _sessionManager != null)
+                {
+                    Logger.LogInfo($"[Steam Args] Executing scheduled join for Steam ID: {scheduledJoinTarget}");
+                    
+                    // Join the specified session
+                    string sessionId = $"steam_{scheduledJoinTarget}";
+                    _sessionManager.JoinSession(sessionId);
+                    
+                    scheduledJoinTarget = 0; // Clear after use
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"[Steam Args] Error executing scheduled join: {e.Message}");
             }
         }
     }

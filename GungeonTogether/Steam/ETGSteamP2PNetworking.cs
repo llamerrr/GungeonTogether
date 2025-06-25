@@ -407,9 +407,16 @@ namespace GungeonTogether.Steam
                     return false;
                 }
                 
+                // Convert Steam ID to proper format
+                object steamIdParam = ConvertToCSteamID(targetSteamId);
+                if (steamIdParam == null)
+                {
+                    steamIdParam = targetSteamId; // Fallback to raw ulong
+                }
+                
                 // Call ETG's SendP2PPacket method via reflection
                 // Parameters vary by Steamworks version, try common signatures
-                object[] parameters = { targetSteamId, data, data.Length, 0 }; // Last param is usually send type
+                object[] parameters = { steamIdParam, data, data.Length, 0 }; // Last param is usually send type
                 object result = sendP2PPacketMethod.Invoke(null, parameters);
                 
                 if (!object.ReferenceEquals(result, null) && result is bool success)
@@ -487,11 +494,26 @@ namespace GungeonTogether.Steam
                 
                 if (!object.ReferenceEquals(acceptP2PSessionMethod, null))
                 {
-                    object result = acceptP2PSessionMethod.Invoke(null, new object[] { steamId });
-                    if (!object.ReferenceEquals(result, null) && result is bool success)
+                    // Try different parameter formats for AcceptP2PSessionWithUser
+                    object steamIdParam = ConvertToCSteamID(steamId);
+                    if (steamIdParam != null)
                     {
-                        Debug.Log($"[ETGSteamP2P] Accepted P2P session with {steamId}: {success}");
-                        return success;
+                        object result = acceptP2PSessionMethod.Invoke(null, new object[] { steamIdParam });
+                        if (!object.ReferenceEquals(result, null) && result is bool success)
+                        {
+                            Debug.Log($"[ETGSteamP2P] Accepted P2P session with {steamId}: {success}");
+                            return success;
+                        }
+                    }
+                    else
+                    {
+                        // Fallback: try with raw ulong
+                        object result = acceptP2PSessionMethod.Invoke(null, new object[] { steamId });
+                        if (!object.ReferenceEquals(result, null) && result is bool success)
+                        {
+                            Debug.Log($"[ETGSteamP2P] Accepted P2P session with {steamId}: {success}");
+                            return success;
+                        }
                     }
                 }
                 
@@ -1202,6 +1224,22 @@ namespace GungeonTogether.Steam
         }
         
         /// <summary>
+        /// Public method to trigger overlay join event (for testing and external access)
+        /// </summary>
+        public static void TriggerOverlayJoinEvent(string hostSteamId)
+        {
+            try
+            {
+                Debug.Log($"[ETGSteamP2P] Triggering overlay join event for host: {hostSteamId}");
+                OnOverlayJoinRequested?.Invoke(hostSteamId);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error triggering overlay join event: {e.Message}");
+            }
+        }
+        
+        /// <summary>
         /// Initialize Steam callbacks for overlay join functionality
         /// </summary>
         private static void InitializeSteamCallbacks()
@@ -1372,6 +1410,9 @@ namespace GungeonTogether.Steam
                 {
                     runCallbacksMethod.Invoke(null, null);
                 }
+                
+                // Also check for Steam Rich Presence changes that might indicate join requests
+                CheckForSteamJoinRequests();
             }
             catch (Exception e)
             {
@@ -1380,6 +1421,81 @@ namespace GungeonTogether.Steam
                 {
                     Debug.LogWarning($"[ETGSteamP2P] Error processing Steam callbacks: {e.Message}");
                 }
+            }
+        }
+        
+        /// <summary>
+        /// Check for Steam join requests through Rich Presence or other methods
+        /// This is a fallback when callbacks don't work properly
+        /// </summary>
+        private static void CheckForSteamJoinRequests()
+        {
+            try
+            {
+                // Check command line args periodically for Steam join commands
+                if (Time.frameCount % 60 == 0) // Check once per second at 60fps
+                {
+                    var args = System.Environment.GetCommandLineArgs();
+                    for (int i = 0; i < args.Length; i++)
+                    {
+                        if (args[i].StartsWith("+connect") && i + 1 < args.Length)
+                        {
+                            if (ulong.TryParse(args[i + 1], out ulong steamId) && steamId != 0)
+                            {
+                                // Only process if this is a new join request
+                                if (steamId != lastInvitedBySteamId)
+                                {
+                                    Debug.Log($"[ETGSteamP2P] Detected delayed Steam join request: {steamId}");
+                                    SetInviteInfo(steamId);
+                                    OnOverlayJoinRequested?.Invoke(steamId.ToString());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                // Silently ignore errors in join request checking
+            }
+        }
+        
+        /// <summary>
+        /// Convert ulong Steam ID to CSteamID object for Steamworks.NET methods
+        /// </summary>
+        private object ConvertToCSteamID(ulong steamId)
+        {
+            try
+            {
+                // Find CSteamID type in the Steamworks assembly
+                Assembly[] assemblies = System.AppDomain.CurrentDomain.GetAssemblies();
+                for (int i = 0; i < assemblies.Length; i++)
+                {
+                    if (assemblies[i].GetName().Name == "Assembly-CSharp-firstpass")
+                    {
+                        Type cSteamIdType = assemblies[i].GetType("Steamworks.CSteamID", false);
+                        if (!object.ReferenceEquals(cSteamIdType, null))
+                        {
+                            // Try constructor that takes ulong
+                            var constructor = cSteamIdType.GetConstructor(new Type[] { typeof(ulong) });
+                            if (!object.ReferenceEquals(constructor, null))
+                            {
+                                object cSteamId = constructor.Invoke(new object[] { steamId });
+                                Debug.Log($"[ETGSteamP2P] Converted {steamId} to CSteamID: {cSteamId}");
+                                return cSteamId;
+                            }
+                        }
+                        break;
+                    }
+                }
+                
+                Debug.LogWarning($"[ETGSteamP2P] Could not convert {steamId} to CSteamID - using raw ulong");
+                return null;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[ETGSteamP2P] Error converting to CSteamID: {e.Message}");
+                return null;
             }
         }
     }
