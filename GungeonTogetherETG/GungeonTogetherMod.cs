@@ -2,7 +2,6 @@ using System;
 using BepInEx;
 using UnityEngine;
 using GungeonTogether.Game;
-using Steamworks;
 
 namespace GungeonTogether
 {
@@ -17,7 +16,7 @@ namespace GungeonTogether
         public const string GUID = "liamspc.etg.gungeontogether";
         public const string NAME = "GungeonTogether";
         public const string VERSION = "1.0.0";        public static GungeonTogetherMod Instance { get; private set; }
-        private Game.SimpleGameManager _gameManager;
+        private Game.MinimalGameManager _gameManager;
         
         public void Awake()
         {
@@ -48,32 +47,13 @@ namespace GungeonTogether
             Logger.LogInfo("GameManager is alive! Initializing multiplayer systems...");
             Logger.LogInfo($"ETG GameManager type: {gameManager.GetType().Name}");
               try
-            {
-                Logger.LogInfo("Step 1: Checking Steam availability...");
+            {                Logger.LogInfo("Step 1: Skipping Steam checks for minimal test...");
                 
-                // Check if Steam is available (but don't require it for basic testing)
-                bool steamAvailable = false;
-                try
-                {
-                    steamAvailable = SteamManager.Initialized;
-                    Logger.LogInfo($"Steam initialized: {steamAvailable}");
-                }
-                catch (Exception steamEx)
-                {
-                    Logger.LogWarning($"Steam check failed: {steamEx.Message}");
-                }
+                Logger.LogInfo("Step 2: Creating MinimalGameManager...");
                 
-                if (!steamAvailable)
-                {
-                    Logger.LogWarning("Steam not initialized! Some features will be limited.");
-                    Logger.LogWarning("For full functionality, make sure you're running the Steam version of Enter the Gungeon.");
-                }
-                
-                Logger.LogInfo("Step 2: Creating SimpleGameManager...");
-                
-                // Initialize our simple multiplayer systems for testing
-                _gameManager = new Game.SimpleGameManager();
-                Logger.LogInfo("SimpleGameManager created successfully!");
+                // Initialize our minimal multiplayer systems for testing
+                _gameManager = new Game.MinimalGameManager();
+                Logger.LogInfo("MinimalGameManager created successfully!");
                 
                 Logger.LogInfo("Step 3: Setting up debug controls...");
                 // Setup debug controls
@@ -169,26 +149,9 @@ namespace GungeonTogether
                     Logger.LogError("GameManager not initialized");
                     return;
                 }
-                
-                _gameManager.StartHosting();
-                Logger.LogInfo("Started hosting multiplayer session!");
-                
-                try
-                {
-                    if (SteamManager.Initialized)
-                    {
-                        Logger.LogInfo($"Your Steam ID: {SteamUser.GetSteamID()}");
-                        Logger.LogInfo("Friends can join using your Steam ID");
-                    }
-                    else
-                    {
-                        Logger.LogInfo("Steam not available - multiplayer session started in test mode");
-                    }
-                }
-                catch (Exception steamEx)
-                {
-                    Logger.LogWarning($"Steam operation failed: {steamEx.Message}");
-                }
+                  _gameManager.StartSession();
+                Logger.LogInfo("Started hosting session in test mode!");
+                Logger.LogInfo("Steam functionality temporarily disabled for testing");
             }
             catch (Exception e)
             {
@@ -203,13 +166,10 @@ namespace GungeonTogether
                 {
                     Logger.LogError("GameManager not initialized");
                     return;
-                }
-                
-                if (ulong.TryParse(steamIdString, out ulong steamId))
+                }                if (ulong.TryParse(steamIdString, out ulong steamId))
                 {
-                    var steamUserId = new CSteamID(steamId);
-                    _gameManager.JoinSession(steamUserId);
-                    Logger.LogInfo($"Attempting to join session: {steamUserId}");
+                    Logger.LogInfo($"Join session called with ID: {steamIdString}");
+                    Logger.LogInfo("Steam functionality temporarily disabled for testing");
                 }
                 else
                 {
@@ -230,16 +190,14 @@ namespace GungeonTogether
                     Logger.LogError("GameManager not initialized");
                     return;
                 }
-                
-                _gameManager.StopMultiplayer();
-                Logger.LogInfo("Stopped multiplayer session!");
+                  _gameManager.StopSession();
+                Logger.LogInfo("Stopped session in test mode!");
             }
             catch (Exception e)
             {
                 Logger.LogError($"Failed to stop multiplayer: {e.Message}");
             }
-        }
-          public void ShowStatus()
+        }        public void ShowStatus()
         {
             if (_gameManager == null)
             {
@@ -248,54 +206,13 @@ namespace GungeonTogether
             }
             
             Logger.LogInfo("=== GungeonTogether Status ===");
-            Logger.LogInfo($"Multiplayer Active: {_gameManager.IsMultiplayerActive}");
-            Logger.LogInfo($"Is Host: {_gameManager.IsHost}");
-            
-            try
-            {
-                if (SteamManager.Initialized)
-                {
-                    Logger.LogInfo($"Steam ID: {SteamUser.GetSteamID()}");
-                    Logger.LogInfo($"Steam Name: {SteamFriends.GetPersonaName()}");
-                }
-                else
-                {
-                    Logger.LogInfo("Steam not initialized");
-                }
-            }
-            catch (Exception steamEx)
-            {
-                Logger.LogWarning($"Steam operation failed: {steamEx.Message}");
-            }
-        }
-          private void TryJoinSteamFriend()
+            Logger.LogInfo($"Session Active: {_gameManager.IsActive}");
+            Logger.LogInfo($"Status: {_gameManager.Status}");
+            Logger.LogInfo("Steam functionality temporarily disabled for testing");
+        }        private void TryJoinSteamFriend()
         {
-            try
-            {
-                if (!SteamManager.Initialized)
-                {
-                    Logger.LogError("Steam not initialized");
-                    return;
-                }
-                
-                // Get the first Steam friend for testing
-                int friendCount = SteamFriends.GetFriendCount(EFriendFlags.k_EFriendFlagImmediate);            if (friendCount > 0)
-                {
-                    var friendId = SteamFriends.GetFriendByIndex(0, EFriendFlags.k_EFriendFlagImmediate);
-                    var friendName = SteamFriends.GetFriendPersonaName(friendId);
-                    
-                    Logger.LogInfo($"Attempting to join friend: {friendName} ({friendId})");
-                    JoinSession(friendId.ToString());
-                }
-                else
-                {
-                    Logger.LogInfo("No Steam friends found for testing");
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.LogError($"Steam friend join failed: {e.Message}");
-            }
+            Logger.LogInfo("Steam friend join functionality temporarily disabled for testing");
+            Logger.LogInfo("Join session test completed");
         }
     }
 }

@@ -62,8 +62,7 @@ namespace GungeonTogether.Game
                 OnConnectionFailed?.Invoke($"Failed to start hosting: {e.Message}");
             }
         }
-        
-        public void JoinSession(Steamworks.CSteamID hostSteamId)
+          public void JoinSession(string hostSteamId)
         {
             if (!isInitialized)
             {
