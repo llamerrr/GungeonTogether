@@ -117,8 +117,6 @@ namespace GungeonTogether.Game
                 var playerState = GetLocalPlayerState();
 
                 // TODO: Send player state over network using real Steam P2P
-                // For now, just log that we would send data
-                Debug.Log($"[PlayerSync] Would broadcast player state: pos={playerState.position}, health={playerState.health}");
                 
             }
             catch (Exception e)
