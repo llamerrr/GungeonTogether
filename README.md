@@ -5,6 +5,11 @@ WIP WIP WIP WIP WIP WIP pls be nice
 
 The mod is free (because im not weird). however i am broke asf so feel free to donate for my INSANELY INTENSE AND HARD LABOUR (jk)
 
+## What works so far
+- pretty much nothing
+- real connections and steam invites
+- singleplayer LOL!
+  
 ## Features
 - Online co-op multiplayer for Enter the Gungeon
 - Steam P2P networking (no dedicated servers required), no parsec or streaming required
