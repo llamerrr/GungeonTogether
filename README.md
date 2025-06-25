@@ -4,6 +4,7 @@ GungeonTogether is a multiplayer mod for Enter the Gungeon that allows online co
 WIP WIP WIP WIP WIP WIP pls be nice
 
 The mod is free (because im not weird). however i am broke asf so feel free to donate for my INSANELY INTENSE AND HARD LABOUR (jk)
+my paypal is llamerrr1@gmail.com if you actually want to (for some reason)
 
 ## What works so far
 - pretty much nothing
