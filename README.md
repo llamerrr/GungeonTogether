@@ -3,7 +3,7 @@
 GungeonTogether is a multiplayer mod for Enter the Gungeon that allows online co-op play using Steam P2P networking.
 WIP WIP WIP WIP WIP WIP pls be nice
 
-The mod is free (because im not weird).
+The mod is free (because im not weird). however i am broke asf so feel free to donate for my INSANELY INTENSE AND HARD LABOUR (jk)
 
 ## Features
 - Online co-op multiplayer for Enter the Gungeon
