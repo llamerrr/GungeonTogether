@@ -37,6 +37,7 @@ namespace GungeonTogether.Steam
         
         /// <summary>
         /// Handle Steam overlay "Join Game" request - This is the core feature!
+        /// Uses AUTOMATIC host detection - no manual Steam ID setup required!
         /// </summary>
         public static void HandleJoinGameRequest(string steamLobbyId)
         {
@@ -50,19 +51,61 @@ namespace GungeonTogether.Steam
                     return;
                 }
                 
-                // Convert Steam lobby ID to session format
-                string sessionId = $"steam_lobby_{steamLobbyId}";
+                // AUTOMATIC: Get the best available host Steam ID
+                ulong hostSteamId = ETGSteamP2PNetworking.GetBestAvailableHost();
                 
-                Debug.Log($"[SteamSessionHelper] 🎮 Connecting to multiplayer session: {sessionId}");
-                Debug.Log("[SteamSessionHelper] 🌐 Establishing Steam P2P connection...");
-                
-                // Join the session
-                sessionManager.JoinSession(sessionId);
+                if (hostSteamId != 0)
+                {
+                    Debug.Log($"[SteamSessionHelper] 🎯 Auto-selected host Steam ID: {hostSteamId}");
+                    
+                    // Join using the automatically selected Steam ID
+                    string sessionId = $"steam_{hostSteamId}";
+                    
+                    Debug.Log($"[SteamSessionHelper] 🎮 Auto-connecting to session: {sessionId}");
+                    Debug.Log("[SteamSessionHelper] 🌐 Establishing automatic P2P connection...");
+                    
+                    // Join the session
+                    sessionManager.JoinSession(sessionId);
+                    
+                    // Clear the invite info after use
+                    ETGSteamP2PNetworking.ClearInviteInfo();
+                    
+                    Debug.Log("[SteamSessionHelper] ✅ Successfully auto-joined!");
+                }
+                else
+                {
+                    Debug.LogWarning("[SteamSessionHelper] ⚠️ No available hosts found for automatic joining");
+                    
+                    // Try to extract Steam ID from lobby format as fallback
+                    // If steamLobbyId contains a Steam ID, extract it
+                    bool foundFallback = false;
+                    if (steamLobbyId.Contains("_"))
+                    {
+                        var parts = steamLobbyId.Split('_');
+                        for (int i = 0; i < parts.Length; i++)
+                        {
+                            if (ulong.TryParse(parts[i], out ulong extractedSteamId) && extractedSteamId > 76000000000000000) // Valid Steam ID range
+                            {
+                                hostSteamId = extractedSteamId;
+                                Debug.Log($"[SteamSessionHelper] 🔍 Fallback: Extracted Steam ID from lobby: {hostSteamId}");
+                                
+                                string sessionId = $"steam_{hostSteamId}";
+                                sessionManager.JoinSession(sessionId);
+                                foundFallback = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (!foundFallback)
+                    {
+                        Debug.LogError("[SteamSessionHelper] ❌ No hosts available and no fallback Steam ID found");
+                        Debug.Log("[SteamSessionHelper] 💡 Make sure someone is hosting (F3) before trying to join");
+                    }
+                }
                 
                 // Update Steam Rich Presence
-                UpdateRichPresence(false, sessionId);
-                
-                Debug.Log("[SteamSessionHelper] ✅ Successfully joined");
+                UpdateRichPresence(false, $"steam_{hostSteamId}");
             }
             catch (Exception e)
             {

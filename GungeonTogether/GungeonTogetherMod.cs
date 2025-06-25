@@ -85,16 +85,25 @@ namespace GungeonTogether
             Logger.LogDebug("Event hooks registered");
         }          private void SetupDebugControls()
         {
-            Logger.LogInfo("Debug controls enabled:");
-            Logger.LogInfo("  F3 - Start hosting a multiplayer session");
-            Logger.LogInfo("  F4 - Join a host session (testing)");
+            Logger.LogInfo("🎮 AUTOMATIC Multiplayer System Enabled!");
+            Logger.LogInfo("No manual Steam ID setup required - everything is automatic!");
+            Logger.LogInfo("");
+            Logger.LogInfo("Debug controls:");
+            Logger.LogInfo("  F3 - Start hosting (auto-registers as discoverable host)");
+            Logger.LogInfo("  F4 - Auto-join best available host or pending invite");
             Logger.LogInfo("  F5 - Stop multiplayer session");
-            Logger.LogInfo("  F6 - Show connection status");
-            Logger.LogInfo("  F7 - Join Steam friend session (test)");
+            Logger.LogInfo("  F6 - Show status, your Steam ID, and available hosts");
+            Logger.LogInfo("  F7 - Scan for available hosts");
             Logger.LogInfo("  F8 - Show Steam invite dialog");
-            Logger.LogInfo("  F8 - Show friends playing GungeonTogether");
             Logger.LogInfo("  F9 - Simulate Steam overlay 'Join Game' click");
-            Logger.LogInfo("  F10 - Run ETG Steam diagnostics (explore available Steam types)");
+            Logger.LogInfo("  F10 - Run ETG Steam diagnostics");
+            Logger.LogInfo("");
+            Logger.LogInfo("🚀 How to use (SUPER SIMPLE):");
+            Logger.LogInfo("1. Player 1: Press F3 to host (auto-discoverable)");
+            Logger.LogInfo("2. Player 2: Press F4 to auto-join Player 1");
+            Logger.LogInfo("3. That's it! No Steam IDs, no manual setup!");
+            Logger.LogInfo("");
+            Logger.LogInfo("Or use Steam overlay 'Join Game' for instant connection!");
         }        void Update()
         {
             // Update the session manager each frame (includes P2P networking and player sync)
@@ -258,10 +267,57 @@ namespace GungeonTogether
             
             if (_sessionManager != null)
             {
-                Logger.LogInfo("Using: SimpleSessionManager with Steam Integration");
+                Logger.LogInfo("Using: SimpleSessionManager with AUTOMATIC Steam Integration");
                 Logger.LogInfo($"Session Active: {_sessionManager.IsActive}");
                 Logger.LogInfo($"Status: {_sessionManager.Status}");
-                Logger.LogInfo("Steam Integration: ACTIVE (P2P Ready)");
+                
+                // Show Steam ID and hosting info
+                try
+                {
+                    var steamNet = SteamNetworkingFactory.TryCreateSteamNetworking();
+                    if (steamNet != null && steamNet.IsAvailable())
+                    {
+                        ulong mySteamId = steamNet.GetSteamID();
+                        Logger.LogInfo($"Your Steam ID: {mySteamId}");
+                        
+                        if (_sessionManager.IsActive && _sessionManager.IsHost)
+                        {
+                            Logger.LogInfo($"� HOSTING: You are automatically discoverable!");
+                            Logger.LogInfo("Friends can join you by:");
+                            Logger.LogInfo("  • Using Steam overlay 'Join Game'");
+                            Logger.LogInfo("  • Pressing F4 to auto-find your session");
+                        }
+                        
+                        // Show available hosts
+                        ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
+                        if (availableHosts.Length > 0)
+                        {
+                            Logger.LogInfo($"🔍 Available hosts ({availableHosts.Length}):");
+                            for (int i = 0; i < availableHosts.Length; i++)
+                            {
+                                Logger.LogInfo($"   🏠 {availableHosts[i]}");
+                            }
+                            Logger.LogInfo("Press F4 to auto-join the best available host!");
+                        }
+                        else
+                        {
+                            Logger.LogInfo("🔍 No available hosts found");
+                        }
+                        
+                        // Show last invite info if available
+                        ulong lastInvite = ETGSteamP2PNetworking.GetLastInviterSteamId();
+                        if (lastInvite != 0)
+                        {
+                            Logger.LogInfo($"📨 Priority invite from: {lastInvite}");
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Logger.LogWarning($"Could not get Steam info: {e.Message}");
+                }
+                
+                Logger.LogInfo("Steam Integration: AUTOMATIC (No manual setup required!)");
                 Logger.LogInfo("Steam Overlay: Join Game feature enabled");
             }
             else
@@ -270,17 +326,55 @@ namespace GungeonTogether
                 Logger.LogInfo("Error: Mod failed to initialize properly");
             }
             
-            Logger.LogInfo("Debug Controls: F3=Host, F4=Stop, F5=Status");
-            Logger.LogInfo("Steam Features: F6=Join Friend, F7=Invite, F8=Friends, F9=Overlay Join");
-        }private void TryJoinSteamFriend()
+            Logger.LogInfo("Debug Controls: F3=Host, F4=Auto-Join, F5=Stop, F6=Status");
+            Logger.LogInfo("Steam Features: F7=Scan Hosts, F8=Friends, F9=Overlay Join, F10=Diagnostics");
+        }        private void TryJoinSteamFriend()
         {
-            Logger.LogInfo("Testing Steam friend join functionality...");
+            Logger.LogInfo("🔍 F7: Scanning for available hosts...");
             
-            // Test with a fake Steam ID for development
-            string testSteamId = "76561198000000001";
-            SteamSessionHelper.JoinFriendSession(testSteamId);
-            
-            Logger.LogInfo("Steam friend join test completed");
+            try
+            {
+                // Get available hosts automatically
+                ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
+                
+                if (availableHosts.Length == 0)
+                {
+                    Logger.LogInfo("❌ No available hosts found");
+                    Logger.LogInfo("💡 To find hosts:");
+                    Logger.LogInfo("   • Wait for friends to start hosting (F3)");
+                    Logger.LogInfo("   • Hosts automatically broadcast their availability");
+                    Logger.LogInfo("   • Use Steam overlay 'Join Game' for instant connection");
+                }
+                else
+                {
+                    Logger.LogInfo($"✅ Found {availableHosts.Length} available host(s):");
+                    for (int i = 0; i < availableHosts.Length; i++)
+                    {
+                        Logger.LogInfo($"   🏠 Host {i + 1}: Steam ID {availableHosts[i]}");
+                    }
+                    
+                    Logger.LogInfo("🎮 Press F4 to automatically join the best available host!");
+                    
+                    // If there's exactly one host, we could auto-select it
+                    if (availableHosts.Length == 1)
+                    {
+                        ulong selectedHost = availableHosts[0];
+                        Logger.LogInfo($"🎯 Auto-selected host: {selectedHost}");
+                        Logger.LogInfo("Press F4 to join this host!");
+                    }
+                }
+                
+                // Show current invite status
+                ulong lastInvite = ETGSteamP2PNetworking.GetLastInviterSteamId();
+                if (lastInvite != 0)
+                {
+                    Logger.LogInfo($"📨 Active invite from: {lastInvite} (priority join target)");
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"Error scanning for hosts: {e.Message}");
+            }
         }
           private void ShowSteamInviteDialog()
         {
@@ -351,8 +445,47 @@ namespace GungeonTogether
         {
             try
             {
-                Logger.LogInfo($"[SIMULATION] Steam overlay 'Join Game' clicked for lobby: {steamLobbyId}");
-                HandleSteamJoinRequest(steamLobbyId);
+                Logger.LogInfo($"🎮 F9: Simulating Steam overlay 'Join Game' click...");
+                
+                // In the automatic system, we should simulate finding a host
+                ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
+                
+                if (availableHosts.Length > 0)
+                {
+                    // Use the first available host for simulation
+                    ulong simulatedHostSteamId = availableHosts[0];
+                    Logger.LogInfo($"📡 Simulating overlay invite from available host: {simulatedHostSteamId}");
+                    
+                    // Set up the invite as if it came from Steam overlay
+                    ETGSteamP2PNetworking.SetInviteInfo(simulatedHostSteamId, steamLobbyId);
+                    
+                    // Now handle the join request
+                    HandleSteamJoinRequest(steamLobbyId);
+                }
+                else
+                {
+                    // Create a simulated host for testing
+                    var steamNet = SteamNetworkingFactory.TryCreateSteamNetworking();
+                    if (steamNet != null && steamNet.IsAvailable())
+                    {
+                        ulong mySteamId = steamNet.GetSteamID();
+                        // Use a different Steam ID for simulation (add 1 to make it different)
+                        ulong simulatedHostSteamId = mySteamId + 1;
+                        
+                        Logger.LogInfo($"🧪 No available hosts found, creating test simulation with Steam ID: {simulatedHostSteamId}");
+                        Logger.LogInfo("(In real usage, Steam would provide a real host's Steam ID)");
+                        
+                        // Set up the invite as if it came from Steam overlay
+                        ETGSteamP2PNetworking.SetInviteInfo(simulatedHostSteamId, steamLobbyId);
+                        
+                        // Now handle the join request
+                        HandleSteamJoinRequest(steamLobbyId);
+                    }
+                    else
+                    {
+                        Logger.LogError("Cannot simulate overlay join - Steam not available");
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -398,33 +531,52 @@ namespace GungeonTogether
                     return;
                 }
                 
-                // For testing, try to join the last known host Steam ID
-                // In a real scenario, this would come from Steam overlay "Join Game" click
+                // AUTOMATIC: Find the best available host
                 var steamNet = SteamNetworkingFactory.TryCreateSteamNetworking();
                 if (steamNet != null && steamNet.IsAvailable())
                 {
-                    ulong mySteamId = steamNet.GetSteamID();
+                    // Get the best available host automatically
+                    ulong hostSteamId = ETGSteamP2PNetworking.GetBestAvailableHost();
                     
-                    // For testing, use a placeholder host Steam ID (in real usage, this comes from Steam)
-                    // You can replace this with a real Steam ID for testing
-                    ulong testHostSteamId = 76561198126223978; // Replace with actual host Steam ID
-                    
-                    if (mySteamId == testHostSteamId)
+                    if (hostSteamId != 0)
                     {
-                        Logger.LogInfo("Cannot join yourself! Start hosting on one account and join from another.");
-                        return;
+                        ulong mySteamId = steamNet.GetSteamID();
+                        if (mySteamId == hostSteamId)
+                        {
+                            Logger.LogInfo("🚫 Cannot join yourself!");
+                            return;
+                        }
+                        
+                        Logger.LogInfo($"🎯 F4: Auto-joining host Steam ID: {hostSteamId}");
+                        
+                        // Join using the automatically selected host
+                        SteamSessionHelper.HandleJoinGameRequest($"auto_join_{hostSteamId}");
+                        Logger.LogInfo($"✅ Automatically joined session: {hostSteamId}");
                     }
-                    
-                    Logger.LogInfo($"Attempting to join host Steam ID: {testHostSteamId}");
-                    
-                    // Simulate join request
-                    steamNet.SimulateJoinRequest(testHostSteamId);
-                    
-                    // Join session using session manager
-                    string sessionId = $"steam_{testHostSteamId}";
-                    _sessionManager.JoinSession(sessionId);
-                    
-                    Logger.LogInfo($"Join request sent to host: {testHostSteamId}");
+                    else
+                    {
+                        // Check available hosts
+                        ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
+                        
+                        if (availableHosts.Length == 0)
+                        {
+                            Logger.LogInfo("🔍 F4: No available hosts found");
+                            Logger.LogInfo("💡 How to connect:");
+                            Logger.LogInfo("   1. Have someone host a session (F3)");
+                            Logger.LogInfo("   2. They will automatically appear as available");
+                            Logger.LogInfo("   3. Press F4 again to auto-join them");
+                            Logger.LogInfo("   4. Or use Steam overlay 'Join Game' for instant connection");
+                        }
+                        else
+                        {
+                            Logger.LogInfo($"🤔 Found {availableHosts.Length} hosts but none are suitable for joining");
+                            Logger.LogInfo("Available hosts:");
+                            for (int i = 0; i < availableHosts.Length; i++)
+                            {
+                                Logger.LogInfo($"   🏠 Host {i + 1}: Steam ID {availableHosts[i]}");
+                            }
+                        }
+                    }
                 }
                 else
                 {

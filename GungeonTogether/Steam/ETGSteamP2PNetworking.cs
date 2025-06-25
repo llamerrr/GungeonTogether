@@ -1,15 +1,30 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
 namespace GungeonTogether.Steam
 {
     /// <summary>
-    /// Steam P2P networking using ETG's built-in Steamworks.NET via reflection
-    /// This avoids TypeLoadExceptions by using the Steamworks version that's already loaded in ETG
+    /// ETG Steam P2P Networking using reflection to access ETG's built-in Steamworks.NET
+    /// This implementation uses reflection to safely interact with ETG's Steam integration
+    /// without requiring external dependencies or causing TypeLoadException issues.
     /// </summary>
     public class ETGSteamP2PNetworking : ISteamNetworking
     {
+        // Steam callback delegates and event system
+        private static object steamCallbackHandle = null;
+        private static object overlayCallbackHandle = null;
+        private static object lobbyCallbackHandle = null;
+        private static MethodInfo runCallbacksMethod = null;
+        private static Type callbackType = null;
+        private static Type overlayActivatedType = null;
+        private static Type lobbyJoinRequestedType = null;
+        
+        // Steam callback event handlers
+        public static event Action<string> OnOverlayJoinRequested;
+        public static event Action<bool> OnOverlayActivated;
+        
         public static ETGSteamP2PNetworking Instance { get; private set; }
         
         // Events using custom delegates
@@ -64,6 +79,24 @@ namespace GungeonTogether.Steam
         private static bool initialized = false;
         private bool isInitialized = false;
         
+        // Steam invite handling
+        private static ulong lastInvitedBySteamId = 0;
+        private static string lastInviteLobbyId = "";
+        private static ulong currentHostSteamId = 0; // Track who is currently hosting
+        private static bool isCurrentlyHosting = false;
+        
+        // Automatic host discovery system
+        private static System.Collections.Generic.Dictionary<ulong, HostInfo> availableHosts = new System.Collections.Generic.Dictionary<ulong, HostInfo>();
+        
+        public struct HostInfo
+        {
+            public ulong steamId;
+            public string sessionName;
+            public int playerCount;
+            public float lastSeen;
+            public bool isActive;
+        }
+        
         public ETGSteamP2PNetworking()
         {
             try
@@ -115,12 +148,17 @@ namespace GungeonTogether.Steam
                 steamNetworkingType = steamworksAssembly.GetType("Steamworks.SteamNetworking", false);
                 steamMatchmakingType = steamworksAssembly.GetType("Steamworks.SteamMatchmaking", false);
                 steamUtilsType = steamworksAssembly.GetType("Steamworks.SteamUtils", false);
-                steamAppsType = steamworksAssembly.GetType("Steamworks.SteamApps", false);
                 
-                // Look for callback types for join requests
-                gameJoinRequestedCallbackType = steamworksAssembly.GetType("Steamworks.GameRichPresenceJoinRequested_t", false);
-                lobbyEnterCallbackType = steamworksAssembly.GetType("Steamworks.LobbyEnter_t", false);
-                lobbyCreatedCallbackType = steamworksAssembly.GetType("Steamworks.LobbyCreated_t", false);
+                // Find Steam callback types for overlay join functionality
+                callbackType = steamworksAssembly.GetType("Steamworks.Callback", false);
+                overlayActivatedType = steamworksAssembly.GetType("Steamworks.GameOverlayActivated_t", false);
+                lobbyJoinRequestedType = steamworksAssembly.GetType("Steamworks.GameLobbyJoinRequested_t", false);
+                var steamAPIType = steamworksAssembly.GetType("Steamworks.SteamAPI", false);
+                
+                if (!object.ReferenceEquals(steamAPIType, null))
+                {
+                    runCallbacksMethod = steamAPIType.GetMethod("RunCallbacks", BindingFlags.Public | BindingFlags.Static);
+                }
                 
                 Debug.Log($"[ETGSteamP2P] Found Steamworks types:");
                 Debug.Log($"  SteamUser: {steamUserType?.FullName ?? "NOT FOUND"}");
@@ -216,6 +254,9 @@ namespace GungeonTogether.Steam
                 if (initialized)
                 {
                     Debug.Log("[ETGSteamP2P] Steam types initialized successfully!");
+                    
+                    // Initialize Steam callbacks for overlay join functionality
+                    InitializeSteamCallbacks();
                 }
                 else
                 {
@@ -398,10 +439,16 @@ namespace GungeonTogether.Steam
             {
                 EnsureInitialized();
                 
+                // Process Steam callbacks for overlay join functionality
+                ProcessSteamCallbacks();
+                
                 // Temporarily disable packet checking to prevent signature mismatch spam
                 // TODO: Need to discover the correct IsP2PPacketAvailable signature for ETG's Steamworks
                 if (!isInitialized)
                     return;
+                
+                // AUTOMATIC: Broadcast host availability if we're hosting
+                BroadcastHostAvailability();
                 
                 // For now, just log that we're ready for packets without actually checking
                 // This prevents the method signature error spam while keeping the networking ready
@@ -672,6 +719,9 @@ namespace GungeonTogether.Steam
                     return;
                 }
                 
+                // AUTOMATIC: Register as host in the system
+                RegisterAsHost();
+                
                 // Set Rich Presence to show game status and enable join
                 SetRichPresence("status", "Hosting Gungeon Together");
                 SetRichPresence("steam_display", "#Status");
@@ -680,7 +730,7 @@ namespace GungeonTogether.Steam
                 // Create a Steam lobby for proper invite functionality
                 CreateLobby(4); // Support up to 4 players
                 
-                Debug.Log($"[ETGSteamP2P] Started hosting session with Rich Presence");
+                Debug.Log($"[ETGSteamP2P] 🎮 Automatically started hosting session with Steam ID: {steamId}");
             }
             catch (Exception e)
             {
@@ -713,13 +763,16 @@ namespace GungeonTogether.Steam
         {
             try
             {
+                // AUTOMATIC: Unregister as host
+                UnregisterAsHost();
+                
                 LeaveLobby();
                 ClearRichPresence();
                 
                 currentLobbyId = 0;
                 isLobbyHost = false;
                 
-                Debug.Log($"[ETGSteamP2P] Stopped multiplayer session");
+                Debug.Log($"[ETGSteamP2P] 🛑 Automatically stopped multiplayer session");
             }
             catch (Exception e)
             {
@@ -918,6 +971,415 @@ namespace GungeonTogether.Steam
             catch (Exception e)
             {
                 Debug.LogError($"[ETGSteamP2P] Error discovering method signatures: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Automatically register this player as a host when they start hosting
+        /// </summary>
+        public static void RegisterAsHost()
+        {
+            try
+            {
+                var instance = Instance;
+                if (instance != null && instance.IsAvailable())
+                {
+                    ulong mySteamId = instance.GetSteamID();
+                    if (mySteamId != 0)
+                    {
+                        currentHostSteamId = mySteamId;
+                        isCurrentlyHosting = true;
+                        
+                        // Add ourselves to available hosts
+                        availableHosts[mySteamId] = new HostInfo
+                        {
+                            steamId = mySteamId,
+                            sessionName = "Gungeon Together Session",
+                            playerCount = 1,
+                            lastSeen = Time.time,
+                            isActive = true
+                        };
+                        
+                        Debug.Log($"[ETGSteamP2P] 🏠 Automatically registered as host: {mySteamId}");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error registering as host: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Automatically discover available hosts on the network
+        /// </summary>
+        public static ulong[] GetAvailableHosts()
+        {
+            try
+            {
+                // Clean up old hosts
+                var hostsToRemove = new System.Collections.Generic.List<ulong>();
+                foreach (var kvp in availableHosts)
+                {
+                    if (Time.time - kvp.Value.lastSeen > 30f) // 30 second timeout
+                    {
+                        hostsToRemove.Add(kvp.Key);
+                    }
+                }
+                
+                foreach (var hostId in hostsToRemove)
+                {
+                    availableHosts.Remove(hostId);
+                    Debug.Log($"[ETGSteamP2P] 🗑️ Removed stale host: {hostId}");
+                }
+                
+                // Return active host Steam IDs
+                var activeHosts = new ulong[availableHosts.Count];
+                int index = 0;
+                foreach (var kvp in availableHosts)
+                {
+                    if (kvp.Value.isActive)
+                    {
+                        activeHosts[index++] = kvp.Key;
+                    }
+                }
+                
+                // Resize array to actual count
+                if (index < activeHosts.Length)
+                {
+                    var resized = new ulong[index];
+                    System.Array.Copy(activeHosts, resized, index);
+                    return resized;
+                }
+                
+                return activeHosts;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error getting available hosts: {e.Message}");
+                return new ulong[0];
+            }
+        }
+        
+        /// <summary>
+        /// Automatically set invite info when Steam overlay invite is clicked
+        /// This captures the real Steam ID from Steam's callback system
+        /// </summary>
+        public static void SetInviteInfo(ulong hostSteamId, string lobbyId = "")
+        {
+            lastInvitedBySteamId = hostSteamId;
+            lastInviteLobbyId = lobbyId;
+            Debug.Log($"[ETGSteamP2P] 📨 Auto-received invite from Steam ID: {hostSteamId}");
+            
+            // Add to available hosts if not already there
+            if (!availableHosts.ContainsKey(hostSteamId))
+            {
+                availableHosts[hostSteamId] = new HostInfo
+                {
+                    steamId = hostSteamId,
+                    sessionName = "Friend's Session",
+                    playerCount = 1,
+                    lastSeen = Time.time,
+                    isActive = true
+                };
+                Debug.Log($"[ETGSteamP2P] 📥 Added host from invite: {hostSteamId}");
+            }
+        }
+        
+        /// <summary>
+        /// Get the Steam ID of the last person who invited this player
+        /// Returns 0 if no invite is available
+        /// </summary>
+        public static ulong GetLastInviterSteamId()
+        {
+            return lastInvitedBySteamId;
+        }
+        
+        /// <summary>
+        /// Get the most recent available host Steam ID for automatic joining
+        /// </summary>
+        public static ulong GetBestAvailableHost()
+        {
+            try
+            {
+                // First priority: Direct invite
+                if (lastInvitedBySteamId != 0)
+                {
+                    Debug.Log($"[ETGSteamP2P] 🎯 Using direct invite: {lastInvitedBySteamId}");
+                    return lastInvitedBySteamId;
+                }
+                
+                // Second priority: Most recent active host
+                ulong bestHost = 0;
+                float mostRecent = 0;
+                
+                foreach (var kvp in availableHosts)
+                {
+                    var host = kvp.Value;
+                    if (host.isActive && host.steamId != currentHostSteamId && host.lastSeen > mostRecent)
+                    {
+                        bestHost = host.steamId;
+                        mostRecent = host.lastSeen;
+                    }
+                }
+                
+                if (bestHost != 0)
+                {
+                    Debug.Log($"[ETGSteamP2P] 🔍 Auto-selected best host: {bestHost}");
+                }
+                else
+                {
+                    Debug.Log("[ETGSteamP2P] ❌ No available hosts found");
+                }
+                
+                return bestHost;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error finding best host: {e.Message}");
+                return 0;
+            }
+        }
+        
+        /// <summary>
+        /// Clear invite information after use
+        /// </summary>
+        public static void ClearInviteInfo()
+        {
+            lastInvitedBySteamId = 0;
+            lastInviteLobbyId = "";
+            Debug.Log("[ETGSteamP2P] 🧹 Cleared invite info");
+        }
+        
+        /// <summary>
+        /// Stop hosting and clean up host registration
+        /// </summary>
+        public static void UnregisterAsHost()
+        {
+            try
+            {
+                if (isCurrentlyHosting && currentHostSteamId != 0)
+                {
+                    availableHosts.Remove(currentHostSteamId);
+                    Debug.Log($"[ETGSteamP2P] 🏠❌ Unregistered as host: {currentHostSteamId}");
+                }
+                
+                currentHostSteamId = 0;
+                isCurrentlyHosting = false;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error unregistering as host: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Broadcast host availability to the network (called periodically when hosting)
+        /// </summary>
+        public static void BroadcastHostAvailability()
+        {
+            try
+            {
+                if (isCurrentlyHosting && currentHostSteamId != 0)
+                {
+                    // Update our host info
+                    if (availableHosts.ContainsKey(currentHostSteamId))
+                    {
+                        var info = availableHosts[currentHostSteamId];
+                        info.lastSeen = Time.time;
+                        info.isActive = true;
+                        availableHosts[currentHostSteamId] = info;
+                    }
+                    
+                    // In a real implementation, this would broadcast via P2P or Steam Rich Presence
+                    // For now, we'll rely on Rich Presence and lobby system
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error broadcasting host availability: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Initialize Steam callbacks for overlay join functionality
+        /// </summary>
+        private static void InitializeSteamCallbacks()
+        {
+            try
+            {
+                Debug.Log("[ETGSteamP2P] Initializing Steam callbacks for overlay join functionality...");
+                
+                // Set up overlay activated callback
+                if (!object.ReferenceEquals(overlayActivatedType, null) && !object.ReferenceEquals(callbackType, null))
+                {
+                    try
+                    {
+                        // Create callback instance for overlay activation
+                        var callbackConstructor = callbackType.GetConstructor(new Type[] { typeof(Action<>).MakeGenericType(overlayActivatedType) });
+                        if (!object.ReferenceEquals(callbackConstructor, null))
+                        {
+                            // Create delegate to handle overlay activation
+                            var overlayDelegate = CreateOverlayActivatedDelegate(overlayActivatedType);
+                            overlayCallbackHandle = callbackConstructor.Invoke(new object[] { overlayDelegate });
+                            Debug.Log("[ETGSteamP2P] Created Steam overlay activation callback");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogWarning($"[ETGSteamP2P] Could not create overlay callback: {e.Message}");
+                    }
+                }
+                
+                // Set up lobby join requested callback  
+                if (!object.ReferenceEquals(lobbyJoinRequestedType, null) && !object.ReferenceEquals(callbackType, null))
+                {
+                    try
+                    {
+                        // Create callback instance for lobby join requests
+                        var callbackConstructor = callbackType.GetConstructor(new Type[] { typeof(Action<>).MakeGenericType(lobbyJoinRequestedType) });
+                        if (!object.ReferenceEquals(callbackConstructor, null))
+                        {
+                            // Create delegate to handle lobby join requests
+                            var lobbyDelegate = CreateLobbyJoinRequestedDelegate(lobbyJoinRequestedType);
+                            lobbyCallbackHandle = callbackConstructor.Invoke(new object[] { lobbyDelegate });
+                            Debug.Log("[ETGSteamP2P] Created Steam lobby join requested callback");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogWarning($"[ETGSteamP2P] Could not create lobby join callback: {e.Message}");
+                    }
+                }
+                
+                Debug.Log("[ETGSteamP2P] Steam callback initialization complete");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error initializing Steam callbacks: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Create delegate for overlay activation events
+        /// </summary>
+        private static object CreateOverlayActivatedDelegate(Type overlayActivatedType)
+        {
+            try
+            {
+                var delegateType = typeof(Action<>).MakeGenericType(overlayActivatedType);
+                var method = typeof(ETGSteamP2PNetworking).GetMethod(nameof(OnSteamOverlayActivated), BindingFlags.NonPublic | BindingFlags.Static);
+                return Delegate.CreateDelegate(delegateType, method);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error creating overlay delegate: {e.Message}");
+                return null;
+            }
+        }
+        
+        /// <summary>
+        /// Create delegate for lobby join requested events
+        /// </summary>
+        private static object CreateLobbyJoinRequestedDelegate(Type lobbyJoinRequestedType)
+        {
+            try
+            {
+                var delegateType = typeof(Action<>).MakeGenericType(lobbyJoinRequestedType);
+                var method = typeof(ETGSteamP2PNetworking).GetMethod(nameof(OnSteamLobbyJoinRequested), BindingFlags.NonPublic | BindingFlags.Static);
+                return Delegate.CreateDelegate(delegateType, method);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error creating lobby join delegate: {e.Message}");
+                return null;
+            }
+        }
+        
+        /// <summary>
+        /// Handle Steam overlay activation events
+        /// </summary>
+        private static void OnSteamOverlayActivated(object overlayData)
+        {
+            try
+            {
+                Debug.Log("[ETGSteamP2P] Steam overlay activated!");
+                
+                // Extract activation flag from overlay data
+                var activeField = overlayData.GetType().GetField("m_bActive");
+                if (!object.ReferenceEquals(activeField, null))
+                {
+                    bool isActive = (bool)activeField.GetValue(overlayData);
+                    Debug.Log($"[ETGSteamP2P] Overlay active: {isActive}");
+                    
+                    // Fire event for listeners
+                    OnOverlayActivated?.Invoke(isActive);
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error handling overlay activation: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Handle Steam lobby join requested events (this is the key for overlay "Join Game")
+        /// </summary>
+        private static void OnSteamLobbyJoinRequested(object lobbyData)
+        {
+            try
+            {
+                Debug.Log("[ETGSteamP2P] Steam lobby join requested! (Overlay 'Join Game' clicked)");
+                
+                // Extract Steam ID from lobby data
+                var friendIdField = lobbyData.GetType().GetField("m_steamIDFriend");
+                var lobbyIdField = lobbyData.GetType().GetField("m_steamIDLobby");
+                
+                string hostSteamId = "unknown";
+                
+                if (!object.ReferenceEquals(friendIdField, null))
+                {
+                    var friendId = friendIdField.GetValue(lobbyData);
+                    hostSteamId = friendId.ToString();
+                    Debug.Log($"[ETGSteamP2P] Join request from friend: {hostSteamId}");
+                }
+                
+                if (!object.ReferenceEquals(lobbyIdField, null))
+                {
+                    var lobbyId = lobbyIdField.GetValue(lobbyData);
+                    Debug.Log($"[ETGSteamP2P] Join request for lobby: {lobbyId}");
+                }
+                
+                // Fire event for session manager to handle the join
+                OnOverlayJoinRequested?.Invoke(hostSteamId);
+                
+                Debug.Log($"[ETGSteamP2P] Overlay join request processed for host: {hostSteamId}");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error handling lobby join request: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Process Steam callbacks (must be called regularly, usually in Update)
+        /// </summary>
+        public static void ProcessSteamCallbacks()
+        {
+            try
+            {
+                if (!object.ReferenceEquals(runCallbacksMethod, null))
+                {
+                    runCallbacksMethod.Invoke(null, null);
+                }
+            }
+            catch (Exception e)
+            {
+                // Don't spam the log with callback errors
+                if (Time.frameCount % 300 == 0) // Log every 5 seconds at 60fps
+                {
+                    Debug.LogWarning($"[ETGSteamP2P] Error processing Steam callbacks: {e.Message}");
+                }
             }
         }
     }

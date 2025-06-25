@@ -126,6 +126,17 @@ namespace GungeonTogether.Game
             CurrentSessionId = null;
             Status = "Stopped";
             
+            // Unsubscribe from Steam overlay events
+            try
+            {
+                ETGSteamP2PNetworking.OnOverlayJoinRequested -= OnSteamOverlayJoinRequested;
+                ETGSteamP2PNetworking.OnOverlayActivated -= OnSteamOverlayActivated;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[SimpleSessionManager] Error unsubscribing from overlay events: {e.Message}");
+            }
+            
             // Close Steam P2P connections
             if (steamNet != null)
             {
@@ -276,6 +287,10 @@ namespace GungeonTogether.Game
                 steamNet.OnDataReceived += OnNetworkDataReceived;
                 steamNet.OnJoinRequested += OnJoinRequested;
                 
+                // Subscribe to Steam overlay join events
+                ETGSteamP2PNetworking.OnOverlayJoinRequested += OnSteamOverlayJoinRequested;
+                ETGSteamP2PNetworking.OnOverlayActivated += OnSteamOverlayActivated;
+                
                 Debug.Log("[SimpleSessionManager] Steam networking callbacks set up successfully");
             }
             catch (Exception e)
@@ -339,13 +354,19 @@ namespace GungeonTogether.Game
         {
             try
             {
-                Debug.Log($"[SimpleSessionManager] Join request received from Steam ID: {joinerSteamId}");
+                Debug.Log($"[SimpleSessionManager] Join request from: {joinerSteamId}");
                 
-                if (IsHost && steamNet != null)
+                if (IsHost)
                 {
-                    // Handle the join request
-                    steamNet.HandleJoinRequest(joinerSteamId);
-                    Debug.Log($"[SimpleSessionManager] Processed join request from {joinerSteamId}");
+                    // Accept the P2P session
+                    steamNet?.AcceptP2PSession(joinerSteamId);
+                    
+                    // Send welcome packet
+                    var welcomeData = System.Text.Encoding.UTF8.GetBytes("WELCOME");
+                    steamNet?.SendP2PPacket(joinerSteamId, welcomeData);
+                    
+                    Status = $"Player joined: {joinerSteamId}";
+                    Debug.Log($"[SimpleSessionManager] Accepted join request from: {joinerSteamId}");
                 }
                 else
                 {
@@ -356,6 +377,51 @@ namespace GungeonTogether.Game
             {
                 Debug.LogError($"[SimpleSessionManager] Error handling join request: {e.Message}");
             }
+        }
+        
+        /// <summary>
+        /// Handle Steam overlay join requests (when someone clicks "Join Game" in Steam overlay)
+        /// </summary>
+        private void OnSteamOverlayJoinRequested(string hostSteamId)
+        {
+            try
+            {
+                Debug.Log($"[SimpleSessionManager] Steam overlay join requested for host: {hostSteamId}");
+                
+                // Parse Steam ID
+                if (ulong.TryParse(hostSteamId, out ulong steamId) && steamId != 0)
+                {
+                    // Join the host session
+                    var sessionId = $"steam_{steamId}";
+                    Debug.Log($"[SimpleSessionManager] Joining session via Steam overlay: {sessionId}");
+                    
+                    // Stop current session if any
+                    if (IsActive)
+                    {
+                        StopSession();
+                    }
+                    
+                    // Join the requested session
+                    JoinSession(sessionId);
+                }
+                else
+                {
+                    Debug.LogError($"[SimpleSessionManager] Invalid Steam ID in overlay join request: {hostSteamId}");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SimpleSessionManager] Error handling Steam overlay join request: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Handle Steam overlay activation events
+        /// </summary>
+        private void OnSteamOverlayActivated(bool isActive)
+        {
+            Debug.Log($"[SimpleSessionManager] Steam overlay activated: {isActive}");
+            // Could be used for pausing/unpausing game when overlay is opened
         }
         
         /// <summary>
