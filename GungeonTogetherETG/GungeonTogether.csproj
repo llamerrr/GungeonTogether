@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>GungeonTogether</AssemblyName>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+  </PropertyGroup>  <ItemGroup>
+    <PackageReference Include="EtG.ModTheGungeonAPI" Version="1.9.2" />
+  </ItemGroup>
+
+  <!-- Copy the compiled DLL to the mod directory after build -->
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Copy SourceFiles="$(OutputPath)GungeonTogether.dll" DestinationFolder="$(ProjectDir)" />
+  </Target>
+
+</Project>

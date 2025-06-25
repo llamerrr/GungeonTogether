@@ -1,0 +1,21 @@
+# References and dependencies (too large for version control)
+REFERENCES FOR PROJECT/
+
+# Build artifacts
+GungeonTogetherETG/bin/
+GungeonTogetherETG/obj/
+*.dll
+*.pdb
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
