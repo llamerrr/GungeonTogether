@@ -35,3 +35,4 @@ then hope for the best because honestly I have no idea if it will even build
 
 ## Technical Details
 Built with BepInEx framework using Steam P2P networking for a seamless multiplayer experience.
+Unfortunately if you play the game through epic or windows store this mod will not work, as it runs through steams p2p api only, which means you need a steamID for it to work. Sorry guys...
