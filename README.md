@@ -11,7 +11,7 @@ my paypal is llamerrr1@gmail.com if you actually want to (for some reason)
 - real connections and steam invites
 - singleplayer LOL!
   
-## Features
+## Features upon release 1.0
 - Online co-op multiplayer for Enter the Gungeon
 - Steam P2P networking (no dedicated servers required), no parsec or streaming required
 - Real-time player synchronization
