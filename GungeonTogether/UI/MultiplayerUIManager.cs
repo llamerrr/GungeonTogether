@@ -13,7 +13,6 @@ namespace GungeonTogether.UI
     public static class MultiplayerUIManager
     {
         private static MultiplayerUIController uiController;
-        private static MultiplayerSettingsUI settingsUI;
         private static PlayerListUI playerListUI;
         private static UIAudioManager audioManager;
         private static bool isInitialized = false;
@@ -70,20 +69,6 @@ namespace GungeonTogether.UI
                 isInitialized = true;
                 
                 // Initialize secondary UI components - these can fail without breaking core functionality
-                // Settings UI
-                try
-                {
-                    var settingsUIObject = new GameObject("MultiplayerSettingsUI");
-                    settingsUIObject.transform.SetParent(uiManagerObject.transform);
-                    settingsUI = settingsUIObject.AddComponent<MultiplayerSettingsUI>();
-                    Debug.Log("[MultiplayerUIManager] Settings UI initialized");
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"[MultiplayerUIManager] Failed to initialize settings UI: {ex.Message}");
-                    settingsUI = null; // Mark as failed but continue
-                }
-                
                 // Player list UI
                 try
                 {
@@ -104,7 +89,7 @@ namespace GungeonTogether.UI
                 try
                 {
                     PlayUISound("ui_success");
-                    ShowNotification("GungeonTogether UI loaded! Press Ctrl+M to open multiplayer menu", 4f);
+                    ShowNotification("GungeonTogether UI loaded! Press Ctrl+P to open multiplayer menu", 4f);
                 }
                 catch (Exception ex)
                 {
@@ -303,12 +288,6 @@ namespace GungeonTogether.UI
                     audioManager = null;
                 }
                 
-                if (settingsUI != null)
-                {
-                    UnityEngine.Object.Destroy(settingsUI.gameObject);
-                    settingsUI = null;
-                }
-                
                 if (playerListUI != null)
                 {
                     UnityEngine.Object.Destroy(playerListUI.gameObject);
@@ -365,39 +344,6 @@ namespace GungeonTogether.UI
             if (audioManager != null)
             {
                 audioManager.SetSoundEffectsEnabled(enabled);
-            }
-        }
-        
-        /// <summary>
-        /// Show the settings panel
-        /// </summary>
-        public static void ShowSettings()
-        {
-            if (settingsUI != null)
-            {
-                settingsUI.ShowSettings();
-            }
-        }
-        
-        /// <summary>
-        /// Hide the settings panel
-        /// </summary>
-        public static void HideSettings()
-        {
-            if (settingsUI != null)
-            {
-                settingsUI.HideSettings();
-            }
-        }
-        
-        /// <summary>
-        /// Toggle the settings panel
-        /// </summary>
-        public static void ToggleSettings()
-        {
-            if (settingsUI != null)
-            {
-                settingsUI.ToggleSettings();
             }
         }
         
@@ -473,14 +419,6 @@ namespace GungeonTogether.UI
         public static MultiplayerUIController GetUIController()
         {
             return uiController;
-        }
-        
-        /// <summary>
-        /// Get settings UI instance
-        /// </summary>
-        public static MultiplayerSettingsUI GetSettingsUI()
-        {
-            return settingsUI;
         }
         
         /// <summary>

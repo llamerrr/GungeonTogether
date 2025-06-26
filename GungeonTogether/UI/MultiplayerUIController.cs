@@ -49,6 +49,7 @@ namespace GungeonTogether.UI
         private SimpleSessionManager sessionManager;
         private ISteamNetworking steamNetworking;
         private List<HostEntryUI> hostEntries = new List<HostEntryUI>();
+        private ModernMultiplayerMenu modernMenu;
         
         // UI Colors
         private static readonly Color ConnectedColor = new Color(0.2f, 0.8f, 0.2f, 1f);      // Green
@@ -73,6 +74,25 @@ namespace GungeonTogether.UI
         void Start()
         {
             InitializeUI();
+            
+            // Delay finding the modern menu to ensure it's created
+            Invoke(nameof(FindModernMenu), 1f);
+        }
+        
+        private void FindModernMenu()
+        {
+            // Find the modern menu component
+            modernMenu = FindObjectOfType<ModernMultiplayerMenu>();
+            if (modernMenu != null)
+            {
+                Debug.Log("[MultiplayerUI] Found ModernMultiplayerMenu component");
+            }
+            else
+            {
+                Debug.LogWarning("[MultiplayerUI] ModernMultiplayerMenu component not found");
+                // Try again in 1 second
+                Invoke(nameof(FindModernMenu), 1f);
+            }
         }
         
         void Update()
@@ -105,7 +125,7 @@ namespace GungeonTogether.UI
             try
             {
                 var sessionManager = GungeonTogetherMod.Instance?.SessionManager;
-                return sessionManager != null && sessionManager.IsActive && sessionManager.IsHost;
+                return (!ReferenceEquals(sessionManager,null)) && sessionManager.IsActive && sessionManager.IsHost;
             }
             catch (System.Exception e)
             {
@@ -123,7 +143,7 @@ namespace GungeonTogether.UI
             try
             {
                 // Ensure Time.timeScale stays at 1.0 when hosting
-                if (Time.timeScale != 1.0f)
+                if (!ReferenceEquals(Time.timeScale,1.0f))
                 {
                     Time.timeScale = 1.0f;
                     Debug.Log("[MultiplayerUI] Prevented game pause - keeping server running");
@@ -139,7 +159,7 @@ namespace GungeonTogether.UI
                     if (!ReferenceEquals(instanceProperty, null))
                     {
                         var gameManager = instanceProperty.GetValue(null, null);
-                        if (gameManager != null)
+                        if (!ReferenceEquals(gameManager,null))
                         {
                             // Try to find and manipulate pause-related fields/properties
                             var pausedField = gameManagerType.GetField("IsPaused", 
@@ -457,6 +477,14 @@ namespace GungeonTogether.UI
         /// </summary>
         public void ToggleUI()
         {
+            if (modernMenu != null)
+            {
+                modernMenu.ToggleMenu();
+                Debug.Log("[MultiplayerUI] Delegated toggle to ModernMultiplayerMenu");
+                return;
+            }
+            
+            // Fallback to old UI system if modern menu not available
             if (!isInitialized) return;
             
             isUIVisible = !isUIVisible;
@@ -548,6 +576,14 @@ namespace GungeonTogether.UI
         /// </summary>
         public void ShowUI()
         {
+            if (modernMenu != null)
+            {
+                modernMenu.ShowMenu();
+                Debug.Log("[MultiplayerUI] Delegated show to ModernMultiplayerMenu");
+                return;
+            }
+            
+            // Fallback to old UI system
             if (!isUIVisible)
             {
                 ToggleUI();
@@ -566,6 +602,14 @@ namespace GungeonTogether.UI
         /// </summary>
         public void HideUI()
         {
+            if (modernMenu != null)
+            {
+                modernMenu.HideMenu();
+                Debug.Log("[MultiplayerUI] Delegated hide to ModernMultiplayerMenu");
+                return;
+            }
+            
+            // Fallback to old UI system
             if (isInitialized && mainPanel != null)
             {
                 isUIVisible = false;

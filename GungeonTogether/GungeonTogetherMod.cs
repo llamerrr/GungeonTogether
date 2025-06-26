@@ -106,18 +106,16 @@ namespace GungeonTogether
             {
                 Logger.LogInfo("Initializing modern UI system...");
                 
-                // Initialize the UI manager
-                MultiplayerUIManager.Initialize();
+                // Create a GameObject for the modern menu
+                var modernMenuObject = new GameObject("ModernMultiplayerMenu");
+                UnityEngine.Object.DontDestroyOnLoad(modernMenuObject);
                 
-                // Set the session manager reference for the UI
-                if (_sessionManager is not null)
-                {
-                    MultiplayerUIManager.SetSessionManager(_sessionManager);
-                }
+                // Add the ModernMultiplayerMenu component
+                var modernMenu = modernMenuObject.AddComponent<ModernMultiplayerMenu>();
                 
                 uiInitialized = true;
                 Logger.LogInfo("Modern UI system initialized successfully!");
-                Logger.LogInfo("Press Ctrl+M to open the multiplayer menu");
+                Logger.LogInfo("Press Ctrl+P to open the multiplayer menu");
                 
                 // Initialize Steam P2P test script for debugging
                 InitializeTestScript();
@@ -162,15 +160,9 @@ namespace GungeonTogether
             try
             {
                 // Ensure Time.timeScale stays at 1.0 when hosting (this is the most reliable method)
-                if (Time.timeScale != 1.0f)
+                if (!ReferenceEquals(Time.timeScale, 1.0f))
                 {
                     Time.timeScale = 1.0f;
-                    
-                    // Log once per pause attempt to inform user
-                    if (Time.frameCount % 60 == 0) // Log once per second at 60fps
-                    {
-                        Logger.LogInfo("[Multiplayer] Game pause prevented - keeping server running (timeScale forced to 1.0)");
-                    }
                 }
                 
                 // Try a safer approach using method invocation instead of property access
@@ -244,29 +236,8 @@ namespace GungeonTogether
         {
             try
             {
-                // Ctrl+M to toggle main multiplayer UI
-                if (Input.GetKeyDown(KeyCode.M) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)))
-                {
-                    if (uiInitialized)
-                    {
-                        Logger.LogInfo("multiplayer ui toggled");
-                        MultiplayerUIManager.ToggleUI();
-                        
-                        // Only show hosting notification if we just opened the UI and are hosting
-                        // Don't spam it every time the menu is toggled
-                        if (_sessionManager is not null && _sessionManager.IsActive && _sessionManager.IsHost)
-                        {
-                            // Only show the notification when opening the UI, not closing it
-                            // Check if UI was just opened (you might need to track this state)
-                            // For now, we'll remove the spam by not showing this notification here
-                            // The user already gets feedback when they start hosting
-                        }
-                    }
-                    else
-                    {
-                        Logger.LogWarning("UI broken idk");
-                    }
-                }
+                // All UI input is now handled by ModernMultiplayerMenu (Ctrl+P)
+                // Legacy Ctrl+M support removed for unified experience
                 
                 // ESC key handling - intercept when hosting to inform user
                 if (Input.GetKeyDown(KeyCode.Escape))
@@ -676,6 +647,16 @@ namespace GungeonTogether
             try
             {
                 Logger.LogInfo("Getting friends playing GungeonTogether...");
+                
+                // First run Steam friends diagnostics if ETG Steam P2P is available
+                var steamNet = ETGSteamP2PNetworking.Instance;
+                if (steamNet != null && steamNet.IsAvailable())
+                {
+                    Logger.LogInfo("Running comprehensive Steam friends debug...");
+                    steamNet.DebugSteamFriends();
+                    steamNet.PrintFriendsList();
+                }
+                
                 string[] friends = SteamSessionHelper.GetFriendsPlayingGame();
                 
                 if (friends.Length == 0)

@@ -79,12 +79,12 @@ namespace GungeonTogether.Game
         {
             try
             {
-                if (localPlayer == null)
+                if (ReferenceEquals(localPlayer, null))
                 {
                     // Try to find the local player
                     localPlayer = GameManager.Instance?.PrimaryPlayer;
                     
-                    if (localPlayer != null)
+                    if (!ReferenceEquals(localPlayer, null))
                     {
                         Debug.Log("[PlayerSync] Local player found and tracked");
                     }
@@ -132,7 +132,7 @@ namespace GungeonTogether.Game
         {
             var state = new PlayerState();
             
-            if (localPlayer != null)
+            if (!ReferenceEquals(localPlayer, null))
             {
                 state.position = localPlayer.transform.position;
                 state.velocity = Vector2.zero; // TODO: Get actual velocity
@@ -280,7 +280,7 @@ namespace GungeonTogether.Game
                     var remotePlayer = remotePlayers[steamId];
                     
                     // Destroy visual representation
-                    if (remotePlayer.gameObject != null)
+                    if (!ReferenceEquals(remotePlayer.gameObject, null))
                     {
                         UnityEngine.Object.Destroy(remotePlayer.gameObject);
                     }
@@ -313,7 +313,7 @@ namespace GungeonTogether.Game
                 // Remove all remote players
                 foreach (var remotePlayer in remotePlayers.Values)
                 {
-                    if (remotePlayer.gameObject != null)
+                    if (!ReferenceEquals(remotePlayer.gameObject, null))
                     {
                         UnityEngine.Object.Destroy(remotePlayer.gameObject);
                     }

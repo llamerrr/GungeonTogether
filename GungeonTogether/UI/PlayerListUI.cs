@@ -18,6 +18,7 @@ namespace GungeonTogether.UI
 
         [Header("UI References")]
         public Canvas playerListCanvas;
+        public GameObject playerListBackground;
         public GameObject playerListPanel;
         public ScrollRect playerScrollRect;
         public Transform playerListContainer;
@@ -122,12 +123,6 @@ namespace GungeonTogether.UI
         
         void Update()
         {
-            // Handle input for toggling player list
-            if (Input.GetKeyDown(KeyCode.P) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)))
-            {
-                TogglePlayerList();
-            }
-            
             // Update player list periodically
             if (isPlayerListVisible && Time.time - lastUpdateTime > updateInterval)
             {
@@ -159,6 +154,7 @@ namespace GungeonTogether.UI
                 }
                 
                 CreatePlayerListCanvas();
+                CreatePlayerListBackground();
                 CreatePlayerListPanel();
                 SetupPlayerEntryPrefab();
                 
@@ -204,11 +200,41 @@ namespace GungeonTogether.UI
         }
         
         /// <summary>
+        /// Create the player list background panel
+        /// </summary>
+        private void CreatePlayerListBackground()
+        {
+            playerListBackground = new GameObject("PlayerListBackground");
+            playerListBackground.transform.SetParent(playerListCanvas.transform, false);
+            
+            // Add background image that covers the entire screen
+            var image = playerListBackground.AddComponent<Image>();
+            image.color = new Color(0f, 0f, 0f, 0.4f); // Semi-transparent black background (lighter than main menu)
+            
+            // Make the background cover the entire screen
+            var rectTransform = playerListBackground.GetComponent<RectTransform>();
+            rectTransform.anchorMin = Vector2.zero;
+            rectTransform.anchorMax = Vector2.one;
+            rectTransform.offsetMin = Vector2.zero;
+            rectTransform.offsetMax = Vector2.zero;
+            
+            // Add button component to catch clicks on background and close player list
+            var button = playerListBackground.AddComponent<Button>();
+            button.onClick.AddListener(() => HidePlayerList());
+            
+            // Make background clickable but transparent
+            button.transition = Selectable.Transition.None;
+            
+            // Initially hide the background panel
+            playerListBackground.SetActive(false);
+        }
+        
+        /// <summary>
         /// Create the main player list panel
         /// </summary>
         private void CreatePlayerListPanel()
         {
-            playerListPanel = CreateUIPanel(playerListCanvas.transform, "PlayerListMainPanel", panelSize);
+            playerListPanel = CreateUIPanel(playerListBackground.transform, "PlayerListMainPanel", panelSize);
             
             var panelRect = playerListPanel.GetComponent<RectTransform>();
             panelRect.anchorMin = new Vector2(1f, 0.5f);
@@ -216,11 +242,11 @@ namespace GungeonTogether.UI
             panelRect.anchoredPosition = new Vector2(-panelSize.x / 2 - 20, 0);
             
             var panelImage = playerListPanel.GetComponent<Image>();
-            panelImage.color = new Color(0.1f, 0.1f, 0.1f, 0.95f);
+            panelImage.color = new Color(0.15f, 0.15f, 0.15f, 0.98f); // Match modern menu background
             
-            // Add border
+            // Add border to match modern menu
             var outline = playerListPanel.AddComponent<Outline>();
-            outline.effectColor = new Color(0.3f, 0.6f, 1f, 1f);
+            outline.effectColor = new Color(0.4f, 0.6f, 1f, 0.8f); // Light blue border to match modern menu
             outline.effectDistance = new Vector2(2, 2);
             
             // Create title bar
@@ -428,6 +454,7 @@ namespace GungeonTogether.UI
             if (!isInitialized) return;
             
             playerListCanvas.gameObject.SetActive(true);
+            playerListBackground.SetActive(true);
             isPlayerListVisible = true;
             
             MultiplayerUIManager.PlayUISound("ui_open");
@@ -636,9 +663,16 @@ namespace GungeonTogether.UI
                 }
             }
             
-            if (!show && playerListCanvas != null)
+            if (!show)
             {
-                playerListCanvas.gameObject.SetActive(false);
+                if (playerListBackground != null)
+                {
+                    playerListBackground.SetActive(false);
+                }
+                if (playerListCanvas != null)
+                {
+                    playerListCanvas.gameObject.SetActive(false);
+                }
             }
         }
         

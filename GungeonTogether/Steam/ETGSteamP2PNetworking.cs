@@ -79,6 +79,10 @@ namespace GungeonTogether.Steam
         private static bool initialized = false;
         private bool isInitialized = false;
         
+        // Debounce mechanism for PrintFriendsList to prevent console spam
+        private static float lastPrintFriendsListTime = 0f;
+        private static readonly float printFriendsListCooldown = 2.0f; // 2 seconds minimum between calls
+        
         // Steam invite handling
         private static ulong lastInvitedBySteamId = 0;
         private static string lastInviteLobbyId = "";
@@ -1108,6 +1112,38 @@ namespace GungeonTogether.Steam
             {
                 Debug.LogError($"[ETGSteamP2P] Error getting available hosts: {e.Message}");
                 return new ulong[0];
+            }
+        }
+        
+        /// <summary>
+        /// Get available hosts as a dictionary for compatibility with existing code
+        /// </summary>
+        public static System.Collections.Generic.Dictionary<ulong, HostInfo> GetAvailableHostsDict()
+        {
+            try
+            {
+                // Clean up old hosts
+                var hostsToRemove = new System.Collections.Generic.List<ulong>();
+                foreach (var kvp in availableHosts)
+                {
+                    if (Time.time - kvp.Value.lastSeen > 30f) // 30 second timeout
+                    {
+                        hostsToRemove.Add(kvp.Key);
+                    }
+                }
+                
+                foreach (var hostId in hostsToRemove)
+                {
+                    availableHosts.Remove(hostId);
+                    Debug.Log($"[ETGSteamP2P] Removed stale host: {hostId}");
+                }
+                
+                return new System.Collections.Generic.Dictionary<ulong, HostInfo>(availableHosts);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error getting available hosts dictionary: {e.Message}");
+                return new System.Collections.Generic.Dictionary<ulong, HostInfo>();
             }
         }
         
@@ -2258,6 +2294,532 @@ namespace GungeonTogether.Steam
                 Debug.LogWarning($"[ETGSteamP2P] Cached signature failed, will retry discovery: {e.Message}");
                 workingSendSignatureIndex = -1; // Reset cache
                 return false;
+            }
+        }
+        
+    /// <summary>
+    /// Information about a Steam friend
+    /// </summary>
+    public class FriendInfo
+    {
+        public ulong steamId;
+        public string name;
+        public string personaName; // Alias for name for backward compatibility
+        public bool isOnline;
+        public bool isPlayingETG;
+        public string statusText;
+        public string gameInfo;
+        public string currentGameName; // Alias for gameInfo for backward compatibility
+    }
+
+        /// <summary>
+        /// Get a list of Steam friends
+        /// </summary>
+        public System.Collections.Generic.List<FriendInfo> GetSteamFriends(bool onlineOnly = true)
+        {
+            var friends = new System.Collections.Generic.List<FriendInfo>();
+            
+            try
+            {
+                EnsureInitialized();
+                
+                if (!ReferenceEquals(steamFriendsType, null))
+                {
+                    Debug.Log("[ETGSteamP2P] Starting Steam friends enumeration...");
+                    
+                    // Try to get friends count with different flag values
+                    var getFriendCountMethod = steamFriendsType.GetMethod("GetFriendCount", BindingFlags.Public | BindingFlags.Static);
+                    if (!ReferenceEquals(getFriendCountMethod, null))
+                    {
+                        // Try different friend flags:
+                        // 4 = k_EFriendFlagImmediate (friends on your friends list)
+                        // 0 = k_EFriendFlagNone (all types)
+                        // 1 = k_EFriendFlagBlocked
+                        // 2 = k_EFriendFlagFriendshipRequested
+                        int friendCount = 0;
+                        int[] flagsToTry = { 4, 0, 255 }; // Try immediate, none, and all flags
+                        
+                        foreach (int flag in flagsToTry)
+                        {
+                            try
+                            {
+                                var count = (int)getFriendCountMethod.Invoke(null, new object[] { flag });
+                                Debug.Log($"[ETGSteamP2P] Friend count with flag {flag}: {count}");
+                                if (count > friendCount)
+                                {
+                                    friendCount = count;
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                Debug.LogWarning($"[ETGSteamP2P] Failed to get friend count with flag {flag}: {e.Message}");
+                            }
+                        }
+                        
+                        Debug.Log($"[ETGSteamP2P] Total friends found: {friendCount}");
+                        
+                        for (int i = 0; i < friendCount; i++)
+                        {
+                            var getFriendByIndexMethod = steamFriendsType.GetMethod("GetFriendByIndex", BindingFlags.Public | BindingFlags.Static);
+                            if (!ReferenceEquals(getFriendByIndexMethod, null))
+                            {
+                                // Use the same flag that gave us the friend count
+                                var friendId = getFriendByIndexMethod.Invoke(null, new object[] { i, 4 }); // Start with immediate friends
+                                if (!ReferenceEquals(friendId, null))
+                                {
+                                    var friend = new FriendInfo();
+                                    
+                                    // Steam returns CSteamID objects, not simple ulongs - extract the ID properly
+                                    try
+                                    {
+                                        // Try different ways to extract the Steam ID
+                                        if (friendId is ulong directUlong)
+                                        {
+                                            friend.steamId = directUlong;
+                                        }
+                                        else if (friendId.GetType().Name.Contains("CSteamID"))
+                                        {
+                                            // This is a CSteamID object, extract the ulong value
+                                            var steamIdType = friendId.GetType();
+                                            var m_SteamIDField = steamIdType.GetField("m_SteamID", BindingFlags.Public | BindingFlags.Instance);
+                                            if (!ReferenceEquals(m_SteamIDField, null))
+                                            {
+                                                friend.steamId = (ulong)m_SteamIDField.GetValue(friendId);
+                                            }
+                                            else
+                                            {
+                                                // Try other possible field names
+                                                var steamIdField = steamIdType.GetField("steamID", BindingFlags.Public | BindingFlags.Instance) ??
+                                                                  steamIdType.GetField("SteamID", BindingFlags.Public | BindingFlags.Instance) ??
+                                                                  steamIdType.GetField("m_steamID", BindingFlags.Public | BindingFlags.Instance);
+                                                
+                                                if (!ReferenceEquals(steamIdField, null))
+                                                {
+                                                    friend.steamId = (ulong)steamIdField.GetValue(friendId);
+                                                }
+                                                else
+                                                {
+                                                    // Last resort: try to parse string representation
+                                                    string steamIdStr = friendId.ToString();
+                                                    if (ulong.TryParse(steamIdStr, out ulong parsedId))
+                                                    {
+                                                        friend.steamId = parsedId;
+                                                    }
+                                                    else
+                                                    {
+                                                        Debug.LogError($"[ETGSteamP2P] Could not extract Steam ID from {friendId.GetType().Name}: {friendId}");
+                                                        
+                                                        // Log all fields for debugging
+                                                        var fields = steamIdType.GetFields();
+                                                        Debug.Log($"[ETGSteamP2P] Available fields in {steamIdType.Name}:");
+                                                        foreach (var field in fields)
+                                                        {
+                                                            try
+                                                            {
+                                                                var value = field.GetValue(friendId);
+                                                                Debug.Log($"[ETGSteamP2P]   {field.Name}: {value} (type: {field.FieldType.Name})");
+                                                            }
+                                                            catch (Exception ex)
+                                                            {
+                                                                Debug.Log($"[ETGSteamP2P]   {field.Name}: Error getting value - {ex.Message}");
+                                                            }
+                                                        }
+                                                        continue; // Skip this friend
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // Try direct conversion as fallback
+                                            friend.steamId = Convert.ToUInt64(friendId);
+                                        }
+                                    
+                                    }
+                                    catch (Exception steamIdEx)
+                                    {
+                                        Debug.LogError($"[ETGSteamP2P] Failed to extract Steam ID from friend {i + 1}: {steamIdEx.Message}");
+                                        continue; // Skip this friend
+                                    }
+                                          // Get friend name
+                                var getFriendPersonaNameMethod = steamFriendsType.GetMethod("GetFriendPersonaName", BindingFlags.Public | BindingFlags.Static);
+                                if (!ReferenceEquals(getFriendPersonaNameMethod, null))
+                                {
+                                    friend.name = (string)getFriendPersonaNameMethod.Invoke(null, new object[] { friendId }) ?? "Unknown";
+                                    friend.personaName = friend.name; // Alias for backward compatibility
+                                }
+                                                      // Get online status
+                    var getFriendPersonaStateMethod = steamFriendsType.GetMethod("GetFriendPersonaState", BindingFlags.Public | BindingFlags.Static);
+                    if (!ReferenceEquals(getFriendPersonaStateMethod, null))
+                    {
+                        var state = (int)getFriendPersonaStateMethod.Invoke(null, new object[] { friendId });
+                        // Steam EPersonaState: 0=Offline, 1=Online, 2=Busy, 3=Away, 4=Snooze, 5=LookingToTrade, 6=LookingToPlay
+                        friend.isOnline = state >= 1 && state <= 6; // Any state except offline
+                    }                                          // Get game info
+                                var getFriendGamePlayedMethod = steamFriendsType.GetMethod("GetFriendGamePlayed", BindingFlags.Public | BindingFlags.Static);
+                                if (!ReferenceEquals(getFriendGamePlayedMethod, null))
+                                {
+                                    // Check the method signature and try different parameter combinations
+                                    var parameters = getFriendGamePlayedMethod.GetParameters();
+                                    
+                                    object gameInfo = null;
+                                    bool gameInfoRetrieved = false;
+                                    
+                                    // Try different parameter combinations for GetFriendGamePlayed
+                                    var gameInfoSignatures = new object[][]
+                                    {
+                                        // Signature 1: (CSteamID friendID) - Most common
+                                        new object[] { friendId },
+                                        
+                                        // Signature 2: (CSteamID friendID, out FriendGameInfo_t friendGameInfo) - With out parameter
+                                        // We'll handle this differently since we can't easily create out parameters via reflection
+                                        
+                                        // Signature 3: (CSteamID friendID, FriendGameInfo_t friendGameInfo) - With struct parameter
+                                        // This would require creating the struct first
+                                    };
+                                    
+                                    // Try the basic signature first
+                                    for (int sigIndex = 0; sigIndex < gameInfoSignatures.Length && !gameInfoRetrieved; sigIndex++)
+                                    {
+                                        try
+                                        {
+                                            var signature = gameInfoSignatures[sigIndex];
+                                            if (signature.Length == parameters.Length)
+                                            {
+                                                gameInfo = getFriendGamePlayedMethod.Invoke(null, signature);
+                                                gameInfoRetrieved = true; 
+                                                break;
+                                            }
+                                        }
+                                        catch (Exception sigEx)
+                                        {
+                                        
+                                        }
+                                    }
+                                    
+                                    // If basic signatures failed, try to handle out parameter signature
+                                    if (!gameInfoRetrieved && parameters.Length == 2)
+                                    {
+                                            try
+                                            {
+                                                // The second parameter should be an out parameter of type FriendGameInfo_t
+                                                var outParamType = parameters[1].ParameterType;
+                                                if (outParamType.IsByRef)
+                                                {
+                                                    // Remove the & from the type name to get the actual struct type
+                                                    var structType = outParamType.GetElementType();
+                                                    if (!ReferenceEquals(structType, null))
+                                                    {
+                                                        // Create an instance of the struct
+                                                        var structInstance = Activator.CreateInstance(structType);
+
+                                                        // Create parameters array with the out parameter
+                                                        var outParams = new object[] { friendId, structInstance };
+
+                                                        // Invoke the method
+                                                        var result = getFriendGamePlayedMethod.Invoke(null, outParams);
+
+                                                        // The result might be a bool indicating success, and the actual data is in outParams[1]
+                                                        if (result is bool success && success)
+                                                        {
+                                                            gameInfo = outParams[1]; // The out parameter contains the game info
+                                                            gameInfoRetrieved = true;
+
+                                                        }
+                                                        else
+                                                        {
+                                                            // Even if method returns false, the struct might still contain data
+                                                            gameInfo = outParams[1];
+                                                            gameInfoRetrieved = true;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            catch (Exception outEx)
+                                            {
+                                                Debug.LogWarning($"[ETGSteamP2P] Failed to invoke GetFriendGamePlayed with out parameter: {outEx.Message}");
+                                        }
+                                    }
+                                    
+                                    // Process the game info if we got it
+                                    if (gameInfoRetrieved && !ReferenceEquals(gameInfo, null))
+                                    {
+                                        // Try different possible field names for the game ID
+                                        var gameIdField = gameInfo.GetType().GetField("m_gameID") ?? 
+                                                         gameInfo.GetType().GetField("m_nGameID") ??
+                                                         gameInfo.GetType().GetField("gameID") ??
+                                                         gameInfo.GetType().GetField("nGameID") ??
+                                                         gameInfo.GetType().GetField("m_steamIDLobby") ??
+                                                         gameInfo.GetType().GetField("m_steamAppID") ??
+                                                         gameInfo.GetType().GetField("steamAppID") ??
+                                                         gameInfo.GetType().GetField("appID");
+                                        
+                                        if (!ReferenceEquals(gameIdField, null))
+                                        {
+                                            var gameId = gameIdField.GetValue(gameInfo);
+                                            string gameIdStr = gameId?.ToString() ?? "0";
+                                            
+                                            // ETG App ID is 311690
+                                            friend.isPlayingETG = gameIdStr == "311690" || gameIdStr.EndsWith("311690");
+                                            friend.gameInfo = friend.isPlayingETG ? "Enter the Gungeon" : (gameIdStr != "0" ? $"Game ID: {gameIdStr}" : "Not in game");
+                                            friend.currentGameName = friend.gameInfo; // Alias for backward compatibility
+                                            
+                                        }
+                                        else
+                                        {
+                                            // Log all available fields for debugging
+                                            var fields = gameInfo.GetType().GetFields();
+                                            foreach (var field in fields)
+                                            {
+                                                try
+                                                {
+                                                    var value = field.GetValue(gameInfo);
+                                                   
+                                                }
+                                                catch (Exception fieldEx)
+                                                {
+                                                    Debug.Log($"[ETGSteamP2P]   {field.Name}: Error getting value - {fieldEx.Message}");
+                                                }
+                                            }
+                                            
+                                            friend.isPlayingETG = false;
+                                            friend.gameInfo = "Unknown game";
+                                            friend.currentGameName = friend.gameInfo;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Debug.Log($"[ETGSteamP2P] Friend {friend.name} game info is null or could not be retrieved (not playing any game)");
+                                        friend.isPlayingETG = false;
+                                        friend.gameInfo = "Not in game";
+                                        friend.currentGameName = friend.gameInfo;
+                                    }
+                                }
+                                else
+                                {
+                                    Debug.LogWarning("[ETGSteamP2P] GetFriendGamePlayed method not found");
+                                    friend.isPlayingETG = false;
+                                    friend.gameInfo = "Unknown";
+                                    friend.currentGameName = friend.gameInfo;
+                                }
+                                    
+                                    if (!onlineOnly || friend.isOnline)
+                                    {
+                                        friends.Add(friend);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    Debug.LogError("[ETGSteamP2P] GetFriendCount method not found!");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error getting Steam friends: {e.Message}");
+            }
+            
+            return friends;
+        }
+
+        /// <summary>
+        /// Get friends currently playing Enter the Gungeon
+        /// </summary>
+        public System.Collections.Generic.List<FriendInfo> GetETGFriends()
+        {
+            var allFriends = GetSteamFriends(false);
+            var etgFriends = new System.Collections.Generic.List<FriendInfo>();
+            
+            foreach (var friend in allFriends)
+            {
+                if (friend.isPlayingETG)
+                {
+                    etgFriends.Add(friend);
+                }
+            }
+            
+            return etgFriends;
+        }
+
+        /// <summary>
+        /// Print friends list to console for debugging
+        /// </summary>
+        public void PrintFriendsList()
+        {
+            try
+            {
+                // Debounce to prevent console spam from multiple callers
+                float currentTime = Time.time;
+                if (currentTime - lastPrintFriendsListTime < printFriendsListCooldown)
+                {
+                    Debug.Log($"[ETGSteamP2P] PrintFriendsList debounced - {printFriendsListCooldown - (currentTime - lastPrintFriendsListTime):F1}s remaining");
+                    return;
+                }
+                lastPrintFriendsListTime = currentTime;
+                
+                // Log which method called this (for debugging multiple callers)
+                var frame = new System.Diagnostics.StackTrace().GetFrame(1);
+                Debug.Log($"[ETGSteamP2P] PrintFriendsList called from: {frame.GetMethod().DeclaringType?.Name}.{frame.GetMethod().Name}");
+                
+                // First run debug diagnostics
+                Debug.Log("[ETGSteamP2P] Running Steam friends diagnostics...");
+                DebugSteamFriends();
+                
+                // Now get and print the friends list
+                var friends = GetSteamFriends(false);
+                Debug.Log($"[ETGSteamP2P] Steam Friends List ({friends.Count} total):");
+                
+                if (friends.Count == 0)
+                {
+                    Debug.LogWarning("[ETGSteamP2P] No friends found! This could indicate:");
+                    Debug.LogWarning("[ETGSteamP2P] 1. Steam is not properly initialized");
+                    Debug.LogWarning("[ETGSteamP2P] 2. You have no Steam friends");
+                    Debug.LogWarning("[ETGSteamP2P] 3. Steam API reflection is not working");
+                    Debug.LogWarning("[ETGSteamP2P] 4. Wrong friend flags are being used");
+                }
+                
+                foreach (var friend in friends)
+                {
+                    string status = friend.isOnline ? "Online" : "Offline";
+                    string game = friend.isPlayingETG ? " (Playing ETG)" : (!string.IsNullOrEmpty(friend.gameInfo) && friend.gameInfo != "Not in game" ? $" ({friend.gameInfo})" : "");
+                }
+                
+                // Show ETG-specific friends
+                var etgFriends = GetETGFriends();
+                if (etgFriends.Count > 0)
+                {
+                    Debug.Log($"[ETGSteamP2P] Friends playing Enter the Gungeon ({etgFriends.Count}):");
+                    foreach (var friend in etgFriends)
+                    {
+                        Debug.Log($"[ETGSteamP2P]   {friend.name} [{friend.steamId}]");
+                    }
+                }
+                else
+                {
+                    Debug.Log("[ETGSteamP2P] No friends are currently playing Enter the Gungeon");
+                }
+                
+                Debug.Log("[ETGSteamP2P] ========== END STEAM FRIENDS LIST ==========");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error printing friends list: {e.Message}");
+                Debug.LogError($"[ETGSteamP2P] Stack trace: {e.StackTrace}");
+            }
+        }
+        
+        /// <summary>
+        /// Debug Steam friends system to help diagnose issues with friend detection
+        /// </summary>
+        public void DebugSteamFriends()
+        {
+            try
+            {
+                Debug.Log("[ETGSteamP2P] === STEAM FRIENDS DEBUG ===");
+                
+                EnsureInitialized();
+                
+                // Check if Steam is available
+                Debug.Log($"[ETGSteamP2P] Steam initialization status: {(initialized ? "✅ Initialized" : "❌ Not initialized")}");
+                Debug.Log($"[ETGSteamP2P] Steam availability: {(IsAvailable() ? "✅ Available" : "❌ Not available")}");
+                
+                if (!ReferenceEquals(steamFriendsType, null))
+                {
+                    Debug.Log($"[ETGSteamP2P] SteamFriends type found: ✅ {steamFriendsType.FullName}");
+                    
+                    // List all available methods in SteamFriends
+                    var methods = steamFriendsType.GetMethods(BindingFlags.Public | BindingFlags.Static);
+                    Debug.Log($"[ETGSteamP2P] Available SteamFriends methods ({methods.Length} total):");
+                    
+                    var friendMethods = new System.Collections.Generic.List<string>();
+                    foreach (var method in methods)
+                    {
+                        if (method.Name.ToLower().Contains("friend"))
+                        {
+                            var parameters = method.GetParameters();
+                            string paramStr = "";
+                            for (int i = 0; i < parameters.Length; i++)
+                            {
+                                if (i > 0) paramStr += ", ";
+                                paramStr += parameters[i].ParameterType.Name + " " + parameters[i].Name;
+                            }
+                            friendMethods.Add($"  {method.Name}({paramStr})");
+                        }
+                    }
+                    
+                    foreach (var methodInfo in friendMethods)
+                    {
+                        Debug.Log($"[ETGSteamP2P] {methodInfo}");
+                    }
+                    
+                    // Test basic Steam user info
+                    if (!ReferenceEquals(steamUserType, null))
+                    {
+                        var getSteamIdMethod = steamUserType.GetMethod("GetSteamID", BindingFlags.Public | BindingFlags.Static);
+                        if (!ReferenceEquals(getSteamIdMethod, null))
+                        {
+                            try
+                            {
+                                var mySteamId = getSteamIdMethod.Invoke(null, null);
+                                Debug.Log($"[ETGSteamP2P] Local Steam ID: {mySteamId}");
+                            }
+                            catch (Exception e)
+                            {
+                                Debug.LogWarning($"[ETGSteamP2P] Failed to get local Steam ID: {e.Message}");
+                            }
+                        }
+                    }
+                    
+                    // Test friend count with verbose logging
+                    var getFriendCountMethod = steamFriendsType.GetMethod("GetFriendCount", BindingFlags.Public | BindingFlags.Static);
+                    if (!ReferenceEquals(getFriendCountMethod, null))
+                    {
+                        Debug.Log("[ETGSteamP2P] Testing friend count with different flags:");
+                        
+                        // Test common Steam friend flags
+                        var flagsToTest = new System.Collections.Generic.Dictionary<int, string>
+                        {
+                            { 0, "k_EFriendFlagNone" },
+                            { 1, "k_EFriendFlagBlocked" },
+                            { 2, "k_EFriendFlagFriendshipRequested" },
+                            { 4, "k_EFriendFlagImmediate" },
+                            { 8, "k_EFriendFlagClanMember" },
+                            { 16, "k_EFriendFlagOnGameServer" },
+                            { 255, "All flags" }
+                        };
+                        
+                        foreach (var flag in flagsToTest)
+                        {
+                            try
+                            {
+                                var count = (int)getFriendCountMethod.Invoke(null, new object[] { flag.Key });
+                                Debug.Log($"[ETGSteamP2P]   {flag.Value} ({flag.Key}): {count} friends");
+                            }
+                            catch (Exception e)
+                            {
+                                Debug.LogWarning($"[ETGSteamP2P]   {flag.Value} ({flag.Key}): Error - {e.Message}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogError("[ETGSteamP2P] GetFriendCount method not found!");
+                    }
+                }
+                else
+                {
+                    Debug.LogError("[ETGSteamP2P] SteamFriends type not found!");
+                }
+                
+                Debug.Log("[ETGSteamP2P] === END STEAM FRIENDS DEBUG ===");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error in Steam friends debug: {e.Message}");
+                Debug.LogError($"[ETGSteamP2P] Stack trace: {e.StackTrace}");
             }
         }
     }

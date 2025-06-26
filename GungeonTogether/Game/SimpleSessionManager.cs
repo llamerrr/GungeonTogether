@@ -96,7 +96,7 @@ namespace GungeonTogether.Game
             if (!ReferenceEquals(steamNet, null) && steamNet.IsAvailable())
             {
                 var steamId = steamNet.GetSteamID();
-                if (!ReferenceEquals(steamId, null) && steamId != 0)
+                if (!ReferenceEquals(steamId, null) && (!ReferenceEquals(steamId, 0)))
                 {
                     // Generate a session ID based on Steam ID
                     CurrentSessionId = $"steam_{steamId}";
@@ -111,6 +111,12 @@ namespace GungeonTogether.Game
                     // Start the hosting session
                     UpdateSteamNetworking();
                     
+                    // Register as a GungeonTogether host for friends detection
+                    ETGSteamP2PNetworking.RegisterAsHost();
+                    
+                    // Update Steam Rich Presence to show GungeonTogether hosting
+                    SteamSessionHelper.UpdateRichPresence(true, CurrentSessionId);
+                    
                     // Notify Steam networking to start hosting
                     if (!ReferenceEquals(steamNet, null))
                         steamNet.StartHostingSession();
@@ -121,6 +127,12 @@ namespace GungeonTogether.Game
                     Status = $"Hosting P2P: {steamId} (Waiting for connections)";
                     Debug.Log($"[SimpleSessionManager] Hosting Steam P2P session: {steamId}");
                     Debug.Log($"[SimpleSessionManager] Real P2P networking active - ready to accept connections");
+                    
+                    // Register as a GungeonTogether host for friends detection
+                    ETGSteamP2PNetworking.RegisterAsHost();
+                    
+                    // Update Steam Rich Presence to show GungeonTogether hosting
+                    SteamSessionHelper.UpdateRichPresence(true, CurrentSessionId);
                     
                     // Setup Rich Presence and lobby for Steam overlay invites
                     steamNet.StartHostingSession();
@@ -165,7 +177,7 @@ namespace GungeonTogether.Game
             EnsureSteamNetworkingInitialized();
             
             // Set up real P2P connection event handlers
-            if (steamNet != null)
+            if (!ReferenceEquals(steamNet, null))
             {
                 steamNet.OnPlayerJoined += OnPlayerConnected;
                 steamNet.OnPlayerLeft += OnPlayerDisconnected;
@@ -173,10 +185,10 @@ namespace GungeonTogether.Game
             }
             
             // Extract Steam ID from session format and initiate P2P connection
-            if (steamNet != null && steamNet.IsAvailable())
+            if (!ReferenceEquals(steamNet, null) && steamNet.IsAvailable())
             {
                 ulong hostSteamId = ExtractSteamIdFromSession(sessionId);
-                if (hostSteamId != 0)
+                if (!ReferenceEquals(hostSteamId, 0))
                 {
                     Debug.Log($"[SimpleSessionManager] Initiating real P2P connection to host: {hostSteamId}");
                     
@@ -232,8 +244,16 @@ namespace GungeonTogether.Game
             // Clean up connection tracking
             connectedPlayers.Clear();
             
+            // Unregister as host if we were hosting
+            if (wasHosting)
+            {
+                ETGSteamP2PNetworking.UnregisterAsHost();
+                SteamSessionHelper.UpdateRichPresence(false, null);
+                Debug.Log("[SimpleSessionManager] Unregistered from GungeonTogether host registry");
+            }
+            
             // Unsubscribe from connection events
-            if (steamNet != null)
+            if (!ReferenceEquals(steamNet, null))
             {
                 steamNet.OnPlayerJoined -= OnPlayerConnected;
                 steamNet.OnPlayerLeft -= OnPlayerDisconnected;
@@ -252,7 +272,7 @@ namespace GungeonTogether.Game
             }
             
             // Close Steam P2P connections
-            if (steamNet != null)
+            if (!ReferenceEquals(steamNet, null))
             {
                 try
                 {
@@ -312,7 +332,7 @@ namespace GungeonTogether.Game
         {
             try
             {
-                if (steamNet != null)
+                if (!ReferenceEquals(steamNet, null))
                 {
                     steamNet.Update();
                 }
@@ -394,7 +414,7 @@ namespace GungeonTogether.Game
         /// </summary>
         private void SetupNetworkingCallbacks()
         {
-            if (steamNet == null) return;
+            if (ReferenceEquals(steamNet, null)) return;
             
             try
             {
@@ -506,7 +526,7 @@ namespace GungeonTogether.Game
                 Debug.Log($"[SimpleSessionManager] Steam overlay join requested for host: {hostSteamId}");
                 
                 // Parse Steam ID
-                if (ulong.TryParse(hostSteamId, out ulong steamId) && steamId != 0)
+                if (ulong.TryParse(hostSteamId, out ulong steamId) && (!ReferenceEquals(steamId, 0)))
                 {
                     // Join the host session
                     var sessionId = $"steam_{steamId}";
@@ -546,7 +566,7 @@ namespace GungeonTogether.Game
         /// </summary>
         private void EnsureSteamNetworkingInitialized()
         {
-            if (steamNet != null) return; // Already initialized
+            if (!ReferenceEquals(steamNet, null)) return; // Already initialized
             
             try
             {
@@ -555,7 +575,7 @@ namespace GungeonTogether.Game
                 // Use factory to create the instance safely
                 steamNet = SteamNetworkingFactory.TryCreateSteamNetworking();
                 
-                if (steamNet != null && steamNet.IsAvailable())
+                if (!ReferenceEquals(steamNet, null) && steamNet.IsAvailable())
                 {
                     SetupNetworkingCallbacks();
                     Debug.Log("[SimpleSessionManager] ETG Steam P2P networking initialized successfully");
@@ -1115,12 +1135,12 @@ namespace GungeonTogether.Game
                 var player = gameManager.PrimaryPlayer;
                 var currentRoom = dungeon.data.GetAbsoluteRoomFromPosition(player.transform.position.IntXY());
                 
-                if (currentRoom != null)
+                if (!ReferenceEquals(currentRoom, null))
                 {
                     var roomName = currentRoom.GetRoomName();
                     
                     // Check for foyer/tutorial room names
-                    if (roomName != null && (
+                    if (!ReferenceEquals(roomName, null) && (
                         roomName.ToLower().Contains("foyer") ||
                         roomName.ToLower().Contains("tutorial") ||
                         roomName.ToLower().Contains("entrance") ||
@@ -1141,7 +1161,7 @@ namespace GungeonTogether.Game
                         if (!object.ReferenceEquals(categoryField, null))
                         {
                             var categoryValue = categoryField.GetValue(currentRoom);
-                            if (categoryValue != null)
+                            if (!ReferenceEquals(categoryValue, null))
                             {
                                 string categoryStr = categoryValue.ToString();
                                 if (categoryStr.Contains("ENTRANCE") || categoryStr.Contains("HUB"))
@@ -1193,7 +1213,7 @@ namespace GungeonTogether.Game
                 var player = gameManager.PrimaryPlayer;
                 var currentRoom = dungeon.data?.GetAbsoluteRoomFromPosition(player.transform.position.IntXY());
                 
-                if (currentRoom != null)
+                if (!ReferenceEquals(currentRoom, null))
                 {
                     var roomName = currentRoom.GetRoomName() ?? "Unknown Room";
                     
@@ -1209,7 +1229,7 @@ namespace GungeonTogether.Game
                         if (!object.ReferenceEquals(categoryField, null))
                         {
                             var categoryValue = categoryField.GetValue(currentRoom);
-                            if (categoryValue != null)
+                            if (!ReferenceEquals(categoryValue, null))
                             {
                                 categoryInfo = categoryValue.ToString();
                             }

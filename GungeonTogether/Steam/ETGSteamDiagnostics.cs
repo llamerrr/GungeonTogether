@@ -55,7 +55,7 @@ namespace GungeonTogether.Steam
                                 Debug.Log($"[ETGDiagnostics]   - {type.FullName}");
                                 
                                 // If this looks like a main Steam class, explore its methods
-                                if (type.Name == "SteamAPI" || type.Name == "SteamUser" || type.Name == "SteamNetworking")
+                                if (type.Name.Equals("SteamAPI") || type.Name.Equals("SteamUser") || type.Name.Equals("SteamNetworking"))
                                 {
                                     ExploreSteamType(type);
                                 }
