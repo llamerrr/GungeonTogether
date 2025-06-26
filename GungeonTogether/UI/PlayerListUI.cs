@@ -90,7 +90,7 @@ namespace GungeonTogether.UI
         
         void Awake()
         {
-            if (_instance == null)
+            if (ReferenceEquals(_instance, null))
             {
                 _instance = this;
                 DontDestroyOnLoad(gameObject);
@@ -147,7 +147,7 @@ namespace GungeonTogether.UI
                 Debug.Log("[PlayerListUI] Initializing player list UI...");
                 
                 // Safety check for Unity context
-                if (gameObject == null || transform == null)
+                if (ReferenceEquals(gameObject, null) || ReferenceEquals(transform, null))
                 {
                     Debug.LogError("[PlayerListUI] GameObject or transform is null during initialization");
                     return;
@@ -160,7 +160,7 @@ namespace GungeonTogether.UI
                 
                 // Get session manager reference
                 var mod = GungeonTogetherMod.Instance;
-                if (mod != null)
+                if (!ReferenceEquals(mod, null))
                 {
                     sessionManager = mod.SessionManager;
                 }
@@ -303,7 +303,7 @@ namespace GungeonTogether.UI
             scrollViewObj.transform.SetParent(playerListPanel.transform);
             
             var scrollRect = scrollViewObj.transform as RectTransform;
-            if (scrollRect == null)
+            if (ReferenceEquals(scrollRect, null))
             {
                 scrollRect = scrollViewObj.AddComponent<RectTransform>();
             }
@@ -545,7 +545,7 @@ namespace GungeonTogether.UI
             
             var playerData = connectedPlayers[steamId];
             
-            if (playerName != null) playerData.playerName = playerName;
+            if (!ReferenceEquals(playerName, null)) playerData.playerName = playerName;
             if (isHost.HasValue) playerData.isHost = isHost.Value;
             if (status.HasValue) playerData.status = status.Value;
             if (ping.HasValue) playerData.ping = ping.Value;
@@ -563,12 +563,12 @@ namespace GungeonTogether.UI
         /// </summary>
         public void RefreshPlayerList()
         {
-            if (sessionManager == null) return;
+            if (ReferenceEquals(sessionManager, null)) return;
             
             // Clear existing UI
             foreach (var entry in playerEntryUIs.Values)
             {
-                if (entry != null) Destroy(entry.gameObject);
+                if (!ReferenceEquals(entry, null)) Destroy(entry.gameObject);
             }
             playerEntryUIs.Clear();
             
@@ -631,7 +631,7 @@ namespace GungeonTogether.UI
         /// </summary>
         private void UpdatePlayerEntryUI(PlayerEntryUI entryUI, PlayerData playerData)
         {
-            if (entryUI == null) return;
+            if (ReferenceEquals(entryUI, null)) return;
             
             entryUI.UpdateDisplay(playerData);
         }
@@ -642,7 +642,7 @@ namespace GungeonTogether.UI
         private void UpdatePlayerCount()
         {
             var footerText = playerListPanel.transform.Find("Footer/PlayerCount")?.GetComponent<Text>();
-            if (footerText != null)
+            if (!ReferenceEquals(footerText, null))
             {
                 int playerCount = connectedPlayers.Count;
                 footerText.text = $"{playerCount} player{(playerCount != 1 ? "s" : "")} connected";
@@ -653,10 +653,10 @@ namespace GungeonTogether.UI
         private void AnimatePanel(bool show)
         {
             // Simple instant animation to avoid coroutine issues
-            if (playerListPanel != null)
+            if (!ReferenceEquals(playerListPanel, null))
             {
                 var panelRect = playerListPanel.GetComponent<RectTransform>();
-                if (panelRect != null)
+                if (!ReferenceEquals(panelRect, null))
                 {
                     var targetPos = show ? new Vector2(-panelSize.x / 2 - 20, 0) : new Vector2(0, 0);
                     panelRect.anchoredPosition = targetPos;
@@ -665,11 +665,11 @@ namespace GungeonTogether.UI
             
             if (!show)
             {
-                if (playerListBackground != null)
+                if (!ReferenceEquals(playerListBackground, null))
                 {
                     playerListBackground.SetActive(false);
                 }
-                if (playerListCanvas != null)
+                if (!ReferenceEquals(playerListCanvas, null))
                 {
                     playerListCanvas.gameObject.SetActive(false);
                 }
@@ -680,7 +680,7 @@ namespace GungeonTogether.UI
         private GameObject CreateUIPanel(Transform parent, string name, Vector2 size)
         {
             var panelObj = new GameObject(name);
-            if (parent != null)
+            if (!ReferenceEquals(parent, null))
                 panelObj.transform.SetParent(parent);
             
             var rectTransform = panelObj.AddComponent<RectTransform>();
@@ -778,19 +778,19 @@ namespace GungeonTogether.UI
         {
             playerData = data;
             
-            if (playerNameText != null)
+            if (!ReferenceEquals(playerNameText, null))
                 playerNameText.text = data.playerName;
                 
-            if (playerStatusText != null)
+            if (!ReferenceEquals(playerStatusText, null))
                 playerStatusText.text = data.status.ToString();
                 
-            if (playerPingText != null)
+            if (!ReferenceEquals(playerPingText, null))
                 playerPingText.text = $"{Mathf.RoundToInt(data.ping)}ms";
                 
-            if (hostIconText != null)
+            if (!ReferenceEquals(hostIconText, null))
                 hostIconText.gameObject.SetActive(data.isHost);
                 
-            if (statusDotImage != null && PlayerListUI.Instance != null)
+            if (!ReferenceEquals(statusDotImage, null) && !ReferenceEquals(PlayerListUI.Instance, null))
             {
                 var statusColors = new Dictionary<PlayerListUI.PlayerStatus, Color>
                 {
@@ -809,11 +809,11 @@ namespace GungeonTogether.UI
             }
             
             // Update status text color
-            if (playerStatusText != null && data.status == PlayerListUI.PlayerStatus.Disconnected)
+            if (!ReferenceEquals(playerStatusText, null) && object.Equals(data.status, PlayerListUI.PlayerStatus.Disconnected))
             {
                 playerStatusText.color = new Color(0.8f, 0.2f, 0.2f, 1f);
             }
-            else if (playerStatusText != null)
+            else if (!ReferenceEquals(playerStatusText, null))
             {
                 playerStatusText.color = Color.white;
             }

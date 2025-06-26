@@ -174,7 +174,7 @@ namespace GungeonTogether.UI
             canvasObj.AddComponent<GraphicRaycaster>();
             
             // Add EventSystem if it doesn't exist (required for UI interaction)
-            if (EventSystem.current == null)
+            if (ReferenceEquals(EventSystem.current, null))
             {
                 var eventSystemObj = new GameObject("EventSystem");
                 eventSystemObj.AddComponent<EventSystem>();
@@ -499,7 +499,7 @@ namespace GungeonTogether.UI
             layoutElement.flexibleWidth = 1f;
             
             // Set click handler
-            if (onClick != null)
+            if (!ReferenceEquals(onClick, null))
             {
                 button.onClick.AddListener(onClick);
             }
@@ -710,15 +710,15 @@ namespace GungeonTogether.UI
             {
                 // Get Steam networking instance for direct access
                 var steamNet = SteamNetworkingFactory.TryCreateSteamNetworking();
-                if (steamNet == null || !steamNet.IsAvailable())
+                if (ReferenceEquals(steamNet, null) || !steamNet.IsAvailable())
                 {
                     MultiplayerUIManager.ShowNotification("Steam networking not available", 3f);
                     return;
                 }
 
                 // Get all friends playing Enter the Gungeon (base game)
-                var allFriends = ETGSteamP2PNetworking.Instance?.GetSteamFriends(false) ?? new System.Collections.Generic.List<ETGSteamP2PNetworking.FriendInfo>();
-                var etgFriends = ETGSteamP2PNetworking.Instance?.GetETGFriends() ?? new System.Collections.Generic.List<ETGSteamP2PNetworking.FriendInfo>();
+                var allFriends = ETGSteamP2PNetworking.Instance?.GetSteamFriends(0) ?? new SteamFriendsHelper.FriendInfo[0];
+                var etgFriends = ETGSteamP2PNetworking.Instance?.GetETGFriends() ?? new SteamFriendsHelper.FriendInfo[0];
                 
                 // Also check for available hosts (people actually running GungeonTogether and hosting)
                 ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
@@ -741,19 +741,19 @@ namespace GungeonTogether.UI
                 message += $"• Playing Enter the Gungeon: {etgPlayingFriends}\n\n";
                 
                 // Show friends playing ETG (potential GungeonTogether players)
-                if (etgFriends.Count > 0)
+                if (etgFriends.Length > 0)
                 {
-                    message += $"🎮 Friends in Enter the Gungeon ({etgFriends.Count}):\n";
-                    for (int i = 0; i < Math.Min(etgFriends.Count, 4); i++)
+                    message += $"🎮 Friends in Enter the Gungeon ({etgFriends.Length}):\n";
+                    for (int i = 0; i < Math.Min(etgFriends.Length, 4); i++)
                     {
                         var friend = etgFriends[i];
                         string status = friend.isOnline ? "Online" : "Offline";
                         message += $"• {friend.personaName} ({status})\n";
                         message += $"  Steam ID: {friend.steamId}\n";
                     }
-                    if (etgFriends.Count > 4)
+                    if (etgFriends.Length > 4)
                     {
-                        message += $"• ...and {etgFriends.Count - 4} more\n";
+                        message += $"• ...and {etgFriends.Length - 4} more\n";
                     }
                     message += "\n💡 These friends might have GungeonTogether!\n";
                 }
@@ -794,7 +794,7 @@ namespace GungeonTogether.UI
                 
                 // Enhanced debugging
                 Debug.Log($"[ModernMultiplayerMenu] Enhanced Friends Analysis:");
-                Debug.Log($"  Total friends: {allFriends.Count}");
+                Debug.Log($"  Total friends: {allFriends.Length}");
                 Debug.Log($"  Online friends: {totalOnlineFriends}");
                 Debug.Log($"  ETG players: {etgPlayingFriends}");
                 Debug.Log($"  Available hosts: {availableHosts.Length}");
@@ -819,7 +819,7 @@ namespace GungeonTogether.UI
             Debug.Log("[ModernMultiplayerMenu] Player list button clicked");
             // Toggle player list UI
             var playerListUI = PlayerListUI.Instance;
-            if (playerListUI != null)
+            if (!ReferenceEquals(playerListUI, null))
             {
                 playerListUI.TogglePlayerList();
             }

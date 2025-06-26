@@ -59,7 +59,7 @@ namespace GungeonTogether.UI
         
         void Awake()
         {
-            if (_instance == null)
+            if (ReferenceEquals(_instance, null))
             {
                 _instance = this;
                 DontDestroyOnLoad(gameObject);
@@ -83,7 +83,7 @@ namespace GungeonTogether.UI
         {
             // Find the modern menu component
             modernMenu = FindObjectOfType<ModernMultiplayerMenu>();
-            if (modernMenu != null)
+            if (!ReferenceEquals(modernMenu, null))
             {
                 Debug.Log("[MultiplayerUI] Found ModernMultiplayerMenu component");
             }
@@ -165,7 +165,7 @@ namespace GungeonTogether.UI
                             var pausedField = gameManagerType.GetField("IsPaused", 
                                 System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
                             
-                            if (!ReferenceEquals(pausedField, null) && (bool)pausedField.GetValue(gameManager) == true)
+                            if (!ReferenceEquals(pausedField, null) && ReferenceEquals((bool)pausedField.GetValue(gameManager), true))
                             {
                                 pausedField.SetValue(gameManager, false);
                                 Debug.Log("[MultiplayerUI] Overrode GameManager pause state to keep server running");
@@ -212,7 +212,7 @@ namespace GungeonTogether.UI
         /// </summary>
         private void CreateUICanvas()
         {
-            if (uiCanvas == null)
+            if (ReferenceEquals(uiCanvas, null))
             {
                 GameObject canvasObject = new GameObject("GungeonTogether_UICanvas");
                 DontDestroyOnLoad(canvasObject);
@@ -248,7 +248,7 @@ namespace GungeonTogether.UI
         {
             // Check if EventSystem already exists
             EventSystem existingEventSystem = FindObjectOfType<EventSystem>();
-            if (existingEventSystem == null)
+            if (ReferenceEquals(existingEventSystem, null))
             {
                 Debug.Log("[MultiplayerUI] Creating EventSystem for UI interactions...");
                 
@@ -274,7 +274,7 @@ namespace GungeonTogether.UI
                 
                 // Verify the existing EventSystem is properly configured
                 var inputModule = existingEventSystem.GetComponent<StandaloneInputModule>();
-                if (inputModule == null)
+                if (ReferenceEquals(inputModule, null))
                 {
                     Debug.LogWarning("[MultiplayerUI] EventSystem exists but lacks StandaloneInputModule - adding it");
                     inputModule = existingEventSystem.gameObject.AddComponent<StandaloneInputModule>();
@@ -297,18 +297,18 @@ namespace GungeonTogether.UI
         private void CreateMainPanel()
         {
             Debug.Log("[MultiplayerUI] CreateMainPanel called");
-            Debug.Log($"[MultiplayerUI] mainPanel is null: {mainPanel == null}");
-            Debug.Log($"[MultiplayerUI] uiCanvas is null: {uiCanvas == null}");
+            Debug.Log($"[MultiplayerUI] mainPanel is null: {ReferenceEquals(mainPanel, null)}");
+            Debug.Log($"[MultiplayerUI] uiCanvas is null: {ReferenceEquals(uiCanvas, null)}");
             
-            if (mainPanel == null && uiCanvas != null)
+            if (ReferenceEquals(mainPanel, null) && !ReferenceEquals(uiCanvas, null))
             {
                 Debug.Log("[MultiplayerUI] Creating main panel...");
                 
                 // Create main panel background
                 mainPanel = CreateUIPanel(uiCanvas.transform, "MainPanel", new Vector2(600, 400));
-                Debug.Log($"[MultiplayerUI] Main panel created: {mainPanel != null}");
+                Debug.Log($"[MultiplayerUI] Main panel created: {!ReferenceEquals(mainPanel, null)}");
                 
-                if (mainPanel == null)
+                if (ReferenceEquals(mainPanel, null))
                 {
                     Debug.LogError("[MultiplayerUI] Failed to create main panel!");
                     return;
@@ -426,7 +426,7 @@ namespace GungeonTogether.UI
         /// </summary>
         private void CreateStatusIndicator()
         {
-            if (statusIndicator == null && uiCanvas != null)
+            if (ReferenceEquals(statusIndicator, null) && !ReferenceEquals(uiCanvas, null))
             {
                 statusIndicator = CreateUIPanel(uiCanvas.transform, "StatusIndicator", new Vector2(200, 50));
                 
@@ -477,7 +477,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public void ToggleUI()
         {
-            if (modernMenu != null)
+            if (!ReferenceEquals(modernMenu, null))
             {
                 modernMenu.ToggleMenu();
                 Debug.Log("[MultiplayerUI] Delegated toggle to ModernMultiplayerMenu");
@@ -490,10 +490,10 @@ namespace GungeonTogether.UI
             isUIVisible = !isUIVisible;
             
             Debug.Log($"[MultiplayerUI] ToggleUI called - isUIVisible: {isUIVisible}");
-            Debug.Log($"[MultiplayerUI] mainPanel is null: {mainPanel == null}");
-            Debug.Log($"[MultiplayerUI] uiCanvas is null: {uiCanvas == null}");
+            Debug.Log($"[MultiplayerUI] mainPanel is null: {ReferenceEquals(mainPanel, null)}");
+            Debug.Log($"[MultiplayerUI] uiCanvas is null: {ReferenceEquals(uiCanvas, null)}");
             
-            if (uiCanvas != null)
+            if (!ReferenceEquals(uiCanvas, null))
             {
                 Debug.Log($"[MultiplayerUI] Canvas enabled: {uiCanvas.enabled}");
                 Debug.Log($"[MultiplayerUI] Canvas sortingOrder: {uiCanvas.sortingOrder}");
@@ -555,12 +555,12 @@ namespace GungeonTogether.UI
                 Debug.LogError("[MultiplayerUI] Main panel is null - UI not properly initialized!");
                 
                 // Try to recreate the panel if it's missing
-                if (uiCanvas != null)
+                if (!ReferenceEquals(uiCanvas, null))
                 {
                     Debug.Log("[MultiplayerUI] Attempting to recreate main panel...");
                     CreateMainPanel();
                     
-                    if (mainPanel != null)
+                    if (!ReferenceEquals(mainPanel, null))
                     {
                         mainPanel.SetActive(isUIVisible);
                         Debug.Log("[MultiplayerUI] Main panel recreated successfully");
@@ -576,7 +576,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public void ShowUI()
         {
-            if (modernMenu != null)
+            if (!ReferenceEquals(modernMenu, null))
             {
                 modernMenu.ShowMenu();
                 Debug.Log("[MultiplayerUI] Delegated show to ModernMultiplayerMenu");
@@ -602,7 +602,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public void HideUI()
         {
-            if (modernMenu != null)
+            if (!ReferenceEquals(modernMenu, null))
             {
                 modernMenu.HideMenu();
                 Debug.Log("[MultiplayerUI] Delegated hide to ModernMultiplayerMenu");
@@ -610,7 +610,7 @@ namespace GungeonTogether.UI
             }
             
             // Fallback to old UI system
-            if (isInitialized && mainPanel != null)
+            if (isInitialized && !ReferenceEquals(mainPanel,null))
             {
                 isUIVisible = false;
                 mainPanel.SetActive(false);
@@ -623,12 +623,12 @@ namespace GungeonTogether.UI
         /// </summary>
         private void UpdateUIElements()
         {
-            if (sessionManager == null && GungeonTogetherMod.Instance != null)
+            if (ReferenceEquals(sessionManager, null) && !ReferenceEquals(GungeonTogetherMod.Instance, null))
             {
                 sessionManager = GungeonTogetherMod.Instance._sessionManager;
             }
             
-            if (steamNetworking == null)
+            if (ReferenceEquals(steamNetworking, null))
             {
                 steamNetworking = SteamNetworkingFactory.TryCreateSteamNetworking();
             }
@@ -653,20 +653,20 @@ namespace GungeonTogether.UI
             try
             {
                 var eventSystem = FindObjectOfType<EventSystem>();
-                if (eventSystem == null || !eventSystem.enabled)
+                if (ReferenceEquals(eventSystem, null) || !eventSystem.enabled)
                 {
                     Debug.LogWarning("[MultiplayerUI] EventSystem missing or disabled - recreating for UI clickability");
                     CreateEventSystemIfMissing();
                 }
                 
                 // Verify GraphicRaycaster is working
-                if (uiCanvas != null)
+                if (!ReferenceEquals(uiCanvas,null))
                 {
                     var raycaster = uiCanvas.GetComponent<UnityEngine.UI.GraphicRaycaster>();
-                    if (raycaster == null || !raycaster.enabled)
+                    if (ReferenceEquals(raycaster, null) || !raycaster.enabled)
                     {
                         Debug.LogWarning("[MultiplayerUI] GraphicRaycaster missing or disabled - fixing for UI clickability");
-                        if (raycaster == null)
+                        if (ReferenceEquals(raycaster, null))
                         {
                             raycaster = uiCanvas.gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
                         }
@@ -687,12 +687,12 @@ namespace GungeonTogether.UI
         /// </summary>
         private void UpdateStatusText()
         {
-            if (statusText == null) return;
+            if (ReferenceEquals(statusText, null)) return;
             
             string status = "Unknown";
             Color statusColor = Color.white;
             
-            if (sessionManager != null)
+            if (!ReferenceEquals(sessionManager, null))
             {
                 if (sessionManager.IsActive)
                 {
@@ -728,9 +728,9 @@ namespace GungeonTogether.UI
         /// </summary>
         private void UpdateSteamIdText()
         {
-            if (steamIdText == null) return;
+            if (ReferenceEquals(steamIdText, null)) return;
             
-            if (steamNetworking != null && steamNetworking.IsAvailable())
+            if (!ReferenceEquals(steamNetworking, null) && steamNetworking.IsAvailable())
             {
                 ulong steamId = steamNetworking.GetSteamID();
                 steamIdText.text = $"Steam ID: {steamId}";
@@ -748,9 +748,9 @@ namespace GungeonTogether.UI
         /// </summary>
         private void UpdateButtonStates()
         {
-            bool canHost = sessionManager != null && !sessionManager.IsActive;
-            bool canJoin = sessionManager != null && !sessionManager.IsActive;
-            bool canDisconnect = sessionManager != null && sessionManager.IsActive;
+            bool canHost = !ReferenceEquals(sessionManager, null) && !sessionManager.IsActive;
+            bool canJoin = !ReferenceEquals(sessionManager, null) && !sessionManager.IsActive;
+            bool canDisconnect = !ReferenceEquals(sessionManager, null) && sessionManager.IsActive;
             
             if (hostButton) hostButton.interactable = canHost;
             if (joinButton) joinButton.interactable = canJoin;
@@ -763,9 +763,9 @@ namespace GungeonTogether.UI
         /// </summary>
         private void UpdateStatusIndicator()
         {
-            if (statusIcon == null || statusLabel == null) return;
+            if (ReferenceEquals(statusIcon, null) || ReferenceEquals(statusLabel, null)) return;
             
-            if (sessionManager != null && sessionManager.IsActive)
+            if (!ReferenceEquals(sessionManager, null) && sessionManager.IsActive)
             {
                 if (sessionManager.IsHost)
                 {
@@ -790,7 +790,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public void RefreshHostList()
         {
-            if (hostListContainer == null) return;
+            if (ReferenceEquals(hostListContainer, null)) return;
             
             // Clear existing entries
             foreach (var entry in hostEntries)
@@ -800,7 +800,7 @@ namespace GungeonTogether.UI
             hostEntries.Clear();
             
             // Get available hosts
-            if (steamNetworking != null && steamNetworking.IsAvailable())
+            if (!ReferenceEquals(steamNetworking, null) && steamNetworking.IsAvailable())
             {
                 ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
                 ulong mySteamId = steamNetworking.GetSteamID();
@@ -808,13 +808,13 @@ namespace GungeonTogether.UI
                 foreach (ulong hostId in availableHosts)
                 {
                     // Don't show ourselves as a joinable host
-                    if (hostId != mySteamId)
+                    if (!ReferenceEquals(hostId, mySteamId))
                     {
                         CreateHostEntry(hostId);
                     }
                 }
                 
-                if (availableHosts.Length == 0)
+                if (ReferenceEquals(availableHosts.Length, 0))
                 {
                     CreateNoHostsEntry();
                 }
@@ -878,7 +878,7 @@ namespace GungeonTogether.UI
         {
             Debug.Log("[MultiplayerUI] Host button clicked");
             
-            if (sessionManager != null)
+            if (!ReferenceEquals(sessionManager, null))
             {
                 GungeonTogetherMod.Instance?.StartHosting();
                 UpdateUIElements();
@@ -889,7 +889,7 @@ namespace GungeonTogether.UI
         {
             Debug.Log("[MultiplayerUI] Join button clicked");
             
-            if (sessionManager != null)
+            if (!ReferenceEquals(sessionManager, null))
             {
                 GungeonTogetherMod.Instance?.TryJoinHost();
                 UpdateUIElements();
@@ -900,7 +900,7 @@ namespace GungeonTogether.UI
         {
             Debug.Log("[MultiplayerUI] Disconnect button clicked");
             
-            if (sessionManager != null)
+            if (!ReferenceEquals(sessionManager, null))
             {
                 GungeonTogetherMod.Instance?.StopMultiplayer();
                 UpdateUIElements();
@@ -918,7 +918,7 @@ namespace GungeonTogether.UI
         {
             Debug.Log($"[MultiplayerUI] Join host clicked: {hostSteamId}");
             
-            if (sessionManager != null)
+            if (!ReferenceEquals(sessionManager, null))
             {
                 string sessionId = $"steam_{hostSteamId}";
                 GungeonTogetherMod.Instance?.JoinSession(hostSteamId.ToString());
@@ -936,7 +936,7 @@ namespace GungeonTogether.UI
             {
                 Debug.Log("[MultiplayerUI] Creating test panel for debugging...");
                 
-                if (uiCanvas == null)
+                if (ReferenceEquals(uiCanvas, null))
                 {
                     Debug.LogError("[MultiplayerUI] Canvas is null - cannot create test panel");
                     return;
@@ -1049,7 +1049,7 @@ namespace GungeonTogether.UI
             var button = buttonObj.AddComponent<UnityEngine.UI.Button>();
             button.targetGraphic = image;
             
-            if (onClick != null)
+            if (!ReferenceEquals(onClick, null))
             {
                 button.onClick.AddListener(() => onClick.Invoke());
             }
@@ -1096,7 +1096,7 @@ namespace GungeonTogether.UI
             try
             {
                 // Safety check
-                if (uiCanvas == null)
+                if (ReferenceEquals(uiCanvas, null))
                 {
                     Debug.LogWarning("[MultiplayerUI] Cannot show notification - canvas not initialized");
                     return;
@@ -1105,7 +1105,7 @@ namespace GungeonTogether.UI
                 // Create temporary notification UI
                 var notification = CreateUIPanel(uiCanvas.transform, "Notification", new Vector2(400, 60));
                 
-                if (notification == null)
+                if (ReferenceEquals(notification, null))
                 {
                     Debug.LogWarning("[MultiplayerUI] Failed to create notification panel");
                     return;
@@ -1162,7 +1162,7 @@ namespace GungeonTogether.UI
         
         private void DestroyNotification()
         {
-            if (gameObject != null)
+            if (!ReferenceEquals(gameObject, null))
             {
                 Destroy(gameObject);
             }

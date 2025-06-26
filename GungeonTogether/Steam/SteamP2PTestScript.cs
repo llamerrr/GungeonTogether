@@ -214,7 +214,7 @@ namespace GungeonTogether.Steam
                 if (!ReferenceEquals(steamNet, null) && steamNet.IsAvailable())
                 {
                     var etgFriends = steamNet.GetETGFriends();
-                    if (etgFriends.Count > 0)
+                    if (etgFriends.Length > 0)
                     {
                         var bestETGFriend = etgFriends[0];
                         targetSteamId = bestETGFriend.steamId;
@@ -419,12 +419,12 @@ namespace GungeonTogether.Steam
                 steamNet.PrintFriendsList();
                 
                 var etgFriends = steamNet.GetETGFriends();
-                if (etgFriends.Count > 0)
+                if (etgFriends.Length > 0)
                 {
                     Debug.Log("[SteamP2PTest] === P2P TESTING TARGETS ===");
                     Debug.Log("[SteamP2PTest] Press number keys 1-9 to select ETG friends for P2P testing:");
                     
-                    for (int i = 0; i < etgFriends.Count && i < 9; i++)
+                    for (int i = 0; i < etgFriends.Length && i < 9; i++)
                     {
                         var friend = etgFriends[i];
                         string targetIndicator = friend.steamId.Equals(targetSteamId) ? " [CURRENT TARGET]" : "";
@@ -457,15 +457,15 @@ namespace GungeonTogether.Steam
                 }
                 
                 var etgFriends = steamNet.GetETGFriends();
-                if (etgFriends.Count.Equals(0))
+                if (ReferenceEquals(etgFriends.Length, 0))
                 {
                     Debug.LogWarning("[SteamP2PTest] No friends playing ETG - press F7 to see friends list");
                     return;
                 }
                 
-                if (index < 0 || index >= etgFriends.Count)
+                if (index < 0 || index >= etgFriends.Length)
                 {
-                    Debug.LogWarning($"[SteamP2PTest] Invalid friend index {index + 1} - only {etgFriends.Count} ETG friends available");
+                    Debug.LogWarning($"[SteamP2PTest] Invalid friend index {index + 1} - only {etgFriends.Length} ETG friends available");
                     return;
                 }
                 
@@ -499,7 +499,7 @@ namespace GungeonTogether.Steam
                 }
                 
                 var etgFriends = steamNet.GetETGFriends();
-                if (etgFriends.Count > 0)
+                if (etgFriends.Length > 0)
                 {
                     var firstFriend = etgFriends[0];
                     targetSteamId = firstFriend.steamId;
@@ -627,7 +627,7 @@ namespace GungeonTogether.Steam
                 }
                 
                 // End session if all pings sent and no more pending, or if timeout reached
-                if ((pingsSent >= pingsToSend && pendingPings.Count.Equals(0)) || 
+                if ((pingsSent >= pingsToSend && ReferenceEquals(pendingPings.Count, 0)) || 
                     (currentTime - pingSessionStartTime > 60f)) // 60 second total timeout
                 {
                     CompletePingSession();

@@ -229,7 +229,7 @@ namespace GungeonTogether.Steam
                 
                 // Get all ETG friends first
                 var etgFriends = steamNet.GetETGFriends();
-                if (etgFriends.Count.Equals(0))
+                if (ReferenceEquals(etgFriends.Length, 0))
                 {
                     Debug.Log("[SteamSessionHelper] No friends currently playing Enter the Gungeon");
                     return new string[0];
@@ -241,7 +241,7 @@ namespace GungeonTogether.Steam
                 // Filter to only friends who are hosting GungeonTogether sessions
                 System.Collections.Generic.List<string> gungeonTogetherFriends = new System.Collections.Generic.List<string>();
                 
-                for (int i = 0; i < etgFriends.Count; i++)
+                for (int i = 0; i < etgFriends.Length; i++)
                 {
                     var friend = etgFriends[i];
                     
@@ -249,7 +249,7 @@ namespace GungeonTogether.Steam
                     bool isHostingGungeonTogether = false;
                     foreach (var host in availableHosts)
                     {
-                        if (host.Key == friend.steamId && host.Value.isActive)
+                        if (object.Equals(host.Key, friend.steamId) && host.Value.isActive)
                         {
                             isHostingGungeonTogether = true;
                             break;

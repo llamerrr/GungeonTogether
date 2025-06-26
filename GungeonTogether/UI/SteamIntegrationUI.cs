@@ -54,7 +54,7 @@ namespace GungeonTogether.UI
         /// </summary>
         private void CreateSteamPanel()
         {
-            if (steamPanel == null)
+            if (ReferenceEquals(steamPanel, null))
             {
                 steamPanel = CreateUIPanel(transform, "SteamPanel", new Vector2(350, 250));
                 
@@ -208,7 +208,7 @@ namespace GungeonTogether.UI
         /// </summary>
         private void UpdateSteamStatus()
         {
-            if (steamNetworking != null && steamNetworking.IsAvailable())
+            if (!ReferenceEquals(steamNetworking, null) && steamNetworking.IsAvailable())
             {
                 steamStatusText.text = "✅ Steam Connected";
                 steamStatusText.color = new Color(0.4f, 0.8f, 0.4f, 1f); // Green
@@ -249,12 +249,12 @@ namespace GungeonTogether.UI
             // This would query the current Rich Presence state
             // For now, we'll show a placeholder based on session state
             SimpleSessionManager sessionManager = null;
-            if (GungeonTogetherMod.Instance != null)
+            if (!ReferenceEquals(GungeonTogetherMod.Instance, null))
             {
                 sessionManager = GungeonTogetherMod.Instance._sessionManager;
             }
             
-            if (sessionManager != null && sessionManager.IsActive)
+            if (!ReferenceEquals(sessionManager, null) && sessionManager.IsActive)
             {
                 if (sessionManager.IsHost)
                 {
@@ -486,7 +486,7 @@ namespace GungeonTogether.UI
             var button = buttonObj.AddComponent<UnityEngine.UI.Button>();
             button.targetGraphic = image;
             
-            if (onClick != null)
+            if (!ReferenceEquals(onClick, null))
             {
                 button.onClick.AddListener(() => onClick.Invoke());
             }

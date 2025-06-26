@@ -109,7 +109,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public static void SetSessionManager(SimpleSessionManager sessionManager)
         {
-            if (uiController != null)
+            if (!ReferenceEquals(uiController, null))
             {
                 // Store session manager reference for UI access
                 Debug.Log("[MultiplayerUIManager] Session manager set for UI");
@@ -128,7 +128,7 @@ namespace GungeonTogether.UI
                 return;
             }
             
-            if (uiController != null)
+            if (!ReferenceEquals(uiController, null))
             {
                 uiController.ShowUI();
             }
@@ -143,7 +143,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public static void HideUI()
         {
-            if (uiController != null)
+            if (!ReferenceEquals(uiController, null))
             {
                 uiController.HideUI();
             }
@@ -161,7 +161,7 @@ namespace GungeonTogether.UI
                 return;
             }
             
-            if (uiController != null)
+            if (!ReferenceEquals(uiController, null))
             {
                 uiController.ToggleUI();
             }
@@ -176,7 +176,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public static void ShowNotification(string message, float duration = 3f)
         {
-            if (uiController != null)
+            if (!ReferenceEquals(uiController, null))
             {
                 uiController.ShowNotification(message, duration);
             }
@@ -265,7 +265,7 @@ namespace GungeonTogether.UI
         /// <summary>
         /// Check if UI is initialized
         /// </summary>
-        public static bool IsInitialized => isInitialized && uiController != null;
+        public static bool IsInitialized => isInitialized && !ReferenceEquals(uiController, null);
         
         /// <summary>
         /// Cleanup UI resources
@@ -276,19 +276,19 @@ namespace GungeonTogether.UI
             {
                 Debug.Log("[MultiplayerUIManager] Cleaning up UI system...");
                 
-                if (uiController != null)
+                if (!ReferenceEquals(uiController, null))
                 {
                     UnityEngine.Object.Destroy(uiController.gameObject);
                     uiController = null;
                 }
                 
-                if (audioManager != null)
+                if (!ReferenceEquals(audioManager, null))
                 {
                     UnityEngine.Object.Destroy(audioManager.gameObject);
                     audioManager = null;
                 }
                 
-                if (playerListUI != null)
+                if (!ReferenceEquals(playerListUI, null))
                 {
                     UnityEngine.Object.Destroy(playerListUI.gameObject);
                     playerListUI = null;
@@ -308,7 +308,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public static void PlayUISound(string soundName, float volumeMultiplier = 1f, float pitchMultiplier = 1f)
         {
-            if (audioManager != null)
+            if (!ReferenceEquals(audioManager, null))
             {
                 audioManager.PlaySound(soundName, volumeMultiplier, pitchMultiplier);
             }
@@ -319,7 +319,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public static void PlayUISoundRandomPitch(string soundName, float pitchVariation = 0.1f, float volumeMultiplier = 1f)
         {
-            if (audioManager != null)
+            if (!ReferenceEquals(audioManager, null))
             {
                 audioManager.PlaySoundRandomPitch(soundName, pitchVariation, volumeMultiplier);
             }
@@ -330,7 +330,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public static void SetUIAudioVolume(float volume)
         {
-            if (audioManager != null)
+            if (!ReferenceEquals(audioManager, null))
             {
                 audioManager.SetMasterVolume(volume);
             }
@@ -341,7 +341,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public static void SetUIAudioEnabled(bool enabled)
         {
-            if (audioManager != null)
+            if (!ReferenceEquals(audioManager, null))
             {
                 audioManager.SetSoundEffectsEnabled(enabled);
             }
@@ -352,7 +352,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public static void ShowPlayerList()
         {
-            if (playerListUI != null)
+            if (!ReferenceEquals(playerListUI, null))
             {
                 playerListUI.ShowPlayerList();
             }
@@ -363,7 +363,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public static void HidePlayerList()
         {
-            if (playerListUI != null)
+            if (!ReferenceEquals(playerListUI, null))
             {
                 playerListUI.HidePlayerList();
             }
@@ -374,7 +374,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public static void TogglePlayerList()
         {
-            if (playerListUI != null)
+            if (!ReferenceEquals(playerListUI, null))
             {
                 playerListUI.TogglePlayerList();
             }
@@ -385,7 +385,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public static void AddPlayer(ulong steamId, string playerName, bool isHost = false)
         {
-            if (playerListUI != null)
+            if (!ReferenceEquals(playerListUI, null))
             {
                 playerListUI.AddPlayer(steamId, playerName, isHost);
             }
@@ -396,7 +396,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public static void RemovePlayer(ulong steamId)
         {
-            if (playerListUI != null)
+            if (!ReferenceEquals(playerListUI, null))
             {
                 playerListUI.RemovePlayer(steamId);
             }
@@ -407,7 +407,7 @@ namespace GungeonTogether.UI
         /// </summary>
         public static void UpdatePlayer(ulong steamId, string playerName = null, bool? isHost = null, PlayerListUI.PlayerStatus? status = null, float? ping = null)
         {
-            if (playerListUI != null)
+            if (!ReferenceEquals(playerListUI, null))
             {
                 playerListUI.UpdatePlayer(steamId, playerName, isHost, status, ping);
             }

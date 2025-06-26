@@ -29,7 +29,7 @@ namespace GungeonTogether.Game
         
         // Connection status logging
         private float lastStatusLog;
-        private const float STATUS_LOG_INTERVAL = 10.0f; // Log status every 10 seconds
+        private const float STATUS_LOG_INTERVAL = 60.0f; // Log status every 10 seconds
         
         // Connection handshaking
         private const byte PACKET_TYPE_HANDSHAKE_REQUEST = 1;
@@ -726,7 +726,7 @@ namespace GungeonTogether.Game
         {
             try
             {
-                if (data.Length == 0) return;
+                if (ReferenceEquals(data.Length, 0)) return;
                 
                 byte packetType = data[0];
                 
@@ -791,7 +791,7 @@ namespace GungeonTogether.Game
                 var mySteamId = steamNet?.GetSteamID() ?? 0;
                 BitConverter.GetBytes(mySteamId).CopyTo(packet, 1);
                 
-                if (steamNet?.SendP2PPacket(hostSteamId, packet) == true)
+                if (ReferenceEquals(steamNet?.SendP2PPacket(hostSteamId, packet), true))
                 {
                     Debug.Log($"[SimpleSessionManager] Handshake request sent to {hostSteamId}");
                 }
@@ -818,7 +818,7 @@ namespace GungeonTogether.Game
                 var packet = new byte[1]; // Just packet type for now
                 packet[0] = PACKET_TYPE_HANDSHAKE_RESPONSE;
                 
-                if (steamNet?.SendP2PPacket(clientSteamId, packet) == true)
+                if (ReferenceEquals(steamNet?.SendP2PPacket(clientSteamId, packet), true))
                 {
                     Debug.Log($"[SimpleSessionManager] Handshake response sent to {clientSteamId}");
                 }
@@ -1018,7 +1018,7 @@ namespace GungeonTogether.Game
         {
             try
             {
-                if (steamNet == null) return;
+                if (ReferenceEquals(steamNet, null)) return;
                 
                 var disconnectPacket = new byte[1];
                 disconnectPacket[0] = PACKET_TYPE_DISCONNECT;
@@ -1081,7 +1081,7 @@ namespace GungeonTogether.Game
             try
             {
                 // Check if GameManager exists and if we're not in a dungeon
-                if (GameManager.Instance == null)
+                if (ReferenceEquals(GameManager.Instance, null))
                 {
                     return true; // Likely in main menu if GameManager not initialized
                 }
@@ -1095,9 +1095,9 @@ namespace GungeonTogether.Game
                 
                 // Check GameManager state
                 var gameManager = GameManager.Instance;
-                if (gameManager.CurrentLevelOverrideState == GameManager.LevelOverrideState.NONE &&
-                    gameManager.CurrentGameType == GameManager.GameType.SINGLE_PLAYER &&
-                    gameManager.PrimaryPlayer == null)
+                if (object.Equals(gameManager.CurrentLevelOverrideState, GameManager.LevelOverrideState.NONE) &&
+                    object.Equals(gameManager.CurrentGameType, GameManager.GameType.SINGLE_PLAYER) &&
+                    ReferenceEquals(gameManager.PrimaryPlayer, null))
                 {
                     return true; // Likely in main menu
                 }
@@ -1119,14 +1119,14 @@ namespace GungeonTogether.Game
             try
             {
                 var gameManager = GameManager.Instance;
-                if (gameManager == null || gameManager.PrimaryPlayer == null)
+                if (ReferenceEquals(gameManager, null) || ReferenceEquals(gameManager.PrimaryPlayer, null))
                 {
                     return false;
                 }
                 
                 // Check if we're in the tutorial or foyer area
                 var dungeon = gameManager.Dungeon;
-                if (dungeon == null || dungeon.data == null)
+                if (ReferenceEquals(dungeon, null) || ReferenceEquals(dungeon.data, null))
                 {
                     return false;
                 }
@@ -1194,18 +1194,18 @@ namespace GungeonTogether.Game
             try
             {
                 var gameManager = GameManager.Instance;
-                if (gameManager == null)
+                if (ReferenceEquals(gameManager, null))
                 {
                     return "Main Menu (GameManager not initialized)";
                 }
                 
-                if (gameManager.PrimaryPlayer == null)
+                if (ReferenceEquals(gameManager.PrimaryPlayer, null))
                 {
                     return "Main Menu (No player)";
                 }
                 
                 var dungeon = gameManager.Dungeon;
-                if (dungeon == null)
+                if (ReferenceEquals(dungeon, null))
                 {
                     return "Main Menu (No dungeon)";
                 }
@@ -1265,7 +1265,7 @@ namespace GungeonTogether.Game
                 Debug.Log($"[Host Connection Status] 🏠 Host Steam ID: {hostSteamId}");
                 Debug.Log($"[Host Connection Status] 👥 Total Players: {connectedPlayers.Count}");
                 
-                if (connectedPlayers.Count == 0)
+                if (ReferenceEquals(connectedPlayers.Count,0))
                 {
                     Debug.Log($"[Host Connection Status] ❌ No players connected - waiting for connections...");
                 }

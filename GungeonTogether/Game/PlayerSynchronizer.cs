@@ -112,7 +112,7 @@ namespace GungeonTogether.Game
         {
             try
             {
-                if (localPlayer == null) return;
+                if (ReferenceEquals(localPlayer, null)) return;
 
                 var playerState = GetLocalPlayerState();
 

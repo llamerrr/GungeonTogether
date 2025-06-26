@@ -47,7 +47,7 @@ namespace GungeonTogether.UI
         
         void Awake()
         {
-            if (_instance == null)
+            if (ReferenceEquals(_instance, null))
             {
                 _instance = this;
                 DontDestroyOnLoad(gameObject);
@@ -66,7 +66,7 @@ namespace GungeonTogether.UI
         private void InitializeAudioManager()
         {
             // Create audio sources if they don't exist
-            if (uiAudioSource == null)
+            if (ReferenceEquals(uiAudioSource, null))
             {
                 var uiAudioObj = new GameObject("UIAudioSource");
                 uiAudioObj.transform.SetParent(transform);
@@ -75,7 +75,7 @@ namespace GungeonTogether.UI
                 uiAudioSource.volume = masterVolume;
             }
             
-            if (notificationAudioSource == null)
+            if (ReferenceEquals(notificationAudioSource, null))
             {
                 var notificationAudioObj = new GameObject("NotificationAudioSource");
                 notificationAudioObj.transform.SetParent(transform);
@@ -84,7 +84,7 @@ namespace GungeonTogether.UI
                 notificationAudioSource.volume = masterVolume * 0.8f;
             }
             
-            if (ambientAudioSource == null)
+            if (ReferenceEquals(ambientAudioSource, null))
             {
                 var ambientAudioObj = new GameObject("AmbientAudioSource");
                 ambientAudioObj.transform.SetParent(transform);
