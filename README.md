@@ -19,7 +19,8 @@ my paypal is llamerrr1@gmail.com if you actually want to (for some reason)
   
 ## Planned Features
 - Unlimited players
-- EVERYTHING synced 
+- EVERYTHING synced
+- Race mode (competing in identical dungeons, first player to finish wins)
 
 ## Installation
 1. Install BepInEx for Enter the Gungeon
