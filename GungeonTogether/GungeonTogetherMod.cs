@@ -118,6 +118,9 @@ namespace GungeonTogether
                 uiInitialized = true;
                 Logger.LogInfo("Modern UI system initialized successfully!");
                 Logger.LogInfo("Press Ctrl+M to open the multiplayer menu");
+                
+                // Initialize Steam P2P test script for debugging
+                InitializeTestScript();
             }
             catch (Exception e)
             {
@@ -249,13 +252,14 @@ namespace GungeonTogether
                         Logger.LogInfo("multiplayer ui toggled");
                         MultiplayerUIManager.ToggleUI();
                         
-                        // If hosting, inform about pause override
-                        if (_sessionManager is not null)
+                        // Only show hosting notification if we just opened the UI and are hosting
+                        // Don't spam it every time the menu is toggled
+                        if (_sessionManager is not null && _sessionManager.IsActive && _sessionManager.IsHost)
                         {
-                            if (_sessionManager.IsActive && _sessionManager.IsHost)
-                            {
-                                MultiplayerUIManager.ShowNotification("Hosting server", 4f);
-                            }
+                            // Only show the notification when opening the UI, not closing it
+                            // Check if UI was just opened (you might need to track this state)
+                            // For now, we'll remove the spam by not showing this notification here
+                            // The user already gets feedback when they start hosting
                         }
                     }
                     else
@@ -384,17 +388,41 @@ namespace GungeonTogether
                 if (_sessionManager is not null)
                 {
                     _sessionManager.StartSession();
-                    Logger.LogInfo("Started hosting session with SimpleSessionManager!");
-                    Logger.LogInfo($"Manager Active: {_sessionManager.IsActive}");
+                    Logger.LogInfo("StartSession called on SimpleSessionManager");
                     
-                    // Notify UI and user about hosting status and pause prevention
-                    if (uiInitialized)
+                    // Check if session actually started (could be blocked by location validation)
+                    if (_sessionManager.IsActive)
                     {
-                        MultiplayerUIManager.OnSessionStateChanged(true, true);
-                        MultiplayerUIManager.ShowNotification("Hosting multiplayer server - game will not pause!", 5f);
+                        Logger.LogInfo("Started hosting session with SimpleSessionManager!");
+                        Logger.LogInfo($"Manager Active: {_sessionManager.IsActive}");
+                        
+                        // Notify UI and user about hosting status and pause prevention
+                        if (uiInitialized)
+                        {
+                            MultiplayerUIManager.OnSessionStateChanged(true, true);
+                            MultiplayerUIManager.ShowNotification("Hosting multiplayer server - game will not pause!", 5f);
+                        }
+                        
+                        Logger.LogInfo("[Multiplayer] Game pause prevention is now active - server will continue running even when menus are opened");
                     }
-                    
-                    Logger.LogInfo("[Multiplayer] Game pause prevention is now active - server will continue running even when menus are opened");
+                    else
+                    {
+                        // Session didn't start - likely due to location restriction
+                        string status = _sessionManager.Status;
+                        Logger.LogWarning($"Failed to start session: {status}");
+                        
+                        if (uiInitialized)
+                        {
+                            if (status.Contains("Cannot start session from"))
+                            {
+                                MultiplayerUIManager.ShowNotification("Multiplayer only available in Main Menu or Gungeon Foyer", 4f);
+                            }
+                            else
+                            {
+                                MultiplayerUIManager.ShowNotification($"Failed to start: {status}", 4f);
+                            }
+                        }
+                    }
                 }
                 else
                 {
@@ -439,10 +467,32 @@ namespace GungeonTogether
                     Logger.LogInfo($"Attempting to join session: {sessionId}");
                     _sessionManager.JoinSession(sessionId);
                     
-                    // Notify UI
-                    if (uiInitialized)
+                    // Check if join actually started (could be blocked by location validation)
+                    if (_sessionManager.IsActive)
                     {
-                        MultiplayerUIManager.ShowNotification($"Connecting to host: {steamIdString}", 3f);
+                        // Notify UI
+                        if (uiInitialized)
+                        {
+                            MultiplayerUIManager.ShowNotification($"Connecting to host: {steamIdString}", 3f);
+                        }
+                    }
+                    else
+                    {
+                        // Join didn't start - likely due to location restriction
+                        string status = _sessionManager.Status;
+                        Logger.LogWarning($"Failed to join session: {status}");
+                        
+                        if (uiInitialized)
+                        {
+                            if (status.Contains("Cannot join session from"))
+                            {
+                                MultiplayerUIManager.ShowNotification("Multiplayer only available in Main Menu or Gungeon Foyer", 4f);
+                            }
+                            else
+                            {
+                                MultiplayerUIManager.ShowNotification($"Failed to join: {status}", 4f);
+                            }
+                        }
                     }
                 }
                 else
@@ -970,6 +1020,33 @@ namespace GungeonTogether
         /// </summary>
         private void SetupDebugControls()
         {
+        }
+        
+        /// <summary>
+        /// Initialize Steam P2P test script for debugging and packet testing
+        /// </summary>
+        private void InitializeTestScript()
+        {
+            try
+            {
+                Logger.LogInfo("Initializing Steam P2P test script...");
+                
+                // Create a GameObject to hold the test script
+                var testObject = new GameObject("SteamP2PTestScript");
+                
+                // Don't destroy on load so it persists across scenes
+                DontDestroyOnLoad(testObject);
+                
+                // Add the test script component
+                var testScript = testObject.AddComponent<SteamP2PTestScript>();
+                
+                Logger.LogInfo("Steam P2P test script initialized successfully!");
+                Logger.LogInfo("Use F8-F12 keys for Steam P2P testing (see console for controls)");
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"Failed to initialize Steam P2P test script: {e.Message}");
+            }
         }
     }
 }

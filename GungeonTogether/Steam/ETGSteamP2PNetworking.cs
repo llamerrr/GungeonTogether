@@ -134,7 +134,7 @@ namespace GungeonTogether.Steam
                     }
                 }
                 
-                if (object.ReferenceEquals(steamworksAssembly, null))
+                if (ReferenceEquals(steamworksAssembly, null))
                 {
                     Debug.LogWarning("[ETGSteamP2P] Assembly-CSharp-firstpass not found - Steamworks.NET not available");
                     return;
@@ -155,7 +155,7 @@ namespace GungeonTogether.Steam
                 lobbyJoinRequestedType = steamworksAssembly.GetType("Steamworks.GameLobbyJoinRequested_t", false);
                 var steamAPIType = steamworksAssembly.GetType("Steamworks.SteamAPI", false);
                 
-                if (!object.ReferenceEquals(steamAPIType, null))
+                if (!ReferenceEquals(steamAPIType, null))
                 {
                     runCallbacksMethod = steamAPIType.GetMethod("RunCallbacks", BindingFlags.Public | BindingFlags.Static);
                 }
@@ -172,20 +172,21 @@ namespace GungeonTogether.Steam
                 Debug.Log($"  LobbyCreatedCallback: {lobbyCreatedCallbackType?.FullName ?? "NOT FOUND"}");
                 
                 // Cache frequently used methods using proper Steamworks.NET method names
-                if (!object.ReferenceEquals(steamUserType, null))
+                if (!ReferenceEquals(steamUserType, null))
                 {
                     // Try common Steamworks.NET method names for getting Steam ID
                     getSteamIdMethod = steamUserType.GetMethod("GetSteamID", BindingFlags.Public | BindingFlags.Static);
-                    if (object.ReferenceEquals(getSteamIdMethod, null))
+                    if (ReferenceEquals(getSteamIdMethod, null))
                     {
                         getSteamIdMethod = steamUserType.GetMethod("get_SteamID", BindingFlags.Public | BindingFlags.Static);
                     }
                 }
                 
-                if (!object.ReferenceEquals(steamNetworkingType, null))
+                if (!ReferenceEquals(steamNetworkingType, null))
                 {
-                    // Try common Steamworks.NET P2P method names
-                    sendP2PPacketMethod = steamNetworkingType.GetMethod("SendP2PPacket", BindingFlags.Public | BindingFlags.Static);
+                    // Discover all SendP2PPacket method overloads to find the correct signature
+                    DiscoverSendP2PPacketSignatures(steamNetworkingType);
+                    
                     readP2PPacketMethod = steamNetworkingType.GetMethod("ReadP2PPacket", BindingFlags.Public | BindingFlags.Static);
                     isP2PPacketAvailableMethod = steamNetworkingType.GetMethod("IsP2PPacketAvailable", BindingFlags.Public | BindingFlags.Static);
                     acceptP2PSessionMethod = steamNetworkingType.GetMethod("AcceptP2PSessionWithUser", BindingFlags.Public | BindingFlags.Static);
@@ -193,14 +194,14 @@ namespace GungeonTogether.Steam
                 }
                 
                 // Cache Rich Presence methods
-                if (!object.ReferenceEquals(steamFriendsType, null))
+                if (!ReferenceEquals(steamFriendsType, null))
                 {
                     setRichPresenceMethod = steamFriendsType.GetMethod("SetRichPresence", BindingFlags.Public | BindingFlags.Static);
                     clearRichPresenceMethod = steamFriendsType.GetMethod("ClearRichPresence", BindingFlags.Public | BindingFlags.Static);
                 }
                 
                 // Cache lobby methods
-                if (!object.ReferenceEquals(steamMatchmakingType, null))
+                if (!ReferenceEquals(steamMatchmakingType, null))
                 {
                     createLobbyMethod = steamMatchmakingType.GetMethod("CreateLobby", BindingFlags.Public | BindingFlags.Static);
                     joinLobbyMethod = steamMatchmakingType.GetMethod("JoinLobby", BindingFlags.Public | BindingFlags.Static);
@@ -211,7 +212,7 @@ namespace GungeonTogether.Steam
                     inviteUserToLobbyMethod = steamMatchmakingType.GetMethod("InviteUserToLobby", BindingFlags.Public | BindingFlags.Static);
                 }
                 
-                if (!object.ReferenceEquals(steamFriendsType, null))
+                if (!ReferenceEquals(steamFriendsType, null))
                 {
                     // Try common Steamworks.NET method names for Rich Presence and lobbies
                     setRichPresenceMethod = steamFriendsType.GetMethod("SetRichPresence", BindingFlags.Public | BindingFlags.Static);
@@ -226,30 +227,30 @@ namespace GungeonTogether.Steam
                 }
                 
                 Debug.Log($"[ETGSteamP2P] Cached methods:");
-                Debug.Log($"  GetSteamID: {!object.ReferenceEquals(getSteamIdMethod, null)}");
-                Debug.Log($"  SendP2PPacket: {!object.ReferenceEquals(sendP2PPacketMethod, null)}");
-                Debug.Log($"  ReadP2PPacket: {!object.ReferenceEquals(readP2PPacketMethod, null)}");
-                Debug.Log($"  IsP2PPacketAvailable: {!object.ReferenceEquals(isP2PPacketAvailableMethod, null)}");
-                Debug.Log($"  AcceptP2PSession: {!object.ReferenceEquals(acceptP2PSessionMethod, null)}");
-                Debug.Log($"  CloseP2PSession: {!object.ReferenceEquals(closeP2PSessionMethod, null)}");
-                Debug.Log($"  SetRichPresence: {!object.ReferenceEquals(setRichPresenceMethod, null)}");
-                Debug.Log($"  ClearRichPresence: {!object.ReferenceEquals(clearRichPresenceMethod, null)}");
-                Debug.Log($"  CreateLobby: {!object.ReferenceEquals(createLobbyMethod, null)}");
-                Debug.Log($"  JoinLobby: {!object.ReferenceEquals(joinLobbyMethod, null)}");
-                Debug.Log($"  LeaveLobby: {!object.ReferenceEquals(leaveLobbyMethod, null)}");
-                Debug.Log($"  SetLobbyData: {!object.ReferenceEquals(setLobbyDataMethod, null)}");
-                Debug.Log($"  InviteUserToLobby: {!object.ReferenceEquals(inviteUserToLobbyMethod, null)}");
-                Debug.Log($"  SetRichPresence: {!object.ReferenceEquals(setRichPresenceMethod, null)}");
-                Debug.Log($"  ClearRichPresence: {!object.ReferenceEquals(clearRichPresenceMethod, null)}");
-                Debug.Log($"  CreateLobby: {!object.ReferenceEquals(createLobbyMethod, null)}");
-                Debug.Log($"  JoinLobby: {!object.ReferenceEquals(joinLobbyMethod, null)}");
-                Debug.Log($"  LeaveLobby: {!object.ReferenceEquals(leaveLobbyMethod, null)}");
-                Debug.Log($"  SetLobbyData: {!object.ReferenceEquals(setLobbyDataMethod, null)}");
-                Debug.Log($"  GetLobbyData: {!object.ReferenceEquals(getLobbyDataMethod, null)}");
-                Debug.Log($"  SetLobbyJoinable: {!object.ReferenceEquals(setLobbyJoinableMethod, null)}");
-                Debug.Log($"  InviteUserToLobby: {!object.ReferenceEquals(inviteUserToLobbyMethod, null)}");
+                Debug.Log($"  GetSteamID: {!ReferenceEquals(getSteamIdMethod, null)}");
+                Debug.Log($"  SendP2PPacket: {!ReferenceEquals(sendP2PPacketMethod, null)}");
+                Debug.Log($"  ReadP2PPacket: {!ReferenceEquals(readP2PPacketMethod, null)}");
+                Debug.Log($"  IsP2PPacketAvailable: {!ReferenceEquals(isP2PPacketAvailableMethod, null)}");
+                Debug.Log($"  AcceptP2PSession: {!ReferenceEquals(acceptP2PSessionMethod, null)}");
+                Debug.Log($"  CloseP2PSession: {!ReferenceEquals(closeP2PSessionMethod, null)}");
+                Debug.Log($"  SetRichPresence: {!ReferenceEquals(setRichPresenceMethod, null)}");
+                Debug.Log($"  ClearRichPresence: {!ReferenceEquals(clearRichPresenceMethod, null)}");
+                Debug.Log($"  CreateLobby: {!ReferenceEquals(createLobbyMethod, null)}");
+                Debug.Log($"  JoinLobby: {!ReferenceEquals(joinLobbyMethod, null)}");
+                Debug.Log($"  LeaveLobby: {!ReferenceEquals(leaveLobbyMethod, null)}");
+                Debug.Log($"  SetLobbyData: {!ReferenceEquals(setLobbyDataMethod, null)}");
+                Debug.Log($"  InviteUserToLobby: {!ReferenceEquals(inviteUserToLobbyMethod, null)}");
+                Debug.Log($"  SetRichPresence: {!ReferenceEquals(setRichPresenceMethod, null)}");
+                Debug.Log($"  ClearRichPresence: {!ReferenceEquals(clearRichPresenceMethod, null)}");
+                Debug.Log($"  CreateLobby: {!ReferenceEquals(createLobbyMethod, null)}");
+                Debug.Log($"  JoinLobby: {!ReferenceEquals(joinLobbyMethod, null)}");
+                Debug.Log($"  LeaveLobby: {!ReferenceEquals(leaveLobbyMethod, null)}");
+                Debug.Log($"  SetLobbyData: {!ReferenceEquals(setLobbyDataMethod, null)}");
+                Debug.Log($"  GetLobbyData: {!ReferenceEquals(getLobbyDataMethod, null)}");
+                Debug.Log($"  SetLobbyJoinable: {!ReferenceEquals(setLobbyJoinableMethod, null)}");
+                Debug.Log($"  InviteUserToLobby: {!ReferenceEquals(inviteUserToLobbyMethod, null)}");
                 
-                initialized = (!object.ReferenceEquals(steamNetworkingType, null) && !object.ReferenceEquals(sendP2PPacketMethod, null));
+                initialized = (!ReferenceEquals(steamNetworkingType, null) && !ReferenceEquals(sendP2PPacketMethod, null));
                 
                 if (initialized)
                 {
@@ -314,17 +315,17 @@ namespace GungeonTogether.Steam
             try
             {
                 // Return cached value if available
-                if (steamIdCached && cachedSteamId != 0)
+                if (steamIdCached && (!ReferenceEquals(cachedSteamId, 0)))
                 {
                     return cachedSteamId;
                 }
                 
                 EnsureInitialized();
                 
-                if (!object.ReferenceEquals(getSteamIdMethod, null))
+                if (!ReferenceEquals(getSteamIdMethod, null))
                 {
                     object result = getSteamIdMethod.Invoke(null, null);
-                    if (!object.ReferenceEquals(result, null))
+                    if (!ReferenceEquals(result, null))
                     {
                         // Try different casting approaches for different Steamworks types
                         try
@@ -355,10 +356,10 @@ namespace GungeonTogether.Steam
                                          resultType.GetField("value") ??
                                          resultType.GetField("Value");
                             
-                            if (!object.ReferenceEquals(idField, null))
+                            if (!ReferenceEquals(idField, null))
                             {
                                 object fieldValue = idField.GetValue(result);
-                                if (!object.ReferenceEquals(fieldValue, null))
+                                if (!ReferenceEquals(fieldValue,null))
                                 {
                                     ulong fieldSteamId = Convert.ToUInt64(fieldValue);
                                     cachedSteamId = fieldSteamId;
@@ -423,7 +424,7 @@ namespace GungeonTogether.Steam
             {
                 EnsureInitialized();
                 
-                if (!isInitialized || object.ReferenceEquals(sendP2PPacketMethod, null))
+                if (!isInitialized || ReferenceEquals(sendP2PPacketMethod, null))
                 {
                     Debug.LogWarning("[ETGSteamP2P] P2P networking not available");
                     return false;
@@ -436,16 +437,14 @@ namespace GungeonTogether.Steam
                     steamIdParam = targetSteamId; // Fallback to raw ulong
                 }
                 
-                // Call ETG's SendP2PPacket method via reflection
-                // Parameters vary by Steamworks version, try common signatures
-                object[] parameters = { steamIdParam, data, data.Length, 0 }; // Last param is usually send type
-                object result = sendP2PPacketMethod.Invoke(null, parameters);
+                // Try different parameter signatures for SendP2PPacket
+                bool success = TryDifferentSendSignatures(steamIdParam, data);
                 
-                if (!object.ReferenceEquals(result, null) && result is bool success)
+                if (success)
                 {
                     // Only log successful sends in debug mode or for important packets
                     // This prevents spam when sending frequent updates
-                    return success;
+                    return true;
                 }
                 
                 return false;
@@ -481,7 +480,7 @@ namespace GungeonTogether.Steam
                 // This prevents the method signature error spam while keeping the networking ready
                 
                 /* Disabled until we discover correct signatures:
-                if (object.ReferenceEquals(isP2PPacketAvailableMethod, null) || object.ReferenceEquals(readP2PPacketMethod, null))
+                if (ReferenceEquals(isP2PPacketAvailableMethod, null) || ReferenceEquals(readP2PPacketMethod, null))
                     return;
                 
                 // Check for available packets with proper signature discovery
@@ -512,14 +511,14 @@ namespace GungeonTogether.Steam
             {
                 EnsureInitialized();
                 
-                if (!object.ReferenceEquals(acceptP2PSessionMethod, null))
+                if (!ReferenceEquals(acceptP2PSessionMethod, null))
                 {
                     // Try different parameter formats for AcceptP2PSessionWithUser
                     object steamIdParam = ConvertToCSteamID(steamId);
-                    if (steamIdParam != null)
+                    if (!ReferenceEquals(steamIdParam,null))
                     {
                         object result = acceptP2PSessionMethod.Invoke(null, new object[] { steamIdParam });
-                        if (!object.ReferenceEquals(result, null) && result is bool success)
+                        if (!ReferenceEquals(result,null) && result is bool success)
                         {
                             if (success)
                             {
@@ -532,7 +531,7 @@ namespace GungeonTogether.Steam
                     {
                         // Fallback: try with raw ulong
                         object result = acceptP2PSessionMethod.Invoke(null, new object[] { steamId });
-                        if (!object.ReferenceEquals(result, null) && result is bool success)
+                        if (!ReferenceEquals(result,null) && result is bool success)
                         {
                             if (success)
                             {
@@ -561,10 +560,10 @@ namespace GungeonTogether.Steam
             {
                 EnsureInitialized();
                 
-                if (!object.ReferenceEquals(closeP2PSessionMethod, null))
+                if (!ReferenceEquals(closeP2PSessionMethod, null))
                 {
                     object result = closeP2PSessionMethod.Invoke(null, new object[] { steamId });
-                    if (!object.ReferenceEquals(result, null) && result is bool success)
+                    if (!ReferenceEquals(result,null) && result is bool success)
                     {
                         Debug.Log($"[ETGSteamP2P] Closed P2P session with {steamId}: {success}");
                         return success;
@@ -589,10 +588,10 @@ namespace GungeonTogether.Steam
             {
                 EnsureInitialized();
                 
-                if (!object.ReferenceEquals(setRichPresenceMethod, null))
+                if (!ReferenceEquals(setRichPresenceMethod, null))
                 {
                     object result = setRichPresenceMethod.Invoke(null, new object[] { key, value });
-                    if (!object.ReferenceEquals(result, null) && result is bool success)
+                    if (!ReferenceEquals(result,null) && result is bool success)
                     {
                         Debug.Log($"[ETGSteamP2P] Set Rich Presence {key}={value}: {success}");
                         return success;
@@ -617,10 +616,10 @@ namespace GungeonTogether.Steam
             {
                 EnsureInitialized();
                 
-                if (!object.ReferenceEquals(clearRichPresenceMethod, null))
+                if (!ReferenceEquals(clearRichPresenceMethod, null))
                 {
                     object result = clearRichPresenceMethod.Invoke(null, null);
-                    if (!object.ReferenceEquals(result, null) && result is bool success)
+                    if (!ReferenceEquals(result,null) && result is bool success)
                     {
                         Debug.Log($"[ETGSteamP2P] Cleared Rich Presence: {success}");
                         return success;
@@ -645,7 +644,7 @@ namespace GungeonTogether.Steam
             {
                 EnsureInitialized();
                 
-                if (!object.ReferenceEquals(createLobbyMethod, null))
+                if (!ReferenceEquals(createLobbyMethod, null))
                 {
                     // Try common Steamworks CreateLobby signatures
                     // Usually takes ELobbyType and maxMembers
@@ -677,7 +676,7 @@ namespace GungeonTogether.Steam
             {
                 EnsureInitialized();
                 
-                if (!object.ReferenceEquals(joinLobbyMethod, null))
+                if (!ReferenceEquals(joinLobbyMethod, null))
                 {
                     object result = joinLobbyMethod.Invoke(null, new object[] { lobbyId });
                     Debug.Log($"[ETGSteamP2P] Join lobby request sent for lobby {lobbyId}");
@@ -704,7 +703,7 @@ namespace GungeonTogether.Steam
             {
                 EnsureInitialized();
                 
-                if (currentLobbyId != 0 && !object.ReferenceEquals(leaveLobbyMethod, null))
+                if (!ReferenceEquals(currentLobbyId,0) && !ReferenceEquals(leaveLobbyMethod, null))
                 {
                     object result = leaveLobbyMethod.Invoke(null, new object[] { currentLobbyId });
                     Debug.Log($"[ETGSteamP2P] Left lobby {currentLobbyId}");
@@ -733,10 +732,10 @@ namespace GungeonTogether.Steam
             {
                 EnsureInitialized();
                 
-                if (currentLobbyId != 0 && !object.ReferenceEquals(setLobbyDataMethod, null))
+                if (!ReferenceEquals(currentLobbyId,0) && !ReferenceEquals(setLobbyDataMethod, null))
                 {
                     object result = setLobbyDataMethod.Invoke(null, new object[] { currentLobbyId, key, value });
-                    if (!object.ReferenceEquals(result, null) && result is bool success)
+                    if (!ReferenceEquals(result,null) && result is bool success)
                     {
                         Debug.Log($"[ETGSteamP2P] Set lobby data {key}={value}: {success}");
                         return success;
@@ -779,6 +778,9 @@ namespace GungeonTogether.Steam
                 CreateLobby(4); // Support up to 4 players
                 
                 Debug.Log($"[ETGSteamP2P] 🎮 Automatically started hosting session with Steam ID: {steamId}");
+                
+                // Log Steam callback status for debugging invite functionality
+                Debug.Log(GetCallbackStatus());
             }
             catch (Exception e)
             {
@@ -820,7 +822,7 @@ namespace GungeonTogether.Steam
                 currentLobbyId = 0;
                 isLobbyHost = false;
                 
-                Debug.Log($"[ETGSteamP2P] 🛑 Automatically stopped multiplayer session");
+                Debug.Log($"[ETGSteamP2P] Automatically stopped multiplayer session");
             }
             catch (Exception e)
             {
@@ -986,7 +988,7 @@ namespace GungeonTogether.Steam
             {
                 Debug.Log("[ETGSteamP2P] === Discovering Method Signatures ===");
                 
-                if (!object.ReferenceEquals(steamNetworkingType, null))
+                if (!ReferenceEquals(steamNetworkingType, null))
                 {
                     Debug.Log("[ETGSteamP2P] SteamNetworking methods:");
                     
@@ -1030,10 +1032,10 @@ namespace GungeonTogether.Steam
             try
             {
                 var instance = Instance;
-                if (instance != null && instance.IsAvailable())
+                if (!ReferenceEquals(instance,null) && instance.IsAvailable())
                 {
                     ulong mySteamId = instance.GetSteamID();
-                    if (mySteamId != 0)
+                    if (!ReferenceEquals(mySteamId,null))
                     {
                         currentHostSteamId = mySteamId;
                         isCurrentlyHosting = true;
@@ -1048,7 +1050,7 @@ namespace GungeonTogether.Steam
                             isActive = true
                         };
                         
-                        Debug.Log($"[ETGSteamP2P] 🏠 Automatically registered as host: {mySteamId}");
+                        Debug.Log($"[ETGSteamP2P] Automatically registered as host: {mySteamId}");
                     }
                 }
             }
@@ -1078,7 +1080,7 @@ namespace GungeonTogether.Steam
                 foreach (var hostId in hostsToRemove)
                 {
                     availableHosts.Remove(hostId);
-                    Debug.Log($"[ETGSteamP2P] 🗑️ Removed stale host: {hostId}");
+                    Debug.Log($"[ETGSteamP2P] Removed stale host: {hostId}");
                 }
                 
                 // Return active host Steam IDs
@@ -1117,7 +1119,7 @@ namespace GungeonTogether.Steam
         {
             lastInvitedBySteamId = hostSteamId;
             lastInviteLobbyId = lobbyId;
-            Debug.Log($"[ETGSteamP2P] 📨 Auto-received invite from Steam ID: {hostSteamId}");
+            Debug.Log($"[ETGSteamP2P] Auto-received invite from Steam ID: {hostSteamId}");
             
             // Add to available hosts if not already there
             if (!availableHosts.ContainsKey(hostSteamId))
@@ -1130,7 +1132,7 @@ namespace GungeonTogether.Steam
                     lastSeen = Time.time,
                     isActive = true
                 };
-                Debug.Log($"[ETGSteamP2P] 📥 Added host from invite: {hostSteamId}");
+                Debug.Log($"[ETGSteamP2P] Added host from invite: {hostSteamId}");
             }
         }
         
@@ -1151,9 +1153,9 @@ namespace GungeonTogether.Steam
             try
             {
                 // First priority: Direct invite
-                if (lastInvitedBySteamId != 0)
+                if (!ReferenceEquals(lastInvitedBySteamId,0))
                 {
-                    Debug.Log($"[ETGSteamP2P] 🎯 Using direct invite: {lastInvitedBySteamId}");
+                    Debug.Log($"[ETGSteamP2P] Using direct invite: {lastInvitedBySteamId}");
                     return lastInvitedBySteamId;
                 }
                 
@@ -1164,20 +1166,20 @@ namespace GungeonTogether.Steam
                 foreach (var kvp in availableHosts)
                 {
                     var host = kvp.Value;
-                    if (host.isActive && host.steamId != currentHostSteamId && host.lastSeen > mostRecent)
+                    if (host.isActive && (!ReferenceEquals(host.steamId,currentHostSteamId)) && host.lastSeen > mostRecent)
                     {
                         bestHost = host.steamId;
                         mostRecent = host.lastSeen;
                     }
                 }
                 
-                if (bestHost != 0)
+                if (!ReferenceEquals(bestHost,0))
                 {
-                    Debug.Log($"[ETGSteamP2P] 🔍 Auto-selected best host: {bestHost}");
+                    Debug.Log($"[ETGSteamP2P] Auto-selected best host: {bestHost}");
                 }
                 else
                 {
-                    Debug.Log("[ETGSteamP2P] ❌ No available hosts found");
+                    Debug.Log("[ETGSteamP2P] No available hosts found");
                 }
                 
                 return bestHost;
@@ -1196,7 +1198,7 @@ namespace GungeonTogether.Steam
         {
             lastInvitedBySteamId = 0;
             lastInviteLobbyId = "";
-            Debug.Log("[ETGSteamP2P] 🧹 Cleared invite info");
+            Debug.Log("[ETGSteamP2P] Cleared invite info");
         }
         
         /// <summary>
@@ -1206,10 +1208,10 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                if (isCurrentlyHosting && currentHostSteamId != 0)
+                if (isCurrentlyHosting && (!ReferenceEquals(currentHostSteamId,0)))
                 {
                     availableHosts.Remove(currentHostSteamId);
-                    Debug.Log($"[ETGSteamP2P] 🏠❌ Unregistered as host: {currentHostSteamId}");
+                    Debug.Log($"[ETGSteamP2P] Unregistered as host: {currentHostSteamId}");
                 }
                 
                 currentHostSteamId = 0;
@@ -1228,7 +1230,7 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                if (isCurrentlyHosting && currentHostSteamId != 0)
+                if (isCurrentlyHosting && (!ReferenceEquals(currentHostSteamId,0)))
                 {
                     // Update our host info
                     if (availableHosts.ContainsKey(currentHostSteamId))
@@ -1266,63 +1268,276 @@ namespace GungeonTogether.Steam
         }
         
         /// <summary>
-        /// Initialize Steam callbacks for overlay join functionality
+        /// Initialize Steam callbacks for overlay join functionality and invite handling
         /// </summary>
         private static void InitializeSteamCallbacks()
         {
             try
             {
-                Debug.Log("[ETGSteamP2P] Initializing Steam callbacks for overlay join functionality...");
+                Debug.Log("[ETGSteamP2P] Initializing Steam callbacks for invite and overlay join support...");
                 
-                // Set up overlay activated callback
-                if (!object.ReferenceEquals(overlayActivatedType, null) && !object.ReferenceEquals(callbackType, null))
+                // Get ETG's Assembly-CSharp-firstpass which contains Steamworks types
+                Assembly steamworksAssembly = null;
+                Assembly[] assemblies = System.AppDomain.CurrentDomain.GetAssemblies();
+                
+                for (int i = 0; i < assemblies.Length; i++)
+                {
+                    if (assemblies[i].GetName().Name == "Assembly-CSharp-firstpass")
+                    {
+                        steamworksAssembly = assemblies[i];
+                        break;
+                    }
+                }
+                
+                if (ReferenceEquals(steamworksAssembly, null))
+                {
+                    Debug.LogWarning("[ETGSteamP2P] Cannot initialize Steam callbacks - Assembly-CSharp-firstpass not found");
+                    return;
+                }
+                
+                // Find Steam callback types
+                Type callbackBaseType = steamworksAssembly.GetType("Steamworks.Callback", false);
+                Type gameOverlayActivatedType = steamworksAssembly.GetType("Steamworks.GameOverlayActivated_t", false);
+                Type gameLobbyJoinRequestedType = steamworksAssembly.GetType("Steamworks.GameLobbyJoinRequested_t", false);
+                Type gameJoinRequestedType = steamworksAssembly.GetType("Steamworks.GameRichPresenceJoinRequested_t", false);
+                
+                Debug.Log($"[ETGSteamP2P] Callback types found:");
+                Debug.Log($"  Callback base: {callbackBaseType?.FullName ?? "NOT FOUND"}");
+                Debug.Log($"  GameOverlayActivated_t: {gameOverlayActivatedType?.FullName ?? "NOT FOUND"}");
+                Debug.Log($"  GameLobbyJoinRequested_t: {gameLobbyJoinRequestedType?.FullName ?? "NOT FOUND"}");
+                Debug.Log($"  GameRichPresenceJoinRequested_t: {gameJoinRequestedType?.FullName ?? "NOT FOUND"}");
+                
+                // Initialize GameLobbyJoinRequested callback for Steam overlay invites
+                if (!ReferenceEquals(gameLobbyJoinRequestedType, null) && !ReferenceEquals(callbackBaseType, null))
                 {
                     try
                     {
-                        // Create callback instance for overlay activation
-                        var callbackConstructor = callbackType.GetConstructor(new Type[] { typeof(Action<>).MakeGenericType(overlayActivatedType) });
-                        if (!object.ReferenceEquals(callbackConstructor, null))
+                        // Try to create a callback for lobby join requests
+                        Type genericCallbackType = callbackBaseType.MakeGenericType(gameLobbyJoinRequestedType);
+                        
+                        if (!ReferenceEquals(genericCallbackType, null))
                         {
-                            // Create delegate to handle overlay activation
-                            var overlayDelegate = CreateOverlayActivatedDelegate(overlayActivatedType);
-                            overlayCallbackHandle = callbackConstructor.Invoke(new object[] { overlayDelegate });
-                            Debug.Log("[ETGSteamP2P] Created Steam overlay activation callback");
+                            // Create a delegate to handle the callback
+                            Type delegateType = steamworksAssembly.GetType("Steamworks.Callback`1+DispatchDelegate", false);
+                            if (!ReferenceEquals(delegateType, null))
+                            {
+                                delegateType = delegateType.MakeGenericType(gameLobbyJoinRequestedType);
+                                
+                                // Create the callback handler method
+                                var handleLobbyJoinMethod = typeof(ETGSteamP2PNetworking).GetMethod("HandleLobbyJoinRequest", 
+                                    BindingFlags.NonPublic | BindingFlags.Static);
+                                
+                                if (!ReferenceEquals(handleLobbyJoinMethod, null))
+                                {
+                                    var delegateInstance = System.Delegate.CreateDelegate(delegateType, handleLobbyJoinMethod);
+                                    
+                                    // Create the callback instance
+                                    var constructor = genericCallbackType.GetConstructor(new Type[] { delegateType });
+                                    if (!ReferenceEquals(constructor, null))
+                                    {
+                                        lobbyCallbackHandle = constructor.Invoke(new object[] { delegateInstance });
+                                        Debug.Log("[ETGSteamP2P] Successfully registered GameLobbyJoinRequested callback for Steam overlay invites");
+                                    }
+                                }
+                            }
                         }
                     }
                     catch (Exception e)
                     {
-                        Debug.LogWarning($"[ETGSteamP2P] Could not create overlay callback: {e.Message}");
+                        Debug.LogWarning($"[ETGSteamP2P] Could not register GameLobbyJoinRequested callback: {e.Message}");
                     }
                 }
                 
-                // Set up lobby join requested callback  
-                if (!object.ReferenceEquals(lobbyJoinRequestedType, null) && !object.ReferenceEquals(callbackType, null))
+                // Initialize GameRichPresenceJoinRequested callback for Rich Presence "Join Game"
+                if (!ReferenceEquals(gameJoinRequestedType, null) && !ReferenceEquals(callbackBaseType, null))
                 {
                     try
                     {
-                        // Create callback instance for lobby join requests
-                        var callbackConstructor = callbackType.GetConstructor(new Type[] { typeof(Action<>).MakeGenericType(lobbyJoinRequestedType) });
-                        if (!object.ReferenceEquals(callbackConstructor, null))
+                        Type genericCallbackType = callbackBaseType.MakeGenericType(gameJoinRequestedType);
+                        
+                        if (!ReferenceEquals(genericCallbackType, null))
                         {
-                            // Create delegate to handle lobby join requests
-                            var lobbyDelegate = CreateLobbyJoinRequestedDelegate(lobbyJoinRequestedType);
-                            lobbyCallbackHandle = callbackConstructor.Invoke(new object[] { lobbyDelegate });
-                            Debug.Log("[ETGSteamP2P] Created Steam lobby join requested callback");
+                            Type delegateType = steamworksAssembly.GetType("Steamworks.Callback`1+DispatchDelegate", false);
+                            if (!ReferenceEquals(delegateType, null))
+                            {
+                                delegateType = delegateType.MakeGenericType(gameJoinRequestedType);
+                                
+                                var handleJoinMethod = typeof(ETGSteamP2PNetworking).GetMethod("HandleRichPresenceJoinRequest", 
+                                    BindingFlags.NonPublic | BindingFlags.Static);
+                                
+                                if (!ReferenceEquals(handleJoinMethod, null))
+                                {
+                                    var delegateInstance = System.Delegate.CreateDelegate(delegateType, handleJoinMethod);
+                                    
+                                    var constructor = genericCallbackType.GetConstructor(new Type[] { delegateType });
+                                    if (!ReferenceEquals(constructor, null))
+                                    {
+                                        steamCallbackHandle = constructor.Invoke(new object[] { delegateInstance });
+                                        Debug.Log("[ETGSteamP2P] Successfully registered GameRichPresenceJoinRequested callback for Rich Presence join");
+                                    }
+                                }
+                            }
                         }
                     }
                     catch (Exception e)
                     {
-                        Debug.LogWarning($"[ETGSteamP2P] Could not create lobby join callback: {e.Message}");
+                        Debug.LogWarning($"[ETGSteamP2P] Could not register GameRichPresenceJoinRequested callback: {e.Message}");
                     }
                 }
                 
-                Debug.Log("[ETGSteamP2P] Steam callback initialization complete");
+                // Initialize GameOverlayActivated callback for overlay state tracking
+                if (!ReferenceEquals(gameOverlayActivatedType, null) && !ReferenceEquals(callbackBaseType, null))
+                {
+                    try
+                    {
+                        Type genericCallbackType = callbackBaseType.MakeGenericType(gameOverlayActivatedType);
+                        
+                        if (!ReferenceEquals(genericCallbackType, null))
+                        {
+                            Type delegateType = steamworksAssembly.GetType("Steamworks.Callback`1+DispatchDelegate", false);
+                            if (!ReferenceEquals(delegateType, null))
+                            {
+                                delegateType = delegateType.MakeGenericType(gameOverlayActivatedType);
+                                
+                                var handleOverlayMethod = typeof(ETGSteamP2PNetworking).GetMethod("HandleOverlayActivated", 
+                                    BindingFlags.NonPublic | BindingFlags.Static);
+                                
+                                if (!ReferenceEquals(handleOverlayMethod, null))
+                                {
+                                    var delegateInstance = System.Delegate.CreateDelegate(delegateType, handleOverlayMethod);
+                                    
+                                    var constructor = genericCallbackType.GetConstructor(new Type[] { delegateType });
+                                    if (!ReferenceEquals(constructor, null))
+                                    {
+                                        overlayCallbackHandle = constructor.Invoke(new object[] { delegateInstance });
+                                        Debug.Log("[ETGSteamP2P] Successfully registered GameOverlayActivated callback");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogWarning($"[ETGSteamP2P] Could not register GameOverlayActivated callback: {e.Message}");
+                    }
+                }
+                
+                joinCallbacksRegistered = true;
+                Debug.Log("[ETGSteamP2P] Steam callback initialization complete - Steam invites should now work!");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error initializing Steam callbacks: {e.Message}");
+                Debug.LogError($"[ETGSteamP2P] Failed to initialize Steam callbacks: {e.Message}");
+                joinCallbacksRegistered = false;
             }
         }
+        
+        /// <summary>
+        /// Get the status of Steam callback initialization for debugging
+        /// </summary>
+        public static string GetCallbackStatus()
+        {
+            try
+            {
+                var status = $"[ETGSteamP2P] Callback Status:\n";
+                status += $"  Callbacks Registered: {joinCallbacksRegistered}\n";
+                status += $"  RunCallbacks Method: {(!ReferenceEquals(runCallbacksMethod, null) ? "✅" : "❌")}\n";
+                status += $"  Lobby Callback Handle: {(!ReferenceEquals(lobbyCallbackHandle, null) ? "✅" : "❌")}\n";
+                status += $"  Overlay Callback Handle: {(!ReferenceEquals(overlayCallbackHandle, null) ? "✅" : "❌")}\n";
+                status += $"  Steam Callback Handle: {(!ReferenceEquals(steamCallbackHandle, null) ? "✅" : "❌")}\n";
+                return status;
+            }
+            catch (Exception e)
+            {
+                return $"[ETGSteamP2P] Error getting callback status: {e.Message}";
+            }
+        }
+        
+        /// <summary>
+        /// Handle Rich Presence join requests (when friends click "Join Game")
+        /// </summary>
+        private static void HandleRichPresenceJoinRequest(object joinData)
+        {
+            try
+            {
+                Debug.Log("[ETGSteamP2P] Rich Presence join request received!");
+                
+                if (joinData == null)
+                {
+                    Debug.LogWarning("[ETGSteamP2P] Rich Presence join request data is null");
+                    return;
+                }
+                
+                // Extract Steam ID from the join request
+                var dataType = joinData.GetType();
+                var friendIdField = dataType.GetField("m_steamIDFriend") ?? dataType.GetField("steamIDFriend");
+                var connectField = dataType.GetField("m_rgchConnect") ?? dataType.GetField("rgchConnect");
+                
+                string hostSteamId = "unknown";
+                string connectString = "";
+                
+                if (!ReferenceEquals(friendIdField, null))
+                {
+                    var friendId = friendIdField.GetValue(joinData);
+                    hostSteamId = friendId.ToString();
+                    Debug.Log($"[ETGSteamP2P] Rich Presence join from friend: {hostSteamId}");
+                }
+                
+                if (!ReferenceEquals(connectField, null))
+                {
+                    var connect = connectField.GetValue(joinData);
+                    connectString = connect?.ToString() ?? "";
+                    Debug.Log($"[ETGSteamP2P] Rich Presence connect string: {connectString}");
+                }
+                
+                // Parse host Steam ID from connect string if available
+                if (!string.IsNullOrEmpty(connectString) && ulong.TryParse(connectString, out ulong parsedSteamId))
+                {
+                    hostSteamId = parsedSteamId.ToString();
+                    SetInviteInfo(parsedSteamId);
+                }
+                
+                // Fire event for session manager to handle the join
+                Debug.Log($"[ETGSteamP2P] Firing OnJoinRequested event for Steam ID: {hostSteamId}");
+                Instance?.OnJoinRequested?.Invoke(ulong.Parse(hostSteamId));
+                
+                Debug.Log($"[ETGSteamP2P] Rich Presence join request processed successfully for host: {hostSteamId}");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error handling Rich Presence join request: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Handle overlay state changes
+        /// </summary>
+        private static void HandleOverlayActivated(object overlayData)
+        {
+            try
+            {
+                if (overlayData == null)
+                    return;
+                
+                var dataType = overlayData.GetType();
+                var activeField = dataType.GetField("m_bActive") ?? dataType.GetField("bActive");
+                
+                if (!ReferenceEquals(activeField, null))
+                {
+                    var isActive = activeField.GetValue(overlayData);
+                    bool active = Convert.ToBoolean(isActive);
+                    
+                    Debug.Log($"[ETGSteamP2P] Steam overlay {(active ? "opened" : "closed")}");
+
+                    OnOverlayActivated?.Invoke(active);
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error handling overlay activation: {e.Message}");
+            }
+        }
+
         
         /// <summary>
         /// Create delegate for overlay activation events
@@ -1371,7 +1586,7 @@ namespace GungeonTogether.Steam
                 
                 // Extract activation flag from overlay data
                 var activeField = overlayData.GetType().GetField("m_bActive");
-                if (!object.ReferenceEquals(activeField, null))
+                if (!ReferenceEquals(activeField, null))
                 {
                     bool isActive = (bool)activeField.GetValue(overlayData);
                     Debug.Log($"[ETGSteamP2P] Overlay active: {isActive}");
@@ -1401,14 +1616,14 @@ namespace GungeonTogether.Steam
                 
                 string hostSteamId = "unknown";
                 
-                if (!object.ReferenceEquals(friendIdField, null))
+                if (!ReferenceEquals(friendIdField, null))
                 {
                     var friendId = friendIdField.GetValue(lobbyData);
                     hostSteamId = friendId.ToString();
                     Debug.Log($"[ETGSteamP2P] Join request from friend: {hostSteamId}");
                 }
                 
-                if (!object.ReferenceEquals(lobbyIdField, null))
+                if (!ReferenceEquals(lobbyIdField, null))
                 {
                     var lobbyId = lobbyIdField.GetValue(lobbyData);
                     Debug.Log($"[ETGSteamP2P] Join request for lobby: {lobbyId}");
@@ -1432,7 +1647,7 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                if (!object.ReferenceEquals(runCallbacksMethod, null))
+                if (!ReferenceEquals(runCallbacksMethod, null))
                 {
                     runCallbacksMethod.Invoke(null, null);
                 }
@@ -1466,10 +1681,10 @@ namespace GungeonTogether.Steam
                     {
                         if (args[i].StartsWith("+connect") && i + 1 < args.Length)
                         {
-                            if (ulong.TryParse(args[i + 1], out ulong steamId) && steamId != 0)
+                            if (ulong.TryParse(args[i + 1], out ulong steamId) && (!ReferenceEquals(steamId,0)))
                             {
                                 // Only process if this is a new join request
-                                if (steamId != lastInvitedBySteamId)
+                                if (!ReferenceEquals(steamId,lastInvitedBySteamId))
                                 {
                                     Debug.Log($"[ETGSteamP2P] Detected delayed Steam join request: {steamId}");
                                     SetInviteInfo(steamId);
@@ -1500,11 +1715,11 @@ namespace GungeonTogether.Steam
                     if (assemblies[i].GetName().Name == "Assembly-CSharp-firstpass")
                     {
                         Type cSteamIdType = assemblies[i].GetType("Steamworks.CSteamID", false);
-                        if (!object.ReferenceEquals(cSteamIdType, null))
+                        if (!ReferenceEquals(cSteamIdType, null))
                         {
                             // Try constructor that takes ulong
                             var constructor = cSteamIdType.GetConstructor(new Type[] { typeof(ulong) });
-                            if (!object.ReferenceEquals(constructor, null))
+                            if (!ReferenceEquals(constructor, null))
                             {
                                 object cSteamId = constructor.Invoke(new object[] { steamId });
                                 Debug.Log($"[ETGSteamP2P] Converted {steamId} to CSteamID: {cSteamId}");
@@ -1524,5 +1739,527 @@ namespace GungeonTogether.Steam
                 return null;
             }
         }
+        
+        /// <summary>
+        /// Handle lobby join requests from Steam callbacks (for Steam overlay invites)
+        /// </summary>
+        private static void HandleLobbyJoinRequest(object lobbyData)
+        {
+            try
+            {
+                Debug.Log("[ETGSteamP2P] Steam lobby join request received via callback!");
+                
+                if (lobbyData == null)
+                {
+                    Debug.LogWarning("[ETGSteamP2P] Lobby join request data is null");
+                    return;
+                }
+                
+                // Extract Steam ID from lobby data
+                var dataType = lobbyData.GetType();
+                var friendIdField = dataType.GetField("m_steamIDFriend") ?? dataType.GetField("steamIDFriend");
+                var lobbyIdField = dataType.GetField("m_steamIDLobby") ?? dataType.GetField("steamIDLobby");
+                
+                string hostSteamId = "unknown";
+                ulong hostSteamIdNum = 0;
+                
+                if (!ReferenceEquals(friendIdField, null))
+                {
+                    var friendId = friendIdField.GetValue(lobbyData);
+                    hostSteamId = friendId.ToString();
+                    
+                    // Try to parse as ulong for the event
+                    if (ulong.TryParse(hostSteamId, out hostSteamIdNum))
+                    {
+                        SetInviteInfo(hostSteamIdNum);
+                    }
+                    
+                    Debug.Log($"[ETGSteamP2P] Lobby join request from friend: {hostSteamId}");
+                }
+                
+                if (!ReferenceEquals(lobbyIdField, null))
+                {
+                    var lobbyId = lobbyIdField.GetValue(lobbyData);
+                    Debug.Log($"[ETGSteamP2P] Lobby join request for lobby: {lobbyId}");
+                }
+                
+                // Fire event for session manager to handle the join
+                Debug.Log($"[ETGSteamP2P] Firing OnJoinRequested event for Steam lobby join: {hostSteamId}");
+                if (!ReferenceEquals(hostSteamIdNum,0))
+                {
+                    Instance?.OnJoinRequested?.Invoke(hostSteamIdNum);
+                }
+                
+                // Also fire the overlay join event for backward compatibility
+                OnOverlayJoinRequested?.Invoke(hostSteamId);
+                
+                Debug.Log($"[ETGSteamP2P] Lobby join request processed successfully for host: {hostSteamId}");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error handling lobby join request: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Try different SendP2PPacket signatures to find the correct one for ETG's Steamworks
+        /// </summary>
+        private bool TryDifferentSendSignatures(object steamIdParam, byte[] data)
+        {
+            try
+            {
+                if (ReferenceEquals(sendP2PPacketMethod, null))
+                {
+                    Debug.LogError("[ETGSteamP2P] SendP2PPacket method not available");
+                    return false;
+                }
+                
+                // First try the cached signature if available
+                if (workingSendSignatureIndex >= 0)
+                {
+                    bool cachedResult = TryUseCachedSignature(steamIdParam, data);
+                    if (cachedResult)
+                    {
+                        return true;
+                    }
+                    // If cached signature failed, continue to try all signatures
+                }
+                
+                // Get the actual parameter types for better signature matching
+                ParameterInfo[] methodParams = sendP2PPacketMethod.GetParameters();
+                
+                // Convert steamIdParam to proper format based on first parameter type
+                object correctSteamId = steamIdParam;
+                if (methodParams.Length > 0)
+                {
+                    Type firstParamType = methodParams[0].ParameterType;
+                    if (firstParamType.Equals(typeof(ulong)))
+                    {
+                        // Ensure we have a ulong value
+                        if (steamIdParam is ulong)
+                        {
+                            correctSteamId = steamIdParam;
+                        }
+                        else
+                        {
+                            // Try to convert to ulong safely
+                            try
+                            {
+                                correctSteamId = Convert.ToUInt64(steamIdParam);
+                            }
+                            catch (Exception convertEx)
+                            {
+                                Debug.LogError($"[ETGSteamP2P] Failed to convert steamIdParam to ulong: {convertEx.Message}");
+                                return false;
+                            }
+                        }
+                    }
+                    else if (firstParamType.Name.Contains("CSteamID"))
+                    {
+                        // Convert to CSteamID, but handle casting errors safely
+                        try
+                        {
+                            ulong steamIdAsUlong;
+                            if (steamIdParam is ulong)
+                            {
+                                steamIdAsUlong = (ulong)steamIdParam;
+                            }
+                            else
+                            {
+                                steamIdAsUlong = Convert.ToUInt64(steamIdParam);
+                            }
+                            
+                            object convertedSteamId = ConvertToCSteamID(steamIdAsUlong);
+                            correctSteamId = convertedSteamId ?? steamIdAsUlong; // Fallback to raw ulong
+                        }
+                        catch (Exception castEx)
+                        {
+                            Debug.LogError($"[ETGSteamP2P] Failed to convert steamIdParam for CSteamID: {castEx.Message}");
+                            correctSteamId = steamIdParam; // Use original value as fallback
+                        }
+                    }
+                }
+                
+                // Get raw ulong for fallback signatures
+                ulong rawSteamId;
+                try
+                {
+                    if (correctSteamId is ulong)
+                    {
+                        rawSteamId = (ulong)correctSteamId;
+                    }
+                    else if (correctSteamId != null && correctSteamId.GetType().Name.Contains("CSteamID"))
+                    {
+                        // Extract ulong from CSteamID using reflection
+                        var steamIdType = correctSteamId.GetType();
+                        var m_SteamIDField = steamIdType.GetField("m_SteamID", BindingFlags.Public | BindingFlags.Instance);
+                        if (!ReferenceEquals(m_SteamIDField, null))
+                        {
+                            rawSteamId = (ulong)m_SteamIDField.GetValue(correctSteamId);
+                        }
+                        else
+                        {
+                            // Try implicit conversion or ToString + Parse
+                            string steamIdStr = correctSteamId.ToString();
+                            if (!ulong.TryParse(steamIdStr, out rawSteamId))
+                            {
+                                Debug.LogError($"[ETGSteamP2P] Failed to extract ulong from CSteamID: {correctSteamId}");
+                                return false;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        rawSteamId = Convert.ToUInt64(correctSteamId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[ETGSteamP2P] Failed to extract ulong Steam ID for signatures: {ex.Message}");
+                    return false;
+                }
+                
+                // Common Steamworks.NET SendP2PPacket signatures to try:
+                var signatures = new object[][] 
+                {
+                    // Signature 0: (CSteamID, byte[], uint, EP2PSend) - Most common
+                    new object[] { correctSteamId, data, (uint)data.Length, 0 },
+                    
+                    // Signature 1: (CSteamID, byte[], uint, EP2PSend, int) - With channel
+                    new object[] { correctSteamId, data, (uint)data.Length, 0, 0 },
+                    
+                    // Signature 2: (CSteamID, byte[], int, EP2PSend) - int length
+                    new object[] { correctSteamId, data, data.Length, 0 },
+                    
+                    // Signature 3: Raw ulong instead of CSteamID - uint length
+                    new object[] { rawSteamId, data, (uint)data.Length, 0 },
+                    
+                    // Signature 4: Raw ulong instead of CSteamID - int length
+                    new object[] { rawSteamId, data, data.Length, 0 },
+                    
+                    // Signature 5: With reliable send type (1 = k_EP2PSendReliable)
+                    new object[] { correctSteamId, data, (uint)data.Length, 1 },
+                    
+                    // Signature 6: With unreliable send type (2 = k_EP2PSendUnreliable)
+                    new object[] { correctSteamId, data, (uint)data.Length, 2 },
+                    
+                    // Signature 7: With channel parameter and reliable
+                    new object[] { correctSteamId, data, (uint)data.Length, 1, 0 },
+                    
+                    // Signature 8: Raw ulong with reliable send
+                    new object[] { rawSteamId, data, (uint)data.Length, 1 },
+                    
+                    // Signature 9: Raw ulong with unreliable send
+                    new object[] { rawSteamId, data, (uint)data.Length, 2 },
+                };
+                
+                // Try each signature until one works
+                for (int i = 0; i < signatures.Length; i++)
+                {
+                    try
+                    {
+                        var parameters = signatures[i];
+                        
+                        // Validate parameter count matches method signature
+                        if (parameters.Length != methodParams.Length)
+                        {
+                            continue;
+                        }
+                        
+                        object result = sendP2PPacketMethod.Invoke(null, parameters);
+                        
+                        if (!ReferenceEquals(result,null) && result is bool success && success)
+                        {
+                            Debug.Log($"[ETGSteamP2P] Found working SendP2PPacket signature #{i}: {GetSignatureDescription(i)}");
+                            
+                            // Cache the working signature for future use
+                            CacheWorkingSendSignature(i);
+                            
+                            return true;
+                        }
+                        else if (!ReferenceEquals(result,null) && result is bool failResult && !failResult)
+                        {
+                            Debug.LogWarning($"[ETGSteamP2P] SendP2PPacket signature #{i} returned false (method worked but send failed)");
+                        }
+                    }
+                    catch (TargetParameterCountException)
+                    {
+                        // Parameter count mismatch - skip this signature
+                        continue;
+                    }
+                    catch (ArgumentException argEx)
+                    {
+                        // Parameter type mismatch - log and skip
+                        Debug.LogWarning($"[ETGSteamP2P] SendP2PPacket signature #{i} parameter mismatch: {argEx.Message}");
+                        continue;
+                    }
+                    catch (Exception sigEx)
+                    {
+                        // Other signature failure - log and continue
+                        Debug.LogWarning($"[ETGSteamP2P] SendP2PPacket signature #{i} failed: {sigEx.Message}");
+                        continue;
+                    }
+                }
+                
+                Debug.LogError($"[ETGSteamP2P] All {signatures.Length} SendP2PPacket signatures failed. Method has {methodParams.Length} parameters:");
+                
+                // Build parameter list without LINQ
+                string paramList = "";
+                for (int p = 0; p < methodParams.Length; p++)
+                {
+                    if (p > 0) paramList += ", ";
+                    paramList += methodParams[p].ParameterType.Name;
+                }
+                Debug.LogError($"[ETGSteamP2P] Method parameters: {paramList}");
+                return false;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error trying different send signatures: {e.Message}");
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// Get a description of the signature being tested
+        /// </summary>
+        private string GetSignatureDescription(int index)
+        {
+            switch (index)
+            {
+                case 0: return "(CSteamID, byte[], uint, EP2PSend)";
+                case 1: return "(CSteamID, byte[], uint, EP2PSend, int)";
+                case 2: return "(CSteamID, byte[], int, EP2PSend)";
+                case 3: return "(ulong, byte[], uint, EP2PSend)";
+                case 4: return "(ulong, byte[], int, EP2PSend)";
+                case 5: return "(CSteamID, byte[], uint, EP2PSend=Reliable)";
+                case 6: return "(CSteamID, byte[], uint, EP2PSend=Unreliable)";
+                case 7: return "(CSteamID, byte[], uint, EP2PSend=Reliable, int)";
+                default: return $"Unknown signature #{index}";
+            }
+        }
+        
+        /// <summary>
+        /// Discover the correct SendP2PPacket method signature by examining all overloads
+        /// </summary>
+        private static void DiscoverSendP2PPacketSignatures(Type steamNetworkingType)
+        {
+            try
+            {
+                Debug.Log("[ETGSteamP2P] Discovering SendP2PPacket method signatures...");
+                
+                // Get all methods and filter for SendP2PPacket without LINQ
+                MethodInfo[] allMethods = steamNetworkingType.GetMethods(BindingFlags.Public | BindingFlags.Static);
+                var sendMethodsList = new System.Collections.Generic.List<MethodInfo>();
+                
+                for (int i = 0; i < allMethods.Length; i++)
+                {
+                    if (allMethods[i].Name == "SendP2PPacket")
+                    {
+                        sendMethodsList.Add(allMethods[i]);
+                    }
+                }
+                
+                MethodInfo[] sendMethods = sendMethodsList.ToArray();
+                Debug.Log($"[ETGSteamP2P] Found {sendMethods.Length} SendP2PPacket overloads");
+                
+                for (int i = 0; i < sendMethods.Length; i++)
+                {
+                    MethodInfo method = sendMethods[i];
+                    ParameterInfo[] parameters = method.GetParameters();
+                    
+                    // Build parameter description without LINQ
+                    string parameterDescription = "";
+                    for (int j = 0; j < parameters.Length; j++)
+                    {
+                        if (j > 0) parameterDescription += ", ";
+                        parameterDescription += parameters[j].ParameterType.Name + " " + parameters[j].Name;
+                    }
+                    
+                    Debug.Log($"[ETGSteamP2P] Overload {i + 1}: {method.Name}({parameterDescription})");
+                    
+                    // Look for the most likely signature: (CSteamID, byte[], uint, EP2PSend)
+                    if (parameters.Length >= 4 && 
+                        parameters[1].ParameterType.Equals(typeof(byte[])) &&
+                        (parameters[2].ParameterType.Equals(typeof(uint)) || parameters[2].ParameterType.Equals(typeof(int))))
+                    {
+                        sendP2PPacketMethod = method;
+                        Debug.Log($"[ETGSteamP2P] Selected SendP2PPacket overload {i + 1} as primary method");
+                        break;
+                    }
+                }
+                
+                // Fallback: just use the first overload if no ideal match found
+                if (ReferenceEquals(sendP2PPacketMethod, null) && sendMethods.Length > 0)
+                {
+                    sendP2PPacketMethod = sendMethods[0];
+                    Debug.Log($"[ETGSteamP2P] Using fallback SendP2PPacket overload 1");
+                }
+                
+                if (!ReferenceEquals(sendP2PPacketMethod, null))
+                {
+                    var parameters = sendP2PPacketMethod.GetParameters();
+                    
+                    // Build final signature description without LINQ
+                    string finalSignature = "";
+                    for (int i = 0; i < parameters.Length; i++)
+                    {
+                        if (i > 0) finalSignature += ", ";
+                        finalSignature += parameters[i].ParameterType.Name + " " + parameters[i].Name;
+                    }
+                    
+                    Debug.Log($"[ETGSteamP2P] Final signature: {sendP2PPacketMethod.Name}({finalSignature})");
+                }
+                else
+                {
+                    Debug.LogError("[ETGSteamP2P] No SendP2PPacket method found!");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error discovering SendP2PPacket signatures: {e.Message}");
+                // Fallback to the old method
+                sendP2PPacketMethod = steamNetworkingType.GetMethod("SendP2PPacket", BindingFlags.Public | BindingFlags.Static);
+            }
+        }
+        
+        // Cache the working signature index
+        private static int workingSendSignatureIndex = -1;
+        
+        /// <summary>
+        /// Cache the working signature for future use
+        /// </summary>
+        private void CacheWorkingSendSignature(int signatureIndex)
+        {
+            workingSendSignatureIndex = signatureIndex;
+            Debug.Log($"[ETGSteamP2P] Cached working SendP2PPacket signature: #{signatureIndex + 1}");
+        }
+        
+        /// <summary>
+        /// Use the cached working signature if available
+        /// </summary>
+        private bool TryUseCachedSignature(object steamIdParam, byte[] data)
+        {
+            if (workingSendSignatureIndex == -1) return false;
+            
+            try
+            {
+                // Convert steamIdParam to proper format
+                object correctSteamId = steamIdParam;
+                ulong steamIdAsUlong;
+                
+                if (!ReferenceEquals(sendP2PPacketMethod, null))
+                {
+                    ParameterInfo[] methodParams = sendP2PPacketMethod.GetParameters();
+                    if (methodParams.Length > 0)
+                    {
+                        Type firstParamType = methodParams[0].ParameterType;
+                        if (firstParamType.Equals(typeof(ulong)))
+                        {
+                            // Ensure we have a ulong value
+                            try
+                            {
+                                steamIdAsUlong = steamIdParam is ulong ? (ulong)steamIdParam : Convert.ToUInt64(steamIdParam);
+                                correctSteamId = steamIdAsUlong;
+                            }
+                            catch (Exception)
+                            {
+                                Debug.LogError("[ETGSteamP2P] Failed to convert steamIdParam to ulong in cached signature");
+                                return false;
+                            }
+                        }
+                        else if (firstParamType.Name.Contains("CSteamID"))
+                        {
+                            try
+                            {
+                                steamIdAsUlong = steamIdParam is ulong ? (ulong)steamIdParam : Convert.ToUInt64(steamIdParam);
+                                object convertedSteamId = ConvertToCSteamID(steamIdAsUlong);
+                                correctSteamId = convertedSteamId ?? steamIdAsUlong;
+                            }
+                            catch (Exception)
+                            {
+                                Debug.LogError("[ETGSteamP2P] Failed to convert steamIdParam for CSteamID in cached signature");
+                                return false;
+                            }
+                        }
+                    }
+                }
+                
+                // Get steamIdAsUlong for raw ulong signatures
+                try
+                {
+                    if (correctSteamId is ulong)
+                    {
+                        steamIdAsUlong = (ulong)correctSteamId;
+                    }
+                    else if (correctSteamId != null && correctSteamId.GetType().Name.Contains("CSteamID"))
+                    {
+                        // Extract ulong from CSteamID using reflection
+                        var steamIdType = correctSteamId.GetType();
+                        var m_SteamIDField = steamIdType.GetField("m_SteamID", BindingFlags.Public | BindingFlags.Instance);
+                        if (!ReferenceEquals(m_SteamIDField, null))
+                        {
+                            steamIdAsUlong = (ulong)m_SteamIDField.GetValue(correctSteamId);
+                        }
+                        else
+                        {
+                            // Try implicit conversion or ToString + Parse
+                            string steamIdStr = correctSteamId.ToString();
+                            if (!ulong.TryParse(steamIdStr, out steamIdAsUlong))
+                            {
+                                Debug.LogError($"[ETGSteamP2P] Failed to extract ulong from CSteamID in cached signature: {correctSteamId}");
+                                return false;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        steamIdAsUlong = Convert.ToUInt64(correctSteamId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[ETGSteamP2P] Failed to extract ulong for cached signature: {ex.Message}");
+                    return false;
+                }
+                
+                object[] parameters = null;
+                
+                switch (workingSendSignatureIndex)
+                {
+                    case 0: parameters = new object[] { correctSteamId, data, (uint)data.Length, 0 }; break;
+                    case 1: parameters = new object[] { correctSteamId, data, (uint)data.Length, 0, 0 }; break;
+                    case 2: parameters = new object[] { correctSteamId, data, data.Length, 0 }; break;
+                    case 3: parameters = new object[] { steamIdAsUlong, data, (uint)data.Length, 0 }; break;
+                    case 4: parameters = new object[] { steamIdAsUlong, data, data.Length, 0 }; break;
+                    case 5: parameters = new object[] { correctSteamId, data, (uint)data.Length, 1 }; break;
+                    case 6: parameters = new object[] { correctSteamId, data, (uint)data.Length, 2 }; break;
+                    case 7: parameters = new object[] { correctSteamId, data, (uint)data.Length, 1, 0 }; break;
+                    case 8: parameters = new object[] { steamIdAsUlong, data, (uint)data.Length, 1 }; break;
+                    case 9: parameters = new object[] { steamIdAsUlong, data, (uint)data.Length, 2 }; break;
+                    default: 
+                        Debug.LogWarning($"[ETGSteamP2P] Unknown cached signature index: {workingSendSignatureIndex}");
+                        return false;
+                }
+                
+                object result = sendP2PPacketMethod.Invoke(null, parameters);
+                bool success = (!ReferenceEquals(result,null)) && result is bool resultBool && resultBool;
+                
+                if (!success)
+                {
+                    Debug.LogWarning($"[ETGSteamP2P] Cached signature #{workingSendSignatureIndex} failed, will retry discovery");
+                    workingSendSignatureIndex = -1; // Reset cache
+                }
+                
+                return success;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[ETGSteamP2P] Cached signature failed, will retry discovery: {e.Message}");
+                workingSendSignatureIndex = -1; // Reset cache
+                return false;
+            }
+        }
     }
 }
+

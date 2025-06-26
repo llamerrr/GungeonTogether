@@ -27,6 +27,10 @@ namespace GungeonTogether.Game
         private float lastConnectionCheck;
         private const float CONNECTION_CHECK_INTERVAL = 1.0f;
         
+        // Connection status logging
+        private float lastStatusLog;
+        private const float STATUS_LOG_INTERVAL = 10.0f; // Log status every 10 seconds
+        
         // Connection handshaking
         private const byte PACKET_TYPE_HANDSHAKE_REQUEST = 1;
         private const byte PACKET_TYPE_HANDSHAKE_RESPONSE = 2;
@@ -59,16 +63,28 @@ namespace GungeonTogether.Game
             Debug.Log("[SimpleSessionManager] Steam-compatible session manager initialized");
         }        public void StartSession()
         {
+            // Validate location before starting session
+            if (!IsValidLocationForMultiplayer())
+            {
+                string currentLocation = GetCurrentLocationName();
+                Status = $"Cannot start session from: {currentLocation}";
+                Debug.LogWarning($"[SimpleSessionManager] Cannot start multiplayer session from current location: {currentLocation}");
+                Debug.LogWarning("[SimpleSessionManager] Multiplayer can only be started from Main Menu or Gungeon Foyer");
+                return;
+            }
+            
             IsActive = true;
             IsHost = true;
             Status = "Starting Steam P2P session...";
             connectedPlayers.Clear();
             
+            Debug.Log("[SimpleSessionManager] Location validated - starting multiplayer session");
+            
             // Initialize Steam networking if not already done
             EnsureSteamNetworkingInitialized();
             
             // Set up real P2P connection event handlers
-            if (steamNet != null)
+            if (!ReferenceEquals(steamNet, null))
             {
                 // Subscribe to connection events
                 steamNet.OnPlayerJoined += OnPlayerConnected;
@@ -77,10 +93,29 @@ namespace GungeonTogether.Game
             }
             
             // Start hosting with ETG's Steam P2P networking
-            if (steamNet != null && steamNet.IsAvailable())
+            if (!ReferenceEquals(steamNet, null) && steamNet.IsAvailable())
             {
                 var steamId = steamNet.GetSteamID();
-                if (steamId != 0)
+                if (!ReferenceEquals(steamId, null) && steamId != 0)
+                {
+                    // Generate a session ID based on Steam ID
+                    CurrentSessionId = $"steam_{steamId}";
+                    
+                    // Set status and log hosting details
+                    IsHost = true;
+                    Status = $"Hosting P2P: {steamId} (Waiting for connections)";
+                    
+                    // Log the hosting details
+                    Debug.Log($"[SimpleSessionManager] Hosting Steam P2P session with ID: {CurrentSessionId}");
+                    
+                    // Start the hosting session
+                    UpdateSteamNetworking();
+                    
+                    // Notify Steam networking to start hosting
+                    if (!ReferenceEquals(steamNet, null))
+                        steamNet.StartHostingSession();
+                }
+                else if (!ReferenceEquals(steamId, 0))
                 {
                     CurrentSessionId = $"steam_{steamId}";
                     Status = $"Hosting P2P: {steamId} (Waiting for connections)";
@@ -108,11 +143,23 @@ namespace GungeonTogether.Game
             InitializePlayerSync();
         }        public void JoinSession(string sessionId)
         {
+            // Validate location before joining session
+            if (!IsValidLocationForMultiplayer())
+            {
+                string currentLocation = GetCurrentLocationName();
+                Status = $"Cannot join session from: {currentLocation}";
+                Debug.LogWarning($"[SimpleSessionManager] Cannot join multiplayer session from current location: {currentLocation}");
+                Debug.LogWarning("[SimpleSessionManager] Multiplayer can only be joined from Main Menu or Gungeon Foyer");
+                return;
+            }
+            
             IsActive = true;
             IsHost = false;
             Status = $"Connecting to Steam P2P session: {sessionId}";
             CurrentSessionId = sessionId;
             connectedPlayers.Clear();
+            
+            Debug.Log("[SimpleSessionManager] Location validated - joining multiplayer session");
             
             // Initialize Steam networking if not already done
             EnsureSteamNetworkingInitialized();
@@ -538,6 +585,13 @@ namespace GungeonTogether.Game
                 if (Time.time - lastConnectionCheck < CONNECTION_CHECK_INTERVAL) return;
                 lastConnectionCheck = Time.time;
                 
+                // Periodic status logging for hosts (every 10 seconds)
+                if (IsHost && Time.time - lastStatusLog >= STATUS_LOG_INTERVAL)
+                {
+                    lastStatusLog = Time.time;
+                    LogHostConnectionStatus("Periodic status report");
+                }
+                
                 // Check each connected player
                 foreach (var player in connectedPlayers.Keys)
                 {
@@ -584,6 +638,7 @@ namespace GungeonTogether.Game
             try
             {
                 Debug.Log($"[SimpleSessionManager] REAL P2P CONNECTION: Player {steamId} connected!");
+                Debug.Log($"[SimpleSessionManager] 🔗 NEW CONNECTION: Steam ID {steamId} is joining the session");
                 
                 var connection = new PlayerConnection
                 {
@@ -597,10 +652,11 @@ namespace GungeonTogether.Game
                 
                 connectedPlayers[steamId] = connection;
                 
-                // If we're the host, send a handshake response
+                // If we're the host, send a handshake response and log connection details
                 if (IsHost)
                 {
                     SendHandshakeResponse(steamId);
+                    LogHostConnectionStatus($"Player {steamId} connected - handshake initiated");
                 }
                 
                 UpdateConnectionStatus();
@@ -619,10 +675,17 @@ namespace GungeonTogether.Game
             try
             {
                 Debug.Log($"[SimpleSessionManager] REAL P2P DISCONNECTION: Player {steamId} disconnected");
+                Debug.Log($"[SimpleSessionManager] 🚪 DISCONNECTION: Steam ID {steamId} has left the session");
                 
                 if (connectedPlayers.ContainsKey(steamId))
                 {
                     connectedPlayers.Remove(steamId);
+                    
+                    // If we're the host, log updated connection status
+                    if (IsHost)
+                    {
+                        LogHostConnectionStatus($"Player {steamId} disconnected");
+                    }
                     
                     // Notify player synchronizer
                     playerSync?.OnPlayerDisconnected(steamId);
@@ -810,6 +873,13 @@ namespace GungeonTogether.Game
                 
                 UpdateConnectionStatus();
                 Debug.Log($"[SimpleSessionManager] FULLY CONNECTED to host: {steamId}");
+                Debug.Log($"[SimpleSessionManager] ✅ HANDSHAKE COMPLETE: Steam ID {steamId} is now fully connected");
+                
+                // If we're the host, log the updated connection status
+                if (IsHost)
+                {
+                    LogHostConnectionStatus($"Player {steamId} handshake completed - now fully connected");
+                }
             }
             catch (Exception e)
             {
@@ -823,6 +893,21 @@ namespace GungeonTogether.Game
         private void HandleHandshakeComplete(ulong steamId, byte[] data)
         {
             Debug.Log($"[SimpleSessionManager] Handshake completed with: {steamId}");
+            Debug.Log($"[SimpleSessionManager] ✅ HANDSHAKE FINALIZED: Steam ID {steamId} connection established");
+            
+            // Update connection status to mark handshake complete
+            if (connectedPlayers.ContainsKey(steamId))
+            {
+                var connection = connectedPlayers[steamId];
+                connection.handshakeComplete = true;
+                connectedPlayers[steamId] = connection;
+                
+                // If we're the host, log the updated status
+                if (IsHost)
+                {
+                    LogHostConnectionStatus($"Player {steamId} handshake finalized");
+                }
+            }
         }
         
         /// <summary>
@@ -927,6 +1012,263 @@ namespace GungeonTogether.Game
             catch (Exception e)
             {
                 Debug.LogError($"[SimpleSessionManager] Error sending disconnect packets: {e.Message}");
+            }
+        }
+        
+        // =========================
+        // LOCATION VALIDATION
+        // =========================
+        
+        /// <summary>
+        /// Check if current location allows multiplayer connections
+        /// Only main menu and Gungeon foyer are safe for starting/joining sessions
+        /// </summary>
+        private bool IsValidLocationForMultiplayer()
+        {
+            try
+            {
+                // Check if we're in main menu
+                if (IsInMainMenu())
+                {
+                    Debug.Log("[SimpleSessionManager] Location check: Main menu - ALLOWED");
+                    return true;
+                }
+                
+                // Check if we're in Gungeon foyer
+                if (IsInGungeonFoyer())
+                {
+                    Debug.Log("[SimpleSessionManager] Location check: Gungeon foyer - ALLOWED");
+                    return true;
+                }
+                
+                // Any other location is not allowed
+                string currentLocation = GetCurrentLocationName();
+                Debug.LogWarning($"[SimpleSessionManager] Location check: {currentLocation} - NOT ALLOWED for multiplayer");
+                return false;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SimpleSessionManager] Error checking location: {e.Message}");
+                return false; // Default to safe (not allowed)
+            }
+        }
+        
+        /// <summary>
+        /// Check if player is currently in the main menu
+        /// </summary>
+        private bool IsInMainMenu()
+        {
+            try
+            {
+                // Check if GameManager exists and if we're not in a dungeon
+                if (GameManager.Instance == null)
+                {
+                    return true; // Likely in main menu if GameManager not initialized
+                }
+                
+                // Check if we're in the MainMenuFoyer scene
+                var currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+                if (currentScene.Contains("MainMenu") || currentScene.Contains("Foyer_001"))
+                {
+                    return true;
+                }
+                
+                // Check GameManager state
+                var gameManager = GameManager.Instance;
+                if (gameManager.CurrentLevelOverrideState == GameManager.LevelOverrideState.NONE &&
+                    gameManager.CurrentGameType == GameManager.GameType.SINGLE_PLAYER &&
+                    gameManager.PrimaryPlayer == null)
+                {
+                    return true; // Likely in main menu
+                }
+                
+                return false;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[SimpleSessionManager] Error checking main menu state: {e.Message}");
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// Check if player is in the Gungeon foyer (safe starting area)
+        /// </summary>
+        private bool IsInGungeonFoyer()
+        {
+            try
+            {
+                var gameManager = GameManager.Instance;
+                if (gameManager == null || gameManager.PrimaryPlayer == null)
+                {
+                    return false;
+                }
+                
+                // Check if we're in the tutorial or foyer area
+                var dungeon = gameManager.Dungeon;
+                if (dungeon == null || dungeon.data == null)
+                {
+                    return false;
+                }
+                
+                // Get current room
+                var player = gameManager.PrimaryPlayer;
+                var currentRoom = dungeon.data.GetAbsoluteRoomFromPosition(player.transform.position.IntXY());
+                
+                if (currentRoom != null)
+                {
+                    var roomName = currentRoom.GetRoomName();
+                    
+                    // Check for foyer/tutorial room names
+                    if (roomName != null && (
+                        roomName.ToLower().Contains("foyer") ||
+                        roomName.ToLower().Contains("tutorial") ||
+                        roomName.ToLower().Contains("entrance") ||
+                        roomName.ToLower().Contains("start")))
+                    {
+                        return true;
+                    }
+                    
+                    // Check if we're in a safe area by examining room properties
+                    try
+                    {
+                        // Use reflection to safely check room category if available
+                        var roomType = currentRoom.GetType();
+                        var categoryField = roomType.GetField("category", 
+                            System.Reflection.BindingFlags.Public | 
+                            System.Reflection.BindingFlags.Instance);
+                        
+                        if (!object.ReferenceEquals(categoryField, null))
+                        {
+                            var categoryValue = categoryField.GetValue(currentRoom);
+                            if (categoryValue != null)
+                            {
+                                string categoryStr = categoryValue.ToString();
+                                if (categoryStr.Contains("ENTRANCE") || categoryStr.Contains("HUB"))
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogWarning($"[SimpleSessionManager] Could not check room category: {e.Message}");
+                    }
+                }
+                
+                return false;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[SimpleSessionManager] Error checking foyer state: {e.Message}");
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// Get descriptive name of current location for logging
+        /// </summary>
+        private string GetCurrentLocationName()
+        {
+            try
+            {
+                var gameManager = GameManager.Instance;
+                if (gameManager == null)
+                {
+                    return "Main Menu (GameManager not initialized)";
+                }
+                
+                if (gameManager.PrimaryPlayer == null)
+                {
+                    return "Main Menu (No player)";
+                }
+                
+                var dungeon = gameManager.Dungeon;
+                if (dungeon == null)
+                {
+                    return "Main Menu (No dungeon)";
+                }
+                
+                var player = gameManager.PrimaryPlayer;
+                var currentRoom = dungeon.data?.GetAbsoluteRoomFromPosition(player.transform.position.IntXY());
+                
+                if (currentRoom != null)
+                {
+                    var roomName = currentRoom.GetRoomName() ?? "Unknown Room";
+                    
+                    // Try to get category information safely
+                    string categoryInfo = "Unknown Category";
+                    try
+                    {
+                        var roomType = currentRoom.GetType();
+                        var categoryField = roomType.GetField("category", 
+                            System.Reflection.BindingFlags.Public | 
+                            System.Reflection.BindingFlags.Instance);
+                        
+                        if (!object.ReferenceEquals(categoryField, null))
+                        {
+                            var categoryValue = categoryField.GetValue(currentRoom);
+                            if (categoryValue != null)
+                            {
+                                categoryInfo = categoryValue.ToString();
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        categoryInfo = "Category unavailable";
+                    }
+                    
+                    return $"Dungeon Room: {roomName} ({categoryInfo})";
+                }
+                
+                return "Unknown Location";
+            }
+            catch (Exception e)
+            {
+                return $"Location check error: {e.Message}";
+            }
+        }
+        
+        /// <summary>
+        /// Log detailed connection status for the host (shows all connected/connecting players)
+        /// </summary>
+        private void LogHostConnectionStatus(string eventDescription = "Status update")
+        {
+            if (!IsHost) return;
+            
+            try
+            {
+                var hostSteamId = steamNet?.GetSteamID() ?? 0;
+                Debug.Log($"[Host Connection Status] {eventDescription}");
+                Debug.Log($"[Host Connection Status] 🏠 Host Steam ID: {hostSteamId}");
+                Debug.Log($"[Host Connection Status] 👥 Total Players: {connectedPlayers.Count}");
+                
+                if (connectedPlayers.Count == 0)
+                {
+                    Debug.Log($"[Host Connection Status] ❌ No players connected - waiting for connections...");
+                }
+                else
+                {
+                    Debug.Log($"[Host Connection Status] 📋 Connected Players List:");
+                    int playerNumber = 1;
+                    foreach (var kvp in connectedPlayers)
+                    {
+                        var steamId = kvp.Key;
+                        var connection = kvp.Value;
+                        var status = connection.handshakeComplete ? "✅ Ready" : "🔄 Handshaking";
+                        var duration = Time.time - connection.connectionTime;
+                        Debug.Log($"[Host Connection Status]   {playerNumber}. Steam ID: {steamId} - {status} (Connected: {duration:F1}s ago)");
+                        playerNumber++;
+                    }
+                }
+                
+                Debug.Log($"[Host Connection Status] ═══════════════════════════════════════");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[Host Connection Status] Error logging connection status: {e.Message}");
             }
         }
     }

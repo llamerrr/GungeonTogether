@@ -131,21 +131,21 @@ namespace GungeonTogether.UI
                 
                 // Try to access ETG's GameManager if available to prevent pause
                 var gameManagerType = System.Type.GetType("GameManager, Assembly-CSharp");
-                if (gameManagerType != null)
+                if (!ReferenceEquals(gameManagerType, null))
                 {
                     var instanceProperty = gameManagerType.GetProperty("Instance", 
                         System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
                     
-                    if (instanceProperty != null)
+                    if (!ReferenceEquals(instanceProperty, null))
                     {
-                        var gameManager = instanceProperty.GetValue(null);
+                        var gameManager = instanceProperty.GetValue(null, null);
                         if (gameManager != null)
                         {
                             // Try to find and manipulate pause-related fields/properties
                             var pausedField = gameManagerType.GetField("IsPaused", 
                                 System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
                             
-                            if (pausedField != null && (bool)pausedField.GetValue(gameManager) == true)
+                            if (!ReferenceEquals(pausedField, null) && (bool)pausedField.GetValue(gameManager) == true)
                             {
                                 pausedField.SetValue(gameManager, false);
                                 Debug.Log("[MultiplayerUI] Overrode GameManager pause state to keep server running");
