@@ -33,6 +33,7 @@ namespace GungeonTogether.UI
         private GameObject mainPanel;
         private GameObject hostingPanel;
         private GameObject friendsPanel;
+        private GameObject hostSelectionPanel;
         private GameObject settingsPanel;
         private GameObject pingTestPanel;
         
@@ -47,22 +48,13 @@ namespace GungeonTogether.UI
         private Button playerListButton;
         private Button settingsButton;
         private Button closeButton;
-        
-        // Friends list
-        private Transform friendsContainer;
-        private GameObject friendEntryPrefab;
-        
-        // Ping test
-        private Text pingStatusText;
-        private Button startPingButton;
-        private Button stopPingButton;
-        
         // References
         private SimpleSessionManager sessionManager;
         private ETGSteamP2PNetworking steamNetworking;
         private SteamP2PTestScript testScript;
         
         // Host selection
+        private Transform hostListContent;
         private HostInfo[] _availableHostsForSelection = new HostInfo[0];
         
         // Cached values to prevent log spam
@@ -98,7 +90,6 @@ namespace GungeonTogether.UI
                 bool ctrlPressed = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
                 if (!requireCtrl || ctrlPressed)
                 {
-                    Debug.Log("[ModernMultiplayerMenu] Ctrl+P detected - toggling menu");
                     ToggleMenu();
                 }
             }
@@ -106,21 +97,7 @@ namespace GungeonTogether.UI
             // Handle ESC to close
             if (isMenuVisible && Input.GetKeyDown(KeyCode.Escape))
             {
-                Debug.Log("[ModernMultiplayerMenu] ESC pressed - hiding menu");
                 HideMenu();
-            }
-            
-            // Handle number keys for quick-join when hosts are available
-            if (_availableHostsForSelection.Length > 0)
-            {
-                for (int i = 1; i <= 9; i++)
-                {
-                    if (Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1 + i - 1)))
-                    {
-                        QuickJoinHost(i);
-                        break;
-                    }
-                }
             }
             
             // Update UI elements
@@ -130,40 +107,7 @@ namespace GungeonTogether.UI
             }
         }
         
-        /// <summary>
-        /// Quick join a host by number (1-9)
-        /// </summary>
-        private void QuickJoinHost(int hostNumber)
-        {
-            try
-            {
-                if (_availableHostsForSelection.Length == 0)
-                {
-                    Debug.Log($"[ModernMultiplayerMenu] No hosts available for quick-join {hostNumber}");
-                    return;
-                }
-                
-                if (hostNumber < 1 || hostNumber > _availableHostsForSelection.Length)
-                {
-                    Debug.Log($"[ModernMultiplayerMenu] Host number {hostNumber} out of range (1-{_availableHostsForSelection.Length})");
-                    return;
-                }
-                
-                var selectedHost = _availableHostsForSelection[hostNumber - 1];
-                Debug.Log($"[ModernMultiplayerMenu] Quick-joining host {hostNumber}: {selectedHost.Name} ({selectedHost.SteamId})");
-                
-                GungeonTogetherMod.Instance?.JoinSpecificHost(selectedHost.SteamId);
-                MultiplayerUIManager.ShowNotification($"Quick-joining {selectedHost.Name}...", 3f);
-                
-                // Clear the selection and hide menu
-                _availableHostsForSelection = new HostInfo[0];
-                HideMenu();
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[ModernMultiplayerMenu] Error in quick-join {hostNumber}: {e.Message}");
-            }
-        }
+
         
         /// <summary>
         /// Initialize the modern menu system
@@ -186,6 +130,7 @@ namespace GungeonTogether.UI
             CreateMainPanel();
             CreateHostingPanel();
             CreateFriendsPanel();
+            CreateHostSelectionPanel();
             CreatePingTestPanel();
             CreateSettingsPanel();
             
@@ -453,8 +398,8 @@ namespace GungeonTogether.UI
             // Host button
             hostButton = CreateButton("Host Session", buttonContainer.transform, OnHostClicked);
             
-            // Join button
-            joinButton = CreateButton("Join Session", buttonContainer.transform, OnJoinClicked);
+            // Join Friend button
+            joinButton = CreateButton("Join Friend", buttonContainer.transform, OnJoinFriendClicked);
             
             // Disconnect button
             disconnectButton = CreateButton("Disconnect", buttonContainer.transform, OnDisconnectClicked);
@@ -574,13 +519,127 @@ namespace GungeonTogether.UI
         }
         
         /// <summary>
-        /// Create friends panel (placeholder for now)
+        /// Create friends panel for selecting friends to join
         /// </summary>
         private void CreateFriendsPanel()
         {
             friendsPanel = new GameObject("FriendsPanel");
             friendsPanel.transform.SetParent(menuPanel.transform, false);
             friendsPanel.SetActive(false);
+            
+            // Add vertical layout
+            var verticalLayout = friendsPanel.AddComponent<VerticalLayoutGroup>();
+            verticalLayout.spacing = 10f;
+            verticalLayout.padding = new RectOffset(15, 15, 15, 15);
+            verticalLayout.childControlWidth = true;
+            verticalLayout.childControlHeight = false;
+            verticalLayout.childForceExpandWidth = true;
+            verticalLayout.childForceExpandHeight = false;
+            
+            // Set RectTransform to fill parent
+            var friendsPanelRect = friendsPanel.GetComponent<RectTransform>();
+            friendsPanelRect.anchorMin = Vector2.zero;
+            friendsPanelRect.anchorMax = Vector2.one;
+            friendsPanelRect.offsetMin = Vector2.zero;
+            friendsPanelRect.offsetMax = Vector2.zero;
+            
+            // Add title
+            var titleObj = new GameObject("FriendsTitle");
+            titleObj.transform.SetParent(friendsPanel.transform, false);
+            
+            var titleText = titleObj.AddComponent<Text>();
+            titleText.text = "Select Friend to Join";
+            titleText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            titleText.fontSize = 18;
+            titleText.fontStyle = FontStyle.Bold;
+            titleText.color = Color.white;
+            titleText.alignment = TextAnchor.MiddleCenter;
+            
+            var titleLayout = titleObj.AddComponent<LayoutElement>();
+            titleLayout.preferredHeight = 30f;
+            
+            // Create scroll area for friends list
+            CreateFriendsScrollArea();
+            
+            // Add back button
+            var backButton = CreateButton("Back", friendsPanel.transform, OnBackFromFriendsSelection);
+            var backLayout = backButton.gameObject.AddComponent<LayoutElement>();
+            backLayout.preferredHeight = 35f;
+        }
+        
+        /// <summary>
+        /// Create scrollable area for friends list
+        /// </summary>
+        private void CreateFriendsScrollArea()
+        {
+            // Create scroll area container
+            var scrollArea = new GameObject("ScrollArea");
+            scrollArea.transform.SetParent(friendsPanel.transform, false);
+            
+            // Add Layout Element for the scroll area
+            var scrollLayout = scrollArea.AddComponent<LayoutElement>();
+            scrollLayout.flexibleHeight = 1f;
+            scrollLayout.preferredHeight = 300f;
+            
+            // Add ScrollRect
+            var scrollRect = scrollArea.AddComponent<ScrollRect>();
+            scrollRect.horizontal = false;
+            scrollRect.vertical = true;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.scrollSensitivity = 20f;
+            
+            // Create viewport
+            var viewport = new GameObject("Viewport");
+            viewport.transform.SetParent(scrollArea.transform, false);
+            
+            var viewportRect = viewport.AddComponent<RectTransform>();
+            viewportRect.anchorMin = Vector2.zero;
+            viewportRect.anchorMax = Vector2.one;
+            viewportRect.offsetMin = Vector2.zero;
+            viewportRect.offsetMax = Vector2.zero;
+            
+            var viewportMask = viewport.AddComponent<Mask>();
+            viewportMask.showMaskGraphic = false;
+            
+            var viewportImage = viewport.AddComponent<Image>();
+            viewportImage.color = new Color(0, 0, 0, 0.1f);
+            
+            scrollRect.viewport = viewportRect;
+            
+            // Create content container
+            var content = new GameObject("Content");
+            content.transform.SetParent(viewport.transform, false);
+            
+            var contentRect = content.AddComponent<RectTransform>();
+            contentRect.anchorMin = new Vector2(0, 1);
+            contentRect.anchorMax = new Vector2(1, 1);
+            contentRect.pivot = new Vector2(0.5f, 1);
+            contentRect.anchoredPosition = Vector2.zero;
+            contentRect.sizeDelta = new Vector2(0, 0);
+            
+            // Add vertical layout to content
+            var contentLayout = content.AddComponent<VerticalLayoutGroup>();
+            contentLayout.spacing = 5f;
+            contentLayout.padding = new RectOffset(5, 5, 5, 5);
+            contentLayout.childControlWidth = true;
+            contentLayout.childControlHeight = false;
+            contentLayout.childForceExpandWidth = true;
+            contentLayout.childForceExpandHeight = false;
+            
+            // Add ContentSizeFitter
+            var contentSizeFitter = content.AddComponent<ContentSizeFitter>();
+            contentSizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            
+            scrollRect.content = contentRect;
+        }
+        
+        /// <summary>
+        /// Handle back button from friends selection
+        /// </summary>
+        private void OnBackFromFriendsSelection()
+        {
+            Debug.Log("[ModernMultiplayerMenu] Back from friends selection clicked");
+            SwitchToPanel(mainPanel);
         }
         
         /// <summary>
@@ -604,11 +663,118 @@ namespace GungeonTogether.UI
         }
         
         /// <summary>
+        /// Create host selection panel for choosing which host to join
+        /// </summary>
+        private void CreateHostSelectionPanel()
+        {
+            hostSelectionPanel = new GameObject("HostSelectionPanel");
+            hostSelectionPanel.transform.SetParent(menuPanel.transform, false);
+            hostSelectionPanel.SetActive(false);
+            
+            // Add vertical layout
+            var layoutGroup = hostSelectionPanel.AddComponent<VerticalLayoutGroup>();
+            layoutGroup.spacing = 10f;
+            layoutGroup.childControlWidth = true;
+            layoutGroup.childControlHeight = false;
+            layoutGroup.childForceExpandWidth = true;
+            layoutGroup.childForceExpandHeight = false;
+            layoutGroup.padding = new RectOffset(20, 20, 20, 20);
+            
+            // Configure RectTransform
+            var rect = hostSelectionPanel.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            
+            // Title
+            var titleObj = new GameObject("Title");
+            titleObj.transform.SetParent(hostSelectionPanel.transform, false);
+            var titleText = titleObj.AddComponent<Text>();
+            titleText.text = "Select Host to Join";
+            titleText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            titleText.fontSize = 18;
+            titleText.color = Color.white;
+            titleText.alignment = TextAnchor.MiddleCenter;
+            titleText.fontStyle = FontStyle.Bold;
+            
+            var titleLayout = titleObj.AddComponent<LayoutElement>();
+            titleLayout.preferredHeight = 30f;
+            
+            // Instructions
+            var instructionsObj = new GameObject("Instructions");
+            instructionsObj.transform.SetParent(hostSelectionPanel.transform, false);
+            var instructionsText = instructionsObj.AddComponent<Text>();
+            instructionsText.text = "🎮 Click on any host below to join their session:";
+            instructionsText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            instructionsText.fontSize = 12;
+            instructionsText.color = Color.gray;
+            instructionsText.alignment = TextAnchor.MiddleCenter;
+            
+            var instructionsLayout = instructionsObj.AddComponent<LayoutElement>();
+            instructionsLayout.preferredHeight = 20f;
+            
+            // Scroll area for hosts (in case there are many)
+            CreateHostScrollArea();
+            
+            // Back button
+            var backButton = CreateButton("Back to Main Menu", hostSelectionPanel.transform, OnBackFromHostSelection);
+            backButton.GetComponent<LayoutElement>().preferredHeight = 35f;
+            
+            // Make back button stand out
+            var backColors = backButton.colors;
+            backColors.normalColor = new Color(0.4f, 0.4f, 0.6f, 0.8f);
+            backColors.highlightedColor = new Color(0.5f, 0.5f, 0.7f, 0.9f);
+            backButton.colors = backColors;
+        }
+        
+        /// <summary>
+        /// Create scrollable area for host list
+        /// </summary>
+        private void CreateHostScrollArea()
+        {
+            // Create scroll area container
+            var scrollAreaObj = new GameObject("HostScrollArea");
+            scrollAreaObj.transform.SetParent(hostSelectionPanel.transform, false);
+            
+            // Add layout element to control size
+            var scrollLayout = scrollAreaObj.AddComponent<LayoutElement>();
+            scrollLayout.preferredHeight = 300f;
+            scrollLayout.flexibleHeight = 1f;
+            
+            // Configure RectTransform
+            var scrollRect = scrollAreaObj.GetComponent<RectTransform>();
+            scrollRect.anchorMin = Vector2.zero;
+            scrollRect.anchorMax = Vector2.one;
+            
+            // Create content area that will hold the host buttons
+            var contentObj = new GameObject("HostListContent");
+            contentObj.transform.SetParent(scrollAreaObj.transform, false);
+            
+            // Add vertical layout to content
+            var contentLayout = contentObj.AddComponent<VerticalLayoutGroup>();
+            contentLayout.spacing = 5f;
+            contentLayout.childControlWidth = true;
+            contentLayout.childControlHeight = false;
+            contentLayout.childForceExpandWidth = true;
+            contentLayout.childForceExpandHeight = false;
+            
+            // Configure content RectTransform
+            var contentRect = contentObj.GetComponent<RectTransform>();
+            contentRect.anchorMin = Vector2.zero;
+            contentRect.anchorMax = Vector2.one;
+            contentRect.offsetMin = Vector2.zero;
+            contentRect.offsetMax = Vector2.zero;
+            
+            // Store reference for later use
+            hostListContent = contentObj.transform;
+        }
+        
+        /// <summary>
         /// Toggle menu visibility
         /// </summary>
         public void ToggleMenu()
         {
-            Debug.Log($"[ModernMultiplayerMenu] ToggleMenu called - isMenuVisible: {isMenuVisible}");
             if (isMenuVisible)
             {
                 HideMenu();
@@ -624,11 +790,9 @@ namespace GungeonTogether.UI
         /// </summary>
         public void ShowMenu()
         {
-            Debug.Log($"[ModernMultiplayerMenu] ShowMenu called - isInitialized: {isInitialized}, backgroundPanel null: {ReferenceEquals(backgroundPanel, null)}");
-            
             if (!isInitialized || ReferenceEquals(backgroundPanel, null)) 
             {
-                Debug.LogError("[ModernMultiplayerMenu] Cannot show menu - not initialized or background panel is null");
+                Debug.LogError("[ModernMultiplayerMenu] Cannot show menu - not initialized");
                 return;
             }
             
@@ -638,17 +802,10 @@ namespace GungeonTogether.UI
             if (!ReferenceEquals(menuPanel, null))
             {
                 menuPanel.SetActive(true);
-                Debug.Log($"[ModernMultiplayerMenu] Menu panel activated - active: {menuPanel.activeSelf}");
-            }
-            else
-            {
-                Debug.LogError("[ModernMultiplayerMenu] Menu panel is null!");
             }
             
             isMenuVisible = true;
             UpdateMenuContent();
-            
-            Debug.Log("[ModernMultiplayerMenu] Menu shown");
         }
         
         /// <summary>
@@ -791,70 +948,390 @@ namespace GungeonTogether.UI
             GungeonTogetherMod.Instance?.StartHosting();
         }
         
-        private void OnJoinClicked()
+        private void OnJoinFriendClicked()
         {
-            Debug.Log("[ModernMultiplayerMenu] Join button clicked");
+            Debug.Log("[ModernMultiplayerMenu] Join Friend button clicked");
             
             try
             {
-                // Get available hosts
-                var hosts = GungeonTogetherMod.Instance?.GetAvailableHosts();
-                if (hosts == null || hosts.Length == 0)
+                // Get Steam networking instance
+                var steamNet = SteamNetworkingFactory.TryCreateSteamNetworking();
+                if (ReferenceEquals(steamNet, null) || !steamNet.IsAvailable())
                 {
-                    MultiplayerUIManager.ShowNotification("No available hosts found.\n\nHow to connect:\n• Ask friends to host a session\n• They'll appear automatically when hosting\n• Use Steam overlay 'Join Game' for direct invites", 6f);
+                    MultiplayerUIManager.ShowNotification("Steam networking not available", 3f);
                     return;
                 }
+
+                // Get friends information
+                var allFriends = SteamFriendsHelper.GetSteamFriends();
                 
-                // Show host selection 
-                if (hosts.Length == 1)
+                if (allFriends == null || allFriends.Length == 0)
                 {
-                    // Only one host available, join directly
-                    var host = hosts[0];
-                    Debug.Log($"[ModernMultiplayerMenu] Auto-joining single host: {host.Name} ({host.SteamId})");
-                    GungeonTogetherMod.Instance?.JoinSpecificHost(host.SteamId);
-                    MultiplayerUIManager.ShowNotification($"Joining {host.Name}...", 3f);
-                    HideMenu(); // Close menu after joining
+                    MultiplayerUIManager.ShowNotification("No Steam friends found\n\nAdd friends on Steam to play together!", 4f);
+                    return;
                 }
-                else
+
+                // Filter ONLY for friends playing ETG with GungeonTogether
+                var gungeonTogetherFriends = new List<SteamFriendsHelper.FriendInfo>();
+                foreach (var friend in allFriends)
                 {
-                    // Multiple hosts available, show selection dialog
-                    ShowMultipleHostsDialog(hosts);
+                    if (friend.isPlayingETG && friend.hasGungeonTogether)
+                    {
+                        gungeonTogetherFriends.Add(friend);
+                    }
                 }
+
+                if (gungeonTogetherFriends.Count == 0)
+                {
+                    int etgFriendsCount = 0;
+                    foreach (var friend in allFriends)
+                    {
+                        if (friend.isPlayingETG) etgFriendsCount++;
+                    }
+                    
+                    string message = "No friends with GungeonTogether found";
+                    if (etgFriendsCount > 0)
+                    {
+                        message += $"\n\n{etgFriendsCount} friend(s) playing vanilla ETG found.\nAsk them to install GungeonTogether!";
+                    }
+                    else
+                    {
+                        message += "\n\nNo friends currently playing Enter the Gungeon";
+                    }
+                    
+                    MultiplayerUIManager.ShowNotification(message, 5f);
+                    return;
+                }
+
+                // Show friends selection panel with GungeonTogether players only
+                ShowFriendsSelectionPanel(gungeonTogetherFriends.ToArray());
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ModernMultiplayerMenu] Error getting hosts: {e.Message}");
-                MultiplayerUIManager.ShowNotification($"Error getting hosts: {e.Message}", 4f);
+                Debug.LogError($"[ModernMultiplayerMenu] Error in OnJoinFriendClicked: {e.Message}");
+                MultiplayerUIManager.ShowNotification($"Error getting friends: {e.Message}", 4f);
             }
         }
         
         /// <summary>
-        /// Show dialog when multiple hosts are available
+        /// Show the host selection panel with clickable host entries
         /// </summary>
-        private void ShowMultipleHostsDialog(HostInfo[] hosts)
+        private void ShowHostSelectionPanel(HostInfo[] hosts)
         {
-            // Store hosts for quick selection
-            _availableHostsForSelection = hosts;
-            
-            string message = $"🌐 Available hosts ({hosts.Length}):\n\n";
-            for (int i = 0; i < Math.Min(hosts.Length, 5); i++)
+            try
             {
-                message += $"  {i + 1}. {hosts[i].Name}\n";
+                // Store hosts for reference
+                _availableHostsForSelection = hosts;
+                
+                // Clear any existing host buttons
+                ClearHostList();
+                
+                // Create buttons for each host
+                for (int i = 0; i < hosts.Length; i++)
+                {
+                    CreateHostButton(hosts[i], i + 1);
+                }
+                
+                // Switch to host selection panel
+                SwitchToPanel(hostSelectionPanel);
+                
+                Debug.Log($"[ModernMultiplayerMenu] Showing {hosts.Length} hosts in selection panel");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ModernMultiplayerMenu] Error showing host selection: {e.Message}");
+                MultiplayerUIManager.ShowNotification($"Error showing hosts: {e.Message}", 4f);
+            }
+        }
+        
+        /// <summary>
+        /// Show the friends selection panel with clickable friend entries
+        /// </summary>
+        private void ShowFriendsSelectionPanel(SteamFriendsHelper.FriendInfo[] friends)
+        {
+            try
+            {
+                // Clear any existing friend buttons
+                ClearFriendsList();
+                
+                // Create buttons for each friend
+                for (int i = 0; i < friends.Length; i++)
+                {
+                    CreateFriendButton(friends[i], i + 1);
+                }
+                
+                // Switch to friends panel
+                SwitchToPanel(friendsPanel);
+                
+                Debug.Log($"[ModernMultiplayerMenu] Showing {friends.Length} friends in selection panel");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ModernMultiplayerMenu] Error showing friends selection: {e.Message}");
+                MultiplayerUIManager.ShowNotification($"Error showing friends: {e.Message}", 4f);
+            }
+        }
+        
+        /// <summary>
+        /// Clear the friends list content
+        /// </summary>
+        private void ClearFriendsList()
+        {
+            var friendsContent = friendsPanel?.transform.Find("ScrollArea/Viewport/Content");
+            if (!ReferenceEquals(friendsContent, null))
+            {
+                // Destroy all existing friend buttons
+                for (int i = friendsContent.childCount - 1; i >= 0; i--)
+                {
+                    UnityEngine.Object.DestroyImmediate(friendsContent.GetChild(i).gameObject);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Create a clickable button for a specific friend
+        /// </summary>
+        private void CreateFriendButton(SteamFriendsHelper.FriendInfo friend, int number)
+        {
+            var friendsContent = friendsPanel?.transform.Find("ScrollArea/Viewport/Content");
+            if (ReferenceEquals(friendsContent, null))
+            {
+                Debug.LogError("[ModernMultiplayerMenu] Friends content container not found");
+                return;
+            }
+
+            // Create friend button container
+            var friendButton = new GameObject($"Friend_{number}");
+            friendButton.transform.SetParent(friendsContent, false);
+            
+            // Add Button component
+            var button = friendButton.AddComponent<Button>();
+            
+            // Add Image for button background
+            var buttonImage = friendButton.AddComponent<Image>();
+            buttonImage.color = new Color(0.2f, 0.25f, 0.3f, 0.8f);
+            
+            // Add Layout Element
+            var layoutElement = friendButton.AddComponent<LayoutElement>();
+            layoutElement.preferredHeight = 50f;
+            layoutElement.flexibleWidth = 1f;
+            
+            // Create friend info text
+            var textObj = new GameObject("FriendText");
+            textObj.transform.SetParent(friendButton.transform, false);
+            
+            var friendText = textObj.AddComponent<Text>();
+            friendText.text = GetFriendButtonText(friend, number);
+            friendText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            friendText.fontSize = 14;
+            friendText.color = Color.white;
+            friendText.alignment = TextAnchor.MiddleLeft;
+            
+            // Position text
+            var textRect = textObj.GetComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = new Vector2(10, 0);
+            textRect.offsetMax = new Vector2(-10, 0);
+            
+            // Set up button click handler
+            button.onClick.AddListener(() => OnFriendButtonClicked(friend));
+            
+            // Style button colors
+            var colors = button.colors;
+            colors.normalColor = new Color(0.2f, 0.25f, 0.3f, 0.8f);
+            colors.highlightedColor = new Color(0.3f, 0.35f, 0.4f, 0.9f);
+            colors.pressedColor = new Color(0.15f, 0.2f, 0.25f, 1f);
+            button.colors = colors;
+        }
+        
+        /// <summary>
+        /// Get display text for friend button
+        /// </summary>
+        private string GetFriendButtonText(SteamFriendsHelper.FriendInfo friend, int number)
+        {
+            string status = "";
+            if (friend.hasGungeonTogether)
+            {
+                if (friend.gungeonTogetherStatus == "hosting")
+                {
+                    status = " [🌐 HOSTING]";
+                }
+                else if (friend.gungeonTogetherStatus == "playing")
+                {
+                    status = " [🤝 PLAYING GT]";
+                }
+                else if (!string.IsNullOrEmpty(friend.gungeonTogetherStatus))
+                {
+                    status = $" [GT: {friend.gungeonTogetherStatus}]";
+                }
+                else
+                {
+                    status = " [🔧 GT Ready]";
+                }
+                
+                // Add version if available
+                if (!string.IsNullOrEmpty(friend.gungeonTogetherVersion))
+                {
+                    status += $" v{friend.gungeonTogetherVersion}";
+                }
+            }
+            else
+            {
+                // This shouldn't happen since we only show GT players now, but just in case
+                status = " [ETG Only]";
             }
             
-            if (hosts.Length > 5)
+            return $"{number}. {friend.personaName}{status}";
+        }
+        
+        /// <summary>
+        /// Handle clicking on a specific friend button
+        /// </summary>
+        private void OnFriendButtonClicked(SteamFriendsHelper.FriendInfo friend)
+        {
+            try
             {
-                message += $"  ...and {hosts.Length - 5} more\n";
+                Debug.Log($"[ModernMultiplayerMenu] Attempting to join friend: {friend.personaName} (ID: {friend.steamId})");
+                
+                // Check if we have a valid Steam ID
+                if (friend.steamId != 0)
+                {
+                    // Try to join the friend's session
+                    GungeonTogetherMod.Instance?.JoinSpecificHost(friend.steamId);
+                    MultiplayerUIManager.ShowNotification($"Attempting to join {friend.personaName}...", 3f);
+                    HideMenu();
+                }
+                else
+                {
+                    Debug.LogError($"[ModernMultiplayerMenu] Invalid Steam ID: {friend.steamId}");
+                    MultiplayerUIManager.ShowNotification("Invalid friend Steam ID", 3f);
+                }
             }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ModernMultiplayerMenu] Error joining friend {friend.personaName}: {e.Message}");
+                MultiplayerUIManager.ShowNotification($"Error joining {friend.personaName}: {e.Message}", 4f);
+            }
+        }
+
+        /// <summary>
+        /// Clear the host list content
+        /// </summary>
+        private void ClearHostList()
+        {
+            if (!ReferenceEquals(hostListContent, null))
+            {
+                // Destroy all existing host buttons
+                for (int i = hostListContent.childCount - 1; i >= 0; i--)
+                {
+                    UnityEngine.Object.DestroyImmediate(hostListContent.GetChild(i).gameObject);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Create a clickable button for a specific host
+        /// </summary>
+        private void CreateHostButton(HostInfo host, int number)
+        {
+            if (ReferenceEquals(hostListContent, null)) return;
             
-            message += "\n💡 Use number keys (1-9) to quick-join:";
-            message += "\n  • Press 1 to join first host";
-            message += "\n  • Press 2 to join second host, etc.";
-            message += "\n  • Or use Friends button for detailed view";
+            var buttonObj = new GameObject($"HostButton_{host.SteamId}");
+            buttonObj.transform.SetParent(hostListContent, false);
             
-            MultiplayerUIManager.ShowNotification(message, 8f);
+            // Add button component
+            var button = buttonObj.AddComponent<Button>();
             
-            Debug.Log($"[ModernMultiplayerMenu] Multiple hosts available - use number keys 1-{Math.Min(hosts.Length, 9)} to join");
+            // Add image for background
+            var image = buttonObj.AddComponent<Image>();
+            image.color = new Color(0.2f, 0.3f, 0.4f, 0.8f);
+            
+            // Configure button colors
+            var colors = button.colors;
+            colors.normalColor = new Color(0.2f, 0.3f, 0.4f, 0.8f);
+            colors.highlightedColor = new Color(0.3f, 0.5f, 0.7f, 0.9f);
+            colors.pressedColor = new Color(0.1f, 0.2f, 0.3f, 0.9f);
+            button.colors = colors;
+            
+            // Add layout element
+            var layoutElement = buttonObj.AddComponent<LayoutElement>();
+            layoutElement.preferredHeight = 55f;
+            
+            // Create text content
+            var textObj = new GameObject("Text");
+            textObj.transform.SetParent(buttonObj.transform, false);
+            
+            var textComponent = textObj.AddComponent<Text>();
+            textComponent.text = $"🎮 {host.Name}\n💻 Steam ID: {host.SteamId}";
+            textComponent.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            textComponent.fontSize = 11;
+            textComponent.color = Color.white;
+            textComponent.alignment = TextAnchor.MiddleLeft;
+            
+            // Configure text RectTransform with padding
+            var textRect = textComponent.GetComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = new Vector2(12, 5);  // Left and bottom padding
+            textRect.offsetMax = new Vector2(-12, -5); // Right and top padding
+            
+            // Add click handler
+            button.onClick.AddListener(() => OnHostButtonClicked(host));
+            
+            Debug.Log($"[ModernMultiplayerMenu] Created host button: {host.Name}");
+        }
+        
+        /// <summary>
+        /// Handle clicking on a specific host button
+        /// </summary>
+        private void OnHostButtonClicked(HostInfo host)
+        {
+            try
+            {
+                Debug.Log($"[ModernMultiplayerMenu] Host button clicked: {host.Name} ({host.SteamId})");
+                
+                // Join the selected host
+                GungeonTogetherMod.Instance?.JoinSpecificHost(host.SteamId);
+                MultiplayerUIManager.ShowNotification($"🔗 Connecting to {host.Name}...\n\nPlease wait while the connection is established.", 4f);
+                
+                // Close the menu
+                HideMenu();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ModernMultiplayerMenu] Error joining host: {e.Message}");
+                MultiplayerUIManager.ShowNotification($"❌ Failed to join {host.Name}\n\nError: {e.Message}", 5f);
+            }
+        }
+        
+        /// <summary>
+        /// Switch to a specific panel, hiding others
+        /// </summary>
+        private void SwitchToPanel(GameObject targetPanel)
+        {
+            // Hide all panels
+            if (!ReferenceEquals(mainPanel, null)) mainPanel.SetActive(false);
+            if (!ReferenceEquals(hostingPanel, null)) hostingPanel.SetActive(false);
+            if (!ReferenceEquals(friendsPanel, null)) friendsPanel.SetActive(false);
+            if (!ReferenceEquals(hostSelectionPanel, null)) hostSelectionPanel.SetActive(false);
+            if (!ReferenceEquals(settingsPanel, null)) settingsPanel.SetActive(false);
+            if (!ReferenceEquals(pingTestPanel, null)) pingTestPanel.SetActive(false);
+            
+            // Show target panel
+            if (!ReferenceEquals(targetPanel, null))
+            {
+                targetPanel.SetActive(true);
+            }
+        }
+        
+        /// <summary>
+        /// Handle back button from host selection
+        /// </summary>
+        private void OnBackFromHostSelection()
+        {
+            Debug.Log("[ModernMultiplayerMenu] Back from host selection clicked");
+            SwitchToPanel(mainPanel);
         }
         
         private void OnDisconnectClicked()
@@ -865,11 +1342,11 @@ namespace GungeonTogether.UI
         
         private void OnFriendsClicked()
         {
-            Debug.Log("[ModernMultiplayerMenu] Friends button clicked - Enhanced detection");
+            Debug.Log("[ModernMultiplayerMenu] Friends button clicked");
             
             try
             {
-                // Get Steam networking instance for direct access
+                // Get Steam networking instance
                 var steamNet = SteamNetworkingFactory.TryCreateSteamNetworking();
                 if (ReferenceEquals(steamNet, null) || !steamNet.IsAvailable())
                 {
@@ -877,94 +1354,112 @@ namespace GungeonTogether.UI
                     return;
                 }
 
-                // Get available hosts first (most important)
-                var availableHosts = GungeonTogetherMod.Instance?.GetAvailableHosts() ?? new HostInfo[0];
+                // Get friends information (this now uses caching)
+                var allFriends = SteamFriendsHelper.GetSteamFriends();
                 
-                // Get all friends playing Enter the Gungeon (base game)
-                var allFriends = ETGSteamP2PNetworking.Instance?.GetSteamFriends(0) ?? new SteamFriendsHelper.FriendInfo[0];
-                var etgFriends = ETGSteamP2PNetworking.Instance?.GetETGFriends() ?? new SteamFriendsHelper.FriendInfo[0];
-                
-                // Build comprehensive message
+                // Build friends list message
                 string message = "";
                 int totalOnlineFriends = 0;
                 int etgPlayingFriends = 0;
+                int gungeonTogetherFriends = 0;
                 
-                // Count online friends
+                // Count different types of friends
                 foreach (var friend in allFriends)
                 {
                     if (friend.isOnline) totalOnlineFriends++;
                     if (friend.isPlayingETG) etgPlayingFriends++;
+                    if (friend.hasGungeonTogether) gungeonTogetherFriends++;
                 }
                 
                 // Header with general info
-                message += $"🔍 Steam Friends & Hosts:\n";
+                message += $"Steam Friends Status:\n";
                 message += $"• Total friends online: {totalOnlineFriends}\n";
-                message += $"• Playing Enter the Gungeon: {etgPlayingFriends}\n\n";
+                message += $"• Playing Enter the Gungeon: {etgPlayingFriends}\n";
+                message += $"• Using GungeonTogether: {gungeonTogetherFriends}\n\n";
                 
-                // Show confirmed GungeonTogether hosts (PRIORITY)
-                if (availableHosts.Length > 0)
+                // Show friends with GungeonTogether
+                if (gungeonTogetherFriends > 0)
                 {
-                    message += $"� GungeonTogether Hosts ({availableHosts.Length}):\n";
-                    for (int i = 0; i < Math.Min(availableHosts.Length, 5); i++)
+                    message += $"Friends with GungeonTogether ({gungeonTogetherFriends}):\n";
+                    int shownGTFriends = 0;
+                    foreach (var friend in allFriends)
                     {
-                        message += $"  {i + 1}. {availableHosts[i].Name}\n";
+                        if (friend.hasGungeonTogether && shownGTFriends < 8)
+                        {
+                            string gtStatus = "";
+                            if (friend.gungeonTogetherStatus == "hosting")
+                            {
+                                gtStatus = " [🌐 HOSTING]";
+                            }
+                            else if (friend.gungeonTogetherStatus == "playing")
+                            {
+                                gtStatus = " [🤝 PLAYING]";
+                            }
+                            else if (!string.IsNullOrEmpty(friend.gungeonTogetherStatus))
+                            {
+                                gtStatus = $" [{friend.gungeonTogetherStatus}]";
+                            }
+                            else
+                            {
+                                gtStatus = " [Ready]";
+                            }
+                            
+                            message += $"• {friend.personaName}{gtStatus}\n";
+                            shownGTFriends++;
+                        }
                     }
-                    if (availableHosts.Length > 5)
+                    if (gungeonTogetherFriends > 8)
                     {
-                        message += $"  ...and {availableHosts.Length - 5} more\n";
+                        message += $"• ...and {gungeonTogetherFriends - 8} more\n";
                     }
-                    message += "\n✅ Press Join Session to connect!";
-                    message += "\n💡 Or use number keys (1-9) for quick-join";
-                    
-                    // Store hosts for quick selection
-                    _availableHostsForSelection = availableHosts;
+                    message += "\nClick 'Join Friend' to connect to them!";
+                }
+                else if (etgPlayingFriends > 0)
+                {
+                    message += $"Friends playing vanilla ETG ({etgPlayingFriends - gungeonTogetherFriends}):\n";
+                    int shownVanillaFriends = 0;
+                    foreach (var friend in allFriends)
+                    {
+                        if (friend.isPlayingETG && !friend.hasGungeonTogether && shownVanillaFriends < 5)
+                        {
+                            message += $"• {friend.personaName} (vanilla ETG)\n";
+                            shownVanillaFriends++;
+                        }
+                    }
+                    message += "\nAsk them to install GungeonTogether for multiplayer!";
                 }
                 else
                 {
-                    message += "� No GungeonTogether hosts found\n";
+                    message += "No friends currently playing Enter the Gungeon\n";
+                    message += "Ask friends to play ETG with GungeonTogether!";
                 }
                 
-                // Show friends playing ETG (potential GungeonTogether players)
-                if (etgFriends.Length > 0)
+                // Show all online friends if there are some
+                if (totalOnlineFriends > etgPlayingFriends && allFriends.Length > 0)
                 {
-                    message += $"\n\n� Friends in Enter the Gungeon ({etgFriends.Length}):\n";
-                    for (int i = 0; i < Math.Min(etgFriends.Length, 4); i++)
+                    message += $"\n\nOther online friends ({totalOnlineFriends - etgPlayingFriends}):\n";
+                    int shown = 0;
+                    foreach (var friend in allFriends)
                     {
-                        var friend = etgFriends[i];
-                        string status = friend.isOnline ? "Online" : "Offline";
-                        message += $"• {friend.personaName} ({status})\n";
+                        if (friend.isOnline && !friend.isPlayingETG && shown < 5)
+                        {
+                            message += $"• {friend.personaName}\n";
+                            shown++;
+                        }
                     }
-                    if (etgFriends.Length > 4)
+                    if (totalOnlineFriends - etgPlayingFriends > 5)
                     {
-                        message += $"• ...and {etgFriends.Length - 4} more\n";
-                    }
-                    
-                    if (availableHosts.Length == 0)
-                    {
-                        message += "\n💬 Ask these friends to install GungeonTogether!";
+                        message += $"• ...and {totalOnlineFriends - etgPlayingFriends - 5} more\n";
                     }
                 }
-                else if (availableHosts.Length == 0)
-                {
-                    message += "\n🎮 No friends currently in Enter the Gungeon\n";
-                    message += "💡 Ask friends to play ETG with GungeonTogether!";
-                }
                 
-                // Show the information as a notification with longer duration
-                MultiplayerUIManager.ShowNotification(message, 12f);
-                
-                // Enhanced debugging
-                Debug.Log($"[ModernMultiplayerMenu] Enhanced Friends Analysis:");
-                Debug.Log($"  Total friends: {allFriends.Length}");
-                Debug.Log($"  Online friends: {totalOnlineFriends}");
-                Debug.Log($"  ETG players: {etgPlayingFriends}");
-                Debug.Log($"  GT hosts: {availableHosts.Length}");
-                Debug.Log($"  Steam ID: {steamNet.GetSteamID()}");
+                // Show the friends list
+                MultiplayerUIManager.ShowNotification(message, 8f);
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[ModernMultiplayerMenu] Error in enhanced friends detection: {ex.Message}");
-                MultiplayerUIManager.ShowNotification($"Error getting friends info: {ex.Message}", 5f);
+                Debug.LogError($"[ModernMultiplayerMenu] Error getting friends list: {ex.Message}");
+                MultiplayerUIManager.ShowNotification($"Error getting friends: {ex.Message}", 5f);
             }
         }
         

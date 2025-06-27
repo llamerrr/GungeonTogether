@@ -30,6 +30,7 @@ namespace GungeonTogether.Steam
         private static MethodInfo getSteamIdMethod;
         private static MethodInfo sendP2PPacketMethod;
         private static MethodInfo readP2PPacketMethod;
+        private static MethodInfo readP2PSessionRequestMethod;
         private static MethodInfo isP2PPacketAvailableMethod;
         private static MethodInfo acceptP2PSessionMethod;
         private static MethodInfo closeP2PSessionMethod;
@@ -166,6 +167,7 @@ namespace GungeonTogether.Steam
                 DiscoverSendP2PPacketSignatures(steamNetworkingType);
 
                 readP2PPacketMethod = steamNetworkingType.GetMethod("ReadP2PPacket", BindingFlags.Public | BindingFlags.Static);
+                readP2PSessionRequestMethod = steamNetworkingType.GetMethod("ReadP2PSessionRequest", BindingFlags.Public | BindingFlags.Static);
                 
                 // Try to discover IsP2PPacketAvailable with different signatures
                 DiscoverIsP2PPacketAvailableSignature(steamNetworkingType);
@@ -176,6 +178,7 @@ namespace GungeonTogether.Steam
                 // Debug output for packet methods
                 Debug.Log($"[ETGSteamP2P] Packet methods found:");
                 Debug.Log($"[ETGSteamP2P]   ReadP2PPacket: {(!ReferenceEquals(readP2PPacketMethod, null) ? "Found" : "Not found")}");
+                Debug.Log($"[ETGSteamP2P]   ReadP2PSessionRequest: {(!ReferenceEquals(readP2PSessionRequestMethod, null) ? "Found" : "Not found")}");
                 Debug.Log($"[ETGSteamP2P]   IsP2PPacketAvailable: {(!ReferenceEquals(isP2PPacketAvailableMethod, null) ? "Found" : "Not found")}");
                 Debug.Log($"[ETGSteamP2P]   AcceptP2PSessionWithUser: {(!ReferenceEquals(acceptP2PSessionMethod, null) ? "Found" : "Not found")}");
                 Debug.Log($"[ETGSteamP2P]   CloseP2PSessionWithUser: {(!ReferenceEquals(closeP2PSessionMethod, null) ? "Found" : "Not found")}");
@@ -678,10 +681,79 @@ namespace GungeonTogether.Steam
             }
         }
 
+        /// <summary>
+        /// Create a CSteamID object from a ulong Steam ID
+        /// </summary>
+        public static object CreateCSteamID(ulong steamId)
+        {
+            return ConvertToCSteamID(steamId);
+        }
+        
+        /// <summary>
+        /// Extract ulong Steam ID from a CSteamID object or other Steam ID representation
+        /// </summary>
+        public static ulong ExtractSteamId(object steamIdObj)
+        {
+            if (ReferenceEquals(steamIdObj, null))
+                return 0;
+                
+            try
+            {
+                // If it's already a ulong, return it directly
+                if (steamIdObj is ulong directULong)
+                {
+                    return directULong;
+                }
+                
+                // Try direct conversion first
+                try
+                {
+                    return Convert.ToUInt64(steamIdObj);
+                }
+                catch (Exception)
+                {
+                    // Conversion failed, try reflection approach
+                }
+                
+                // If it's a CSteamID object, try to extract the value using reflection
+                var steamIdType = steamIdObj.GetType();
+                
+                // Look for common CSteamID value properties/fields
+                var valueProperty = steamIdType.GetProperty("m_SteamID", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (!ReferenceEquals(valueProperty, null))
+                {
+                    var value = valueProperty.GetValue(steamIdObj, null);
+                    return Convert.ToUInt64(value);
+                }
+                
+                var valueField = steamIdType.GetField("m_SteamID", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (!ReferenceEquals(valueField, null))
+                {
+                    var value = valueField.GetValue(steamIdObj);
+                    return Convert.ToUInt64(value);
+                }
+                
+                // Try ToString and parse
+                var stringValue = steamIdObj.ToString();
+                if (ulong.TryParse(stringValue, out ulong parsedId))
+                {
+                    return parsedId;
+                }
+                
+                return 0;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[ETGSteamP2P] Error extracting Steam ID from object: {e.Message}");
+                return 0;
+            }
+        }
+
         // Property accessors for the cached methods
         public static bool IsInitialized => initialized;
         public static MethodInfo SendP2PPacketMethod => sendP2PPacketMethod;
         public static MethodInfo ReadP2PPacketMethod => readP2PPacketMethod;
+        public static MethodInfo ReadP2PSessionRequestMethod => readP2PSessionRequestMethod;
         public static MethodInfo IsP2PPacketAvailableMethod => isP2PPacketAvailableMethod;
         public static MethodInfo AcceptP2PSessionMethod => acceptP2PSessionMethod;
         public static MethodInfo CloseP2PSessionMethod => closeP2PSessionMethod;

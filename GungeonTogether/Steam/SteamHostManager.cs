@@ -22,6 +22,10 @@ namespace GungeonTogether.Steam
         private static ulong currentLobbyId = 0;
         private static bool isLobbyHost = false;
         
+        // Add caching for host scanning too
+        private static float lastHostScan = 0f;
+        private static readonly float hostScanInterval = 3.0f; // Scan for hosts every 3 seconds max
+        
         public struct HostInfo
         {
             public ulong steamId;
@@ -352,8 +356,9 @@ namespace GungeonTogether.Steam
                 {
                     try
                     {
-                        // Create a lobby for 4 players
-                        var result = createLobbyMethod.Invoke(null, new object[] { 1, 4 }); // ELobbyType.k_ELobbyTypePublic = 1
+                        // Create a lobby for X players
+                        // to do: make max players configurable through the ui
+                        var result = createLobbyMethod.Invoke(null, new object[] { 1, 50 }); // ELobbyType.k_ELobbyTypePublic = 1
                         Debug.Log($"[ETGSteamP2P] Created lobby: {result}");
                         isLobbyHost = true;
                     }
@@ -467,7 +472,7 @@ namespace GungeonTogether.Steam
         /// <summary>
         /// Create a Steam lobby for multiplayer session
         /// </summary>
-        public static bool CreateLobby(int maxPlayers = 4)
+        public static bool CreateLobby(int maxPlayers = 50)
         {
             try
             {
@@ -563,10 +568,20 @@ namespace GungeonTogether.Steam
         /// <summary>
         /// Scan Steam friends to find those playing ETG who might be hosting GungeonTogether
         /// </summary>
-        private static void ScanFriendsForHosts()
+        public static void ScanFriendsForHosts()
         {
             try
             {
+                // Don't scan too frequently
+                if (Time.time - lastHostScan < hostScanInterval)
+                {
+                    return;
+                }
+                
+                lastHostScan = Time.time;
+                
+                Debug.Log("[SteamHostManager] Scanning friends for GungeonTogether hosts...");
+                
                 // Get Steam friends who are playing ETG
                 var friends = SteamFriendsHelper.GetSteamFriends();
                 

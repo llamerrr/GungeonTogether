@@ -41,5 +41,7 @@ namespace GungeonTogether.Steam
         
         // Join request event
         event System.Action<ulong> OnJoinRequested;
+        bool ReadP2PSessionRequest(out ulong requestingSteamId);
+        bool ReadP2PPacket(out ulong senderSteamId, out byte[] data);
     }
 }

@@ -23,6 +23,11 @@ namespace GungeonTogether.Steam
             // Additional properties for compatibility with existing UI code
             public bool isPlayingETG;
             public string currentGameName;
+            
+            // GungeonTogether specific properties
+            public bool hasGungeonTogether;
+            public string gungeonTogetherStatus; // "hosting", "playing", etc.
+            public string gungeonTogetherVersion;
         }
         
         /// <summary>
@@ -565,6 +570,29 @@ namespace GungeonTogether.Steam
                             Debug.LogWarning($"[SteamFriendsHelper] Error processing game info for friend {friendSteamId}: {ex.Message}");
                         }
                         
+                        // Check for GungeonTogether status
+                        bool hasGungeonTogether = false;
+                        string gungeonTogetherStatus = "";
+                        string gungeonTogetherVersion = "";
+                        
+                        if (isPlayingETG)
+                        {
+                            try
+                            {
+                                gungeonTogetherStatus = SteamReflectionHelper.GetFriendRichPresence(friendSteamId, "gungeon_together");
+                                gungeonTogetherVersion = SteamReflectionHelper.GetFriendRichPresence(friendSteamId, "gt_version");
+                                
+                                if (!string.IsNullOrEmpty(gungeonTogetherStatus))
+                                {
+                                    hasGungeonTogether = true;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.LogWarning($"[SteamFriendsHelper] Could not check GungeonTogether status for {friendName}: {ex.Message}");
+                            }
+                        }
+                        
                         var friendInfo = new FriendInfo
                         {
                             steamId = friendSteamId,
@@ -574,7 +602,10 @@ namespace GungeonTogether.Steam
                             isInGame = isInGame,
                             gameInfo = gameInfo,
                             isPlayingETG = isPlayingETG,
-                            currentGameName = gameInfo
+                            currentGameName = gameInfo,
+                            hasGungeonTogether = hasGungeonTogether,
+                            gungeonTogetherStatus = gungeonTogetherStatus,
+                            gungeonTogetherVersion = gungeonTogetherVersion
                         };
                         
                         friends.Add(friendInfo);

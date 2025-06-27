@@ -31,12 +31,14 @@ namespace GungeonTogether.Game
         private float lastStatusLog;
         private const float STATUS_LOG_INTERVAL = 60.0f; // Log status every 10 seconds
         
-        // Connection handshaking
+        // Connection handshaking and heartbeat
         private const byte PACKET_TYPE_HANDSHAKE_REQUEST = 1;
         private const byte PACKET_TYPE_HANDSHAKE_RESPONSE = 2;
         private const byte PACKET_TYPE_HANDSHAKE_COMPLETE = 3;
         private const byte PACKET_TYPE_PLAYER_DATA = 4;
         private const byte PACKET_TYPE_DISCONNECT = 5;
+        private const byte PACKET_TYPE_HEARTBEAT = 6;
+        private const byte PACKET_TYPE_HEARTBEAT_RESPONSE = 7;
         
         public struct PlayerConnection
         {
@@ -119,7 +121,13 @@ namespace GungeonTogether.Game
                     
                     // Notify Steam networking to start hosting
                     if (!ReferenceEquals(steamNet, null))
+                    {
                         steamNet.StartHostingSession();
+                        
+                        // CRITICAL: Start actively checking for incoming connections immediately
+                        Debug.Log("[SimpleSessionManager] 🏠 Host is now actively accepting P2P connections");
+                        Debug.Log("[SimpleSessionManager] 🏠 Other players can now join this session");
+                    }
                 }
                 else if (!ReferenceEquals(steamId, 0))
                 {
@@ -195,11 +203,37 @@ namespace GungeonTogether.Game
                     // Setup Rich Presence for joining
                     steamNet.StartJoiningSession(hostSteamId);
                     
-                    // Accept P2P session with host and initiate handshake
-                    if (steamNet.AcceptP2PSession(hostSteamId))
+                    // CRITICAL: Properly establish P2P session before sending handshake
+                    bool p2pSessionReady = false;
+                    for (int attempt = 0; attempt < 5; attempt++)
+                    {
+                        Debug.Log($"[SimpleSessionManager] Establishing P2P session with host (attempt {attempt + 1})..."); 
+                        
+                        if (steamNet.AcceptP2PSession(hostSteamId))
+                        {
+                            p2pSessionReady = true;
+                            Debug.Log($"[SimpleSessionManager] ✅ P2P session established with host: {hostSteamId}");
+                            break;
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"[SimpleSessionManager] P2P session establishment failed (attempt {attempt + 1})");
+                            // Wait briefly before retrying (Unity-friendly)
+                            if (attempt < 4)
+                            {
+                                for (int i = 0; i < 10; i++) // Brief delay using frame counting
+                                {
+                                    // This creates a brief pause without blocking Unity's main thread
+                                    if (i == 9) break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (p2pSessionReady)
                     {
                         Status = $"P2P Connected - Handshaking with: {hostSteamId}";
-                        Debug.Log($"[SimpleSessionManager] P2P connection established with host: {hostSteamId}");
+                        Debug.Log($"[SimpleSessionManager] ✅ P2P connection established with host: {hostSteamId}");
                         
                         // Send handshake request to host
                         SendHandshakeRequest(hostSteamId);
@@ -207,7 +241,12 @@ namespace GungeonTogether.Game
                     else
                     {
                         Status = "Failed to establish P2P connection";
-                        Debug.LogError($"[SimpleSessionManager] Failed to establish P2P connection to: {hostSteamId}");
+                        Debug.LogError($"[SimpleSessionManager] ❌ Failed to establish P2P connection to: {hostSteamId}");
+                        Debug.LogError($"[SimpleSessionManager] P2P connection failed - this usually means:");
+                        Debug.LogError($"[SimpleSessionManager]   • Host is not running or not accepting connections");
+                        Debug.LogError($"[SimpleSessionManager]   • Network connectivity issues between players");
+                        Debug.LogError($"[SimpleSessionManager]   • Steam P2P networking is not properly initialized");
+                        Debug.LogError($"[SimpleSessionManager]   • Firewall blocking Steam P2P traffic");
                     }
                 }
                 else
@@ -298,29 +337,29 @@ namespace GungeonTogether.Game
             {
                 Debug.Log($"[SimpleSessionManager] Left session: {sessionId}");
             }
-        }        public void Update()
+        }
+        public void Update()
         {
             try
             {
                 if (!IsActive) return;
-                
-                // Update Steam networking (check for packets)
-                steamNet?.Update();
-                
+
                 // Update player synchronization
                 playerSync?.Update();
+
+                // Check connections health
+                CheckConnections();
                 
-                // Check for join requests periodically
                 if (IsHost)
                 {
-                    steamNet?.CheckForJoinRequests();
-                    
-                    // CRITICAL: Check for incoming P2P session requests and auto-accept them
+                    // CRITICAL: Host must actively check for incoming P2P requests EVERY frame
+                    // This MUST be done before steamNet.Update() to catch packets first
                     CheckForIncomingP2PRequests();
                 }
                 
-                // Check connections health
-                CheckConnections();
+                // Update Steam networking AFTER processing incoming requests
+                UpdateSteamNetworking();
+                
             }
             catch (Exception e)
             {
@@ -337,7 +376,19 @@ namespace GungeonTogether.Game
             {
                 if (!ReferenceEquals(steamNet, null))
                 {
-                    steamNet.Update();
+                    // For clients, let steamNet.Update() handle packet reading normally
+                    if (!IsHost)
+                    {
+                        steamNet.Update();
+                    }
+                    // For hosts, we handle packet reading manually in CheckForIncomingP2PRequests
+                    // so we only call Update for other Steam networking tasks
+                    else
+                    {
+                        // Call a lighter update that doesn't consume packets
+                        // or call Update() but make sure our packet processing happens first
+                        steamNet.Update();
+                    }
                 }
             }
             catch (Exception e)
@@ -356,7 +407,7 @@ namespace GungeonTogether.Game
                 // Create player synchronizer
                 playerSync = new PlayerSynchronizer(this);
                 Debug.Log("[SimpleSessionManager] Player synchronization initialized (ready for networking integration)");
-            }            catch (Exception e)
+            } catch (Exception e)
             {
                 Debug.LogError($"[SimpleSessionManager] Failed to initialize player sync: {e.Message}");
             }
@@ -615,23 +666,45 @@ namespace GungeonTogether.Game
                     LogHostConnectionStatus("Periodic status report");
                 }
                 
-                // Check each connected player
-                foreach (var player in connectedPlayers.Keys)
+                // Check each connected player with improved timeout handling
+                var playersToRemove = new List<ulong>();
+                foreach (var kvp in connectedPlayers)
                 {
-                    if (connectedPlayers.TryGetValue(player, out PlayerConnection connection))
+                    var steamId = kvp.Key;
+                    var connection = kvp.Value;
+                    
+                    // Check for connection timeout (30 seconds without activity)
+                    float timeSinceLastActivity = Time.time - connection.lastActivity;
+                    float timeSinceConnection = Time.time - connection.connectionTime;
+                    
+                    // More lenient timeout handling to prevent premature disconnections
+                    if (!connection.isConnected)
                     {
-                        // Check if the connection is active
-                        if (!connection.isConnected)
-                        {
-                            Debug.LogWarning($"[SimpleSessionManager] Player {player} is not connected (removing)");
-                            connectedPlayers.Remove(player);
-                        }
-                        else
-                        {
-                            // Optionally, send a heartbeat or ping to the player
-                            // steamNet?.SendP2PPacket(player, CreatePingPacket());
-                        }
+                        Debug.LogWarning($"[SimpleSessionManager] Player {steamId} is not connected (removing)");
+                        playersToRemove.Add(steamId);
                     }
+                    else if (timeSinceLastActivity > 60.0f) // 60 seconds timeout instead of 30
+                    {
+                        Debug.LogWarning($"[SimpleSessionManager] Player {steamId} timeout - no activity for {timeSinceLastActivity:F1}s (removing)");
+                        playersToRemove.Add(steamId);
+                    }
+                    else if (!connection.handshakeComplete && timeSinceConnection > 15.0f) // 15 seconds for handshake
+                    {
+                        Debug.LogWarning($"[SimpleSessionManager] Player {steamId} handshake timeout - incomplete for {timeSinceConnection:F1}s (removing)");
+                        playersToRemove.Add(steamId);
+                    }
+                    else if (connection.handshakeComplete && timeSinceLastActivity > 30.0f) // Send heartbeat after 30s of no activity
+                    {
+                        // Send a heartbeat to check if connection is still alive
+                        Debug.Log($"[SimpleSessionManager] Sending heartbeat to player {steamId} (inactive for {timeSinceLastActivity:F1}s)");
+                        SendHeartbeat(steamId);
+                    }
+                }
+                
+                // Remove timed out connections
+                foreach (var steamId in playersToRemove)
+                {
+                    OnPlayerDisconnected(steamId);
                 }
             }
             catch (Exception e)
@@ -660,8 +733,7 @@ namespace GungeonTogether.Game
         {
             try
             {
-                Debug.Log($"[SimpleSessionManager] REAL P2P CONNECTION: Player {steamId} connected!");
-                Debug.Log($"[SimpleSessionManager] 🔗 NEW CONNECTION: Steam ID {steamId} is joining the session");
+                Debug.Log($"[SimpleSessionManager] Player {steamId} connected!");
                 
                 var connection = new PlayerConnection
                 {
@@ -755,6 +827,14 @@ namespace GungeonTogether.Game
                         HandleDisconnect(steamId, data);
                         break;
                         
+                    case PACKET_TYPE_HEARTBEAT:
+                        HandleHeartbeat(steamId, data);
+                        break;
+                        
+                    case PACKET_TYPE_HEARTBEAT_RESPONSE:
+                        HandleHeartbeatResponse(steamId, data);
+                        break;
+                        
                     default:
                         Debug.LogWarning($"[SimpleSessionManager] Unknown packet type {packetType} from {steamId}");
                         break;
@@ -786,6 +866,12 @@ namespace GungeonTogether.Game
             try
             {
                 Debug.Log($"[SimpleSessionManager] Sending handshake request to host: {hostSteamId}");
+        
+                // DIAGNOSTIC: Check Steam P2P status before sending
+                if (steamNet is ETGSteamP2PNetworking etgSteam)
+                {
+                    etgSteam.DiagnoseSteamP2PStatus();
+                }
                 
                 var packet = new byte[1 + 8]; // packet type + steam ID
                 packet[0] = PACKET_TYPE_HANDSHAKE_REQUEST;
@@ -796,16 +882,70 @@ namespace GungeonTogether.Game
                 
                 Debug.Log($"[SimpleSessionManager] Handshake packet created - My Steam ID: {mySteamId}, Target: {hostSteamId}");
                 
-                // Ensure P2P session is accepted before sending
-                if (!steamNet.AcceptP2PSession(hostSteamId))
+                // Ensure P2P session is properly established
+                bool sessionEstablished = false;
+                
+                // Try to establish P2P session multiple times with proper delays
+                for (int attempt = 0; attempt < 3 && !sessionEstablished; attempt++)
                 {
-                    Debug.LogWarning($"[SimpleSessionManager] Warning: Could not ensure P2P session acceptance with {hostSteamId}");
+                    Debug.Log($"[SimpleSessionManager] Establishing P2P session (attempt {attempt + 1})...");
+                    
+                    if (steamNet.AcceptP2PSession(hostSteamId))
+                    {
+                        sessionEstablished = true;
+                        Debug.Log($"[SimpleSessionManager] P2P session established successfully");
+                        break;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[SimpleSessionManager] P2P session establishment failed (attempt {attempt + 1})");
+                        // Use Unity's coroutine-friendly delay instead of Thread.Sleep
+                        if (attempt < 2) // Don't wait after the last attempt
+                        {
+                            // Wait a frame and try again
+                            UnityEngine.Time.timeScale = UnityEngine.Time.timeScale; // Ensure we're not paused
+                        }
+                    }
                 }
                 
-                if (ReferenceEquals(steamNet?.SendP2PPacket(hostSteamId, packet), true))
+                if (!sessionEstablished)
                 {
-                    Debug.Log($"[SimpleSessionManager] ✅ Handshake request sent successfully to {hostSteamId}");
+                    Debug.LogError($"[SimpleSessionManager] Failed to establish P2P session with {hostSteamId}");
+                    Status = $"Failed to establish P2P session with host: {hostSteamId}";
+                    return;
+                }
+                
+                // Now try to send the handshake packet
+                // Add a delay before sending to ensure P2P session is fully established
+                Debug.Log($"[SimpleSessionManager] Waiting for P2P session to stabilize...");
+                System.Threading.Thread.Sleep(100); // 100ms delay
+                
+                // Send multiple handshake attempts to ensure delivery
+                bool packetSent = false;
+                for (int attempt = 0; attempt < 5; attempt++) // Increased attempts
+                {
+                    Debug.Log($"[SimpleSessionManager] Sending handshake packet (attempt {attempt + 1})...");
                     
+                    if (steamNet?.SendP2PPacket(hostSteamId, packet) == true)
+                    {
+                        Debug.Log($"[SimpleSessionManager] Handshake request sent successfully to {hostSteamId}");
+                        packetSent = true;
+                        
+                        // Don't break immediately - send multiple packets to ensure delivery
+                        if (attempt >= 2) break; // Send at least 3 packets
+                        
+                        System.Threading.Thread.Sleep(50); // Brief delay between packets
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[SimpleSessionManager] Handshake send failed (attempt {attempt + 1})");
+                        steamNet.AcceptP2PSession(hostSteamId); // Re-establish session
+                        System.Threading.Thread.Sleep(100); // Longer delay before retry
+                    }
+                }
+                
+                if (packetSent)
+                {
                     // Add connection entry to track handshake progress
                     var connection = new PlayerConnection
                     {
@@ -817,21 +957,26 @@ namespace GungeonTogether.Game
                         connectionTime = Time.time
                     };
                     connectedPlayers[hostSteamId] = connection;
+                    
+                    Status = $"Handshake sent to host: {hostSteamId} (waiting for response)";
                 }
                 else
                 {
-                    Debug.LogError($"[SimpleSessionManager] ❌ Failed to send handshake request to {hostSteamId}");
-                    Debug.LogError($"[SimpleSessionManager] This usually means:");
-                    Debug.LogError($"[SimpleSessionManager]   • P2P session not established");
-                    Debug.LogError($"[SimpleSessionManager]   • Host is not accepting connections");
-                    Debug.LogError($"[SimpleSessionManager]   • Network connectivity issues");
-                    Debug.LogError($"[SimpleSessionManager]   • Steam networking initialization failed");
+                    Debug.LogError($"[SimpleSessionManager] Failed to send handshake request to {hostSteamId} after all attempts");
+                    Debug.LogError($"[SimpleSessionManager] This suggests a fundamental P2P connectivity issue:");
+                    Debug.LogError($"[SimpleSessionManager]   • Check if both players are online and not appearing offline");
+                    Debug.LogError($"[SimpleSessionManager]   • Verify Steam networking is properly initialized");
+                    Debug.LogError($"[SimpleSessionManager]   • Check Steam P2P ports are not blocked by firewall");
+                    Debug.LogError($"[SimpleSessionManager]   • Ensure host is running CheckForIncomingP2PRequests()");
+                    
+                    Status = $"Failed to connect to host: {hostSteamId} (P2P send failure)";
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[SimpleSessionManager] Error sending handshake request: {e.Message}");
                 Debug.LogError($"[SimpleSessionManager] Stack trace: {e.StackTrace}");
+                Status = $"Error connecting to host: {e.Message}";
             }
         }
         
@@ -844,21 +989,99 @@ namespace GungeonTogether.Game
             {
                 Debug.Log($"[SimpleSessionManager] Sending handshake response to client: {clientSteamId}");
                 
-                var packet = new byte[1]; // Just packet type for now
+                // Ensure we have a P2P session with the client
+                bool sessionEnsured = false;
+                for (int attempt = 0; attempt < 3; attempt++)
+                {
+                    if (steamNet.AcceptP2PSession(clientSteamId))
+                    {
+                        sessionEnsured = true;
+                        Debug.Log($"[SimpleSessionManager] P2P session ensured with client {clientSteamId}");
+                        break;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[SimpleSessionManager] Failed to ensure P2P session with {clientSteamId} (attempt {attempt + 1})");
+                        System.Threading.Thread.Sleep(20); // Wait before retry
+                    }
+                }
+                
+                if (!sessionEnsured)
+                {
+                    Debug.LogError($"[SimpleSessionManager] Cannot send handshake response - P2P session not established with {clientSteamId}");
+                    return;
+                }
+                
+                var packet = new byte[1 + 8]; // packet type + host steam ID
                 packet[0] = PACKET_TYPE_HANDSHAKE_RESPONSE;
                 
-                if (ReferenceEquals(steamNet?.SendP2PPacket(clientSteamId, packet), true))
+                // Add our Steam ID to the response
+                var mySteamId = steamNet?.GetSteamID() ?? 0;
+                BitConverter.GetBytes(mySteamId).CopyTo(packet, 1);
+                
+                bool responseSent = false;
+                for (int attempt = 0; attempt < 5; attempt++) // More attempts for critical handshake
                 {
-                    Debug.Log($"[SimpleSessionManager] Handshake response sent to {clientSteamId}");
+                    if (steamNet?.SendP2PPacket(clientSteamId, packet) == true)
+                    {
+                        Debug.Log($"[SimpleSessionManager] Handshake response sent to {clientSteamId} (attempt {attempt + 1})");
+                        responseSent = true;
+                        break;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[SimpleSessionManager] Failed to send handshake response (attempt {attempt + 1})");
+                        // Re-accept session before retry
+                        steamNet.AcceptP2PSession(clientSteamId);
+                        System.Threading.Thread.Sleep(10); // Small delay between attempts
+                    }
                 }
-                else
+                
+                if (!responseSent)
                 {
-                    Debug.LogError($"[SimpleSessionManager] Failed to send handshake response to {clientSteamId}");
+                    Debug.LogError($"[SimpleSessionManager] Failed to send handshake response to {clientSteamId} after all attempts");
+                    // Remove the connection since we can't communicate with it
+                    if (connectedPlayers.ContainsKey(clientSteamId))
+                    {
+                        connectedPlayers.Remove(clientSteamId);
+                        Debug.LogWarning($"[SimpleSessionManager] Removed connection {clientSteamId} due to communication failure");
+                    }
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[SimpleSessionManager] Error sending handshake response: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Send handshake complete confirmation (client -> host)
+        /// </summary>
+        private void SendHandshakeComplete(ulong hostSteamId)
+        {
+            try
+            {
+                Debug.Log($"[SimpleSessionManager] Sending handshake complete confirmation to host: {hostSteamId}");
+                
+                var packet = new byte[1 + 8]; // packet type + client steam ID
+                packet[0] = PACKET_TYPE_HANDSHAKE_COMPLETE;
+                
+                // Add our Steam ID to the packet
+                var mySteamId = steamNet?.GetSteamID() ?? 0;
+                BitConverter.GetBytes(mySteamId).CopyTo(packet, 1);
+                
+                if (steamNet?.SendP2PPacket(hostSteamId, packet) == true)
+                {
+                    Debug.Log($"[SimpleSessionManager] Handshake complete sent to host: {hostSteamId}");
+                }
+                else
+                {
+                    Debug.LogWarning($"[SimpleSessionManager] Failed to send handshake complete to host: {hostSteamId}");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SimpleSessionManager] Error sending handshake complete: {e.Message}");
             }
         }
         
@@ -878,10 +1101,50 @@ namespace GungeonTogether.Game
                     return;
                 }
                 
-                // Accept the connection and send response
+                // CRITICAL: Ensure P2P session is accepted for this client
+                bool sessionAccepted = false;
+                for (int attempt = 0; attempt < 5; attempt++) // Increased attempts
+                {
+                    if (steamNet.AcceptP2PSession(steamId))
+                    {
+                        sessionAccepted = true;
+                        Debug.Log($"[SimpleSessionManager] P2P session accepted for client {steamId} (attempt {attempt + 1})");
+                        break;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[SimpleSessionManager] Failed to accept P2P session for {steamId} (attempt {attempt + 1})");
+                        // Wait a tiny bit before retrying
+                        System.Threading.Thread.Sleep(10);
+                    }
+                }
+                
+                if (!sessionAccepted)
+                {
+                    Debug.LogError($"[SimpleSessionManager] Failed to accept P2P session for {steamId} - cannot establish connection");
+                    return;
+                }
+                
+                // Create or update connection entry with improved initialization
+                var connection = new PlayerConnection
+                {
+                    steamId = steamId,
+                    playerName = $"Player_{steamId}",
+                    isConnected = true,
+                    handshakeComplete = false, // Will be set to true when handshake completes
+                    lastActivity = Time.time,
+                    connectionTime = Time.time
+                };
+                connectedPlayers[steamId] = connection;
+                
+                // IMPORTANT: Wait a moment before sending response to ensure P2P is fully established
+                System.Threading.Thread.Sleep(50); // 50ms delay for P2P stabilization
+                
+                // Send handshake response
                 SendHandshakeResponse(steamId);
                 
                 Debug.Log($"[SimpleSessionManager] Handshake established with client: {steamId}");
+                LogHostConnectionStatus($"Handshake request processed for {steamId}");
             }
             catch (Exception e)
             {
@@ -898,11 +1161,13 @@ namespace GungeonTogether.Game
             {
                 Debug.Log($"[SimpleSessionManager] Received handshake response from host: {steamId}");
                 
-                // Mark handshake as complete
+                // Update or create connection entry
                 if (connectedPlayers.ContainsKey(steamId))
                 {
                     var connection = connectedPlayers[steamId];
                     connection.handshakeComplete = true;
+                    connection.isConnected = true;
+                    connection.lastActivity = Time.time;
                     connectedPlayers[steamId] = connection;
                 }
                 else
@@ -920,15 +1185,21 @@ namespace GungeonTogether.Game
                     connectedPlayers[steamId] = connection;
                 }
                 
+                // Send handshake complete confirmation to prevent sync issues
+                SendHandshakeComplete(steamId);
+                
                 UpdateConnectionStatus();
                 Debug.Log($"[SimpleSessionManager] FULLY CONNECTED to host: {steamId}");
-                Debug.Log($"[SimpleSessionManager] ✅ HANDSHAKE COMPLETE: Steam ID {steamId} is now fully connected");
+                Debug.Log($"[SimpleSessionManager] HANDSHAKE COMPLETE: Steam ID {steamId} is now fully connected");
                 
-                // If we're the host, log the updated connection status
-                if (IsHost)
+                // Initialize player synchronization now that we're connected
+                if (!Equals(playerSync, null))
                 {
-                    LogHostConnectionStatus($"Player {steamId} handshake completed - now fully connected");
+                    InitializePlayerSync();
                 }
+                
+                // Log successful connection with details
+                LogConnectionSuccess(steamId);
             }
             catch (Exception e)
             {
@@ -942,7 +1213,7 @@ namespace GungeonTogether.Game
         private void HandleHandshakeComplete(ulong steamId, byte[] data)
         {
             Debug.Log($"[SimpleSessionManager] Handshake completed with: {steamId}");
-            Debug.Log($"[SimpleSessionManager] ✅ HANDSHAKE FINALIZED: Steam ID {steamId} connection established");
+            Debug.Log($"[SimpleSessionManager] HANDSHAKE FINALIZED: Steam ID {steamId} connection established");
             
             // Update connection status to mark handshake complete
             if (connectedPlayers.ContainsKey(steamId))
@@ -1308,22 +1579,22 @@ namespace GungeonTogether.Game
             {
                 var hostSteamId = steamNet?.GetSteamID() ?? 0;
                 Debug.Log($"[Host Connection Status] {eventDescription}");
-                Debug.Log($"[Host Connection Status] 🏠 Host Steam ID: {hostSteamId}");
-                Debug.Log($"[Host Connection Status] 👥 Total Players: {connectedPlayers.Count}");
+                Debug.Log($"[Host Connection Status] Host Steam ID: {hostSteamId}");
+                Debug.Log($"[Host Connection Status] Total Players: {connectedPlayers.Count}");
                 
                 if (ReferenceEquals(connectedPlayers.Count,0))
                 {
-                    Debug.Log($"[Host Connection Status] ❌ No players connected - waiting for connections...");
+                    Debug.Log($"[Host Connection Status] No players connected - waiting for connections...");
                 }
                 else
                 {
-                    Debug.Log($"[Host Connection Status] 📋 Connected Players List:");
+                    Debug.Log($"[Host Connection Status] Connected Players List:");
                     int playerNumber = 1;
                     foreach (var kvp in connectedPlayers)
                     {
                         var steamId = kvp.Key;
                         var connection = kvp.Value;
-                        var status = connection.handshakeComplete ? "✅ Ready" : "🔄 Handshaking";
+                        var status = connection.handshakeComplete ? "Ready" : "Handshaking";
                         var duration = Time.time - connection.connectionTime;
                         Debug.Log($"[Host Connection Status]   {playerNumber}. Steam ID: {steamId} - {status} (Connected: {duration:F1}s ago)");
                         playerNumber++;
@@ -1348,55 +1619,328 @@ namespace GungeonTogether.Game
             {
                 if (!IsHost || ReferenceEquals(steamNet, null)) return;
                 
-                // Get our Steam ID
-                ulong mySteamId = steamNet.GetSteamID();
-                if (ReferenceEquals(mySteamId, 0)) return;
-                
-                // Check for available hosts who might be trying to connect to us
-                // This is a heuristic approach since we can't directly detect P2P session requests
-                ulong[] potentialJoiners = ETGSteamP2PNetworking.GetAvailableHosts();
-                
-                foreach (ulong potentialJoinerSteamId in potentialJoiners)
+                // First, check for join request notifications from joiners
+                if (ETGSteamP2PNetworking.CheckForJoinRequestNotifications(out ulong requestingSteamId))
                 {
-                    if (object.Equals(potentialJoinerSteamId, mySteamId)) continue; // Skip ourselves
+                    Debug.Log($"[SimpleSessionManager] 🎯 HOST: Received join request notification from {requestingSteamId}");
                     
-                    // If this player isn't already connected, preemptively accept their P2P session
-                    if (!connectedPlayers.ContainsKey(potentialJoinerSteamId))
+                    // Auto-accept the P2P session from the requesting player
+                    if (ShouldAcceptP2PRequest(requestingSteamId))
                     {
-                        if (steamNet.AcceptP2PSession(potentialJoinerSteamId))
-                        {
-                            Debug.Log($"[SimpleSessionManager] Preemptively accepted P2P session from potential joiner: {potentialJoinerSteamId}");
-                        }
+                        Debug.Log($"[SimpleSessionManager] ✅ HOST: Auto-accepting P2P session from joiner: {requestingSteamId}");
+                        steamNet.AcceptP2PSession(requestingSteamId);
                     }
                 }
                 
-                // Also try to accept P2P sessions from anyone in our Steam friends list who might be trying to join
-                try
+                // Add frame-based logging to see if this is being called
+                if (Time.frameCount % 300 == 0) // Every 5 seconds at 60fps
                 {
-                    var friends = SteamFriendsHelper.GetSteamFriends();
-                    foreach (var friend in friends)
+                    Debug.Log($"[SimpleSessionManager] 🏠 HOST: Actively checking for P2P requests (Frame: {Time.frameCount})");
+                }
+                
+                // Use our packet-based detection approach
+                CheckForUnknownSenders();
+                
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SimpleSessionManager] Error checking P2P requests: {e.Message}");
+            }
+        }
+
+        private void CheckForUnknownSenders()
+        {
+            try
+            {
+                if (!IsHost || ReferenceEquals(steamNet, null)) return;
+                
+                // DIAGNOSTIC: Periodically check Steam status
+                if (Time.frameCount % 3600 == 0) // Every minute at 60fps
+                {
+                    Debug.Log($"[SimpleSessionManager] 🔍 HOST DIAGNOSTIC: Checking Steam P2P status...");
+                    if (steamNet is ETGSteamP2PNetworking etgSteam)
                     {
-                        if (friend.isOnline && friend.isPlayingETG && !object.Equals(friend.steamId, mySteamId))
+                        etgSteam.DiagnoseSteamP2PStatus();
+                    }
+                }
+
+                // Check for incoming packets from any sender
+                ulong senderSteamId;
+                byte[] data;
+                int packetsProcessed = 0;
+                const int MAX_PACKETS_PER_FRAME = 20; // Increased limit
+                
+                // IMPORTANT: Read ALL available packets to detect unknown senders
+                while (packetsProcessed < MAX_PACKETS_PER_FRAME)
+                {
+                    bool hasPacket = steamNet.ReadP2PPacket(out senderSteamId, out data);
+                    
+                    if (!hasPacket || senderSteamId.Equals(0))
+                    {
+                        // No more packets available
+                        break;
+                    }
+                    
+                    packetsProcessed++;
+                    Debug.Log($"[SimpleSessionManager] 📦 HOST: Received packet from {senderSteamId} ({data?.Length ?? 0} bytes)");
+                    
+                    // Check if this sender is already in our connected players list
+                    if (!connectedPlayers.ContainsKey(senderSteamId))
+                    {
+                        Debug.Log($"[SimpleSessionManager] 🟡 HOST: Packet from UNKNOWN sender: {senderSteamId} - auto-accepting P2P session");
+                        
+                        // Auto-accept P2P session from unknown senders
+                        if (ShouldAcceptP2PRequest(senderSteamId))
                         {
-                            if (!connectedPlayers.ContainsKey(friend.steamId))
+                            bool sessionAccepted = steamNet.AcceptP2PSession(senderSteamId);
+                            
+                            if (sessionAccepted)
                             {
-                                // Try to accept P2P session with this friend in case they're trying to join
-                                steamNet.AcceptP2PSession(friend.steamId);
+                                Debug.Log($"[SimpleSessionManager] ✅ HOST: Auto-accepted P2P session from: {senderSteamId}");
+                                
+                                // Create a connection entry for tracking
+                                var connection = new PlayerConnection
+                                {
+                                    steamId = senderSteamId,
+                                    playerName = $"Player_{senderSteamId}",
+                                    isConnected = true,
+                                    handshakeComplete = false,
+                                    lastActivity = Time.time,
+                                    connectionTime = Time.time
+                                };
+                                connectedPlayers[senderSteamId] = connection;
+                                
+                                LogHostConnectionStatus($"Auto-accepted P2P session from packet sender {senderSteamId}");
+                            }
+                            else
+                            {
+                                Debug.LogError($"[SimpleSessionManager] ❌ HOST: Failed to accept P2P session from: {senderSteamId}");
+                                continue; // Skip processing this packet
                             }
                         }
+                        else
+                        {
+                            Debug.Log($"[SimpleSessionManager] ❌ HOST: Rejected connection attempt from: {senderSteamId}");
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        Debug.Log($"[SimpleSessionManager] 📦 HOST: Packet from KNOWN sender: {senderSteamId}");
+                    }
+                    
+                    // Process the packet normally through OnDataReceived
+                    if (!ReferenceEquals(data, null) && data.Length > 0)
+                    {
+                        Debug.Log($"[SimpleSessionManager] 📦 HOST: Processing packet from {senderSteamId} ({data.Length} bytes) - Type: {data[0]}");
+                        OnDataReceived(senderSteamId, data);
                     }
                 }
-                catch (Exception)
+                
+                if (packetsProcessed > 0)
                 {
-                    // Silent failure for friends check
+                    Debug.Log($"[SimpleSessionManager] 📦 HOST: Processed {packetsProcessed} packets this frame");
+                }
+                
+                // Method 2: Use Steam callback fallback detection
+                try
+                {
+                    SteamCallbackManager.ProcessSteamCallbacks();
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[SimpleSessionManager] Error processing Steam callbacks: {e.Message}");
+                }
+                
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SimpleSessionManager] Error checking unknown senders: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Determine if we should accept a P2P session request from a specific Steam ID
+        /// </summary>
+        private bool ShouldAcceptP2PRequest(ulong steamId)
+        {
+            try
+            {
+                if (steamId.Equals(0))
+                {
+                    Debug.LogWarning("[SimpleSessionManager] Rejecting P2P request - invalid Steam ID (0)");
+                    return false;
+                }
+
+                var mySteamId = steamNet?.GetSteamID() ?? 0;
+                if (steamId.Equals(mySteamId))
+                {
+                    Debug.LogWarning("[SimpleSessionManager] Rejecting P2P request - cannot connect to self");
+                    return false;
+                }
+
+                if (connectedPlayers.ContainsKey(steamId))
+                {
+                    Debug.LogWarning($"[SimpleSessionManager] Rejecting P2P request - {steamId} already connected");
+                    return false;
+                }
+
+                // Check if we have room for more players
+                if (connectedPlayers.Count >= 3) // Allow up to 3 other players (4 total including host)
+                {
+                    Debug.LogWarning($"[SimpleSessionManager] Rejecting P2P request - session full ({connectedPlayers.Count}/3 players)");
+                    return false;
+                }
+
+                Debug.Log($"[SimpleSessionManager] Accepting P2P request from {steamId} - all checks passed");
+                return true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SimpleSessionManager] Error checking P2P request acceptance: {e.Message}");
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// Send heartbeat to check connection health
+        /// </summary>
+        private void SendHeartbeat(ulong steamId)
+        {
+            try
+            {
+                Debug.Log($"[SimpleSessionManager] Sending heartbeat to {steamId}");
+                
+                var packet = new byte[1 + 8]; // packet type + timestamp
+                packet[0] = PACKET_TYPE_HEARTBEAT;
+                
+                // Add timestamp to the packet
+                var timestamp = DateTime.Now.ToBinary();
+                BitConverter.GetBytes(timestamp).CopyTo(packet, 1);
+                
+                if (steamNet?.SendP2PPacket(steamId, packet) == true)
+                {
+                    Debug.Log($"[SimpleSessionManager] Heartbeat sent to {steamId}");
+                }
+                else
+                {
+                    Debug.LogWarning($"[SimpleSessionManager] Failed to send heartbeat to {steamId}");
                 }
             }
             catch (Exception e)
             {
-                if (ReferenceEquals(Time.frameCount % 300, 0)) // Log every 5 seconds
+                Debug.LogError($"[SimpleSessionManager] Error sending heartbeat: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Handle incoming heartbeat packets
+        /// </summary>
+        private void HandleHeartbeat(ulong steamId, byte[] data)
+        {
+            try
+            {
+                Debug.Log($"[SimpleSessionManager] Received heartbeat from {steamId}");
+                
+                // Send heartbeat response
+                var packet = new byte[1 + 8]; // packet type + timestamp
+                packet[0] = PACKET_TYPE_HEARTBEAT_RESPONSE;
+                
+                // Echo back the timestamp from the original heartbeat
+                if (data.Length >= 9)
                 {
-                    Debug.LogWarning($"[SimpleSessionManager] Error checking for incoming P2P requests: {e.Message}");
+                    Array.Copy(data, 1, packet, 1, 8);
                 }
+                else
+                {
+                    // If no timestamp in original packet, use current time
+                    var timestamp = DateTime.Now.ToBinary();
+                    BitConverter.GetBytes(timestamp).CopyTo(packet, 1);
+                }
+                
+                if (steamNet?.SendP2PPacket(steamId, packet) == true)
+                {
+                    Debug.Log($"[SimpleSessionManager] Heartbeat response sent to {steamId}");
+                }
+                else
+                {
+                    Debug.LogWarning($"[SimpleSessionManager] Failed to send heartbeat response to {steamId}");
+                }
+                
+                // Update last activity time
+                if (connectedPlayers.ContainsKey(steamId))
+                {
+                    var connection = connectedPlayers[steamId];
+                    connection.lastActivity = Time.time;
+                    connectedPlayers[steamId] = connection;
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SimpleSessionManager] Error handling heartbeat: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Handle heartbeat response packets
+        /// </summary>
+        private void HandleHeartbeatResponse(ulong steamId, byte[] data)
+        {
+            try
+            {
+                Debug.Log($"[SimpleSessionManager] Received heartbeat response from {steamId}");
+                
+                // Update last activity time
+                if (connectedPlayers.ContainsKey(steamId))
+                {
+                    var connection = connectedPlayers[steamId];
+                    connection.lastActivity = Time.time;
+                    connectedPlayers[steamId] = connection;
+                    
+                    // Calculate round-trip time if timestamp is available
+                    if (data.Length >= 9)
+                    {
+                        try
+                        {
+                            var sentTimestamp = BitConverter.ToInt64(data, 1);
+                            var sentTime = DateTime.FromBinary(sentTimestamp);
+                            var roundTripTime = DateTime.Now - sentTime;
+                            Debug.Log($"[SimpleSessionManager] Round-trip time to {steamId}: {roundTripTime.TotalMilliseconds:F1}ms");
+                        }
+                        catch (Exception)
+                        {
+                            // Ignore timestamp parsing errors
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SimpleSessionManager] Error handling heartbeat response: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Log successful connection details
+        /// </summary>
+        private void LogConnectionSuccess(ulong steamId)
+        {
+            try
+            {
+                var mySteamId = steamNet?.GetSteamID() ?? 0;
+                Debug.Log($"[SimpleSessionManager] ✅ CONNECTION ESTABLISHED");
+                Debug.Log($"[SimpleSessionManager] ✅ My Steam ID: {mySteamId}");
+                Debug.Log($"[SimpleSessionManager] ✅ Connected to: {steamId}");
+                Debug.Log($"[SimpleSessionManager] ✅ Session ID: {CurrentSessionId}");
+                Debug.Log($"[SimpleSessionManager] ✅ Role: {(IsHost ? "Host" : "Client")}");
+                Debug.Log($"[SimpleSessionManager] ✅ Connection is ready for multiplayer gameplay");
+                
+                // Update UI to show successful connection
+                Status = IsHost ? $"Hosting: {connectedPlayers.Count} players connected" : "Connected to host - ready to play";
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SimpleSessionManager] Error logging connection success: {e.Message}");
             }
         }
     }

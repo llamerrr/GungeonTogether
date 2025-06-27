@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEngine;
 
@@ -341,11 +342,58 @@ namespace GungeonTogether.Steam
                     }
                 }
                 
+                // Special case: if the argument is just "+connect_lobby" without parameters,
+                // this might be a Steam Rich Presence join where Steam didn't pass the Steam ID correctly
+                if (arg.Equals("+connect_lobby") || arg.Equals("+join_game"))
+                {
+                    Debug.Log($"[ETGSteamP2P] 🔍 FALLBACK: Empty {arg} command detected - this suggests Steam Rich Presence join");
+                    Debug.Log($"[ETGSteamP2P] 💡 FALLBACK: The host's Rich Presence 'connect' field might be misconfigured");
+                    Debug.Log($"[ETGSteamP2P] 💡 FALLBACK: Host should set Rich Presence 'connect' to their Steam ID, not session ID");
+                    
+                    // Try to get the Steam ID from other sources or recent host data
+                    TryRecoverSteamIdFromRecent();
+                    return;
+                }
+                
                 Debug.Log($"[ETGSteamP2P] ❌ FALLBACK: Could not extract Steam ID from: {arg}");
             }
             catch (Exception e)
             {
                 Debug.LogError($"[ETGSteamP2P] Error extracting Steam ID from argument: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Try to recover Steam ID from recent host discovery or other sources
+        /// when Steam command line parsing fails
+        /// </summary>
+        private static void TryRecoverSteamIdFromRecent()
+        {
+            try
+            {
+                Debug.Log("[ETGSteamP2P] 🔍 FALLBACK: Attempting to recover Steam ID from recent data...");
+                
+                // Try to get the most recent host from SteamHostManager
+                var availableHosts = SteamHostManager.GetAvailableHosts();
+                if (!ReferenceEquals(availableHosts, null) && availableHosts.Length > 0)
+                {
+                    // Get the first available host (since we don't have timestamp info in the array)
+                    var hostSteamId = availableHosts[0];
+                    
+                    if (hostSteamId != 0)
+                    {
+                        Debug.Log($"[ETGSteamP2P] 🎯 FALLBACK: Found recent host Steam ID: {hostSteamId}");
+                        ProcessFallbackJoinRequest(hostSteamId);
+                        return;
+                    }
+                }
+                
+                Debug.Log("[ETGSteamP2P] ❌ FALLBACK: No recent host data available");
+                Debug.Log("[ETGSteamP2P] 💡 FALLBACK: User should use the in-game multiplayer menu instead");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error recovering Steam ID from recent data: {e.Message}");
             }
         }
         

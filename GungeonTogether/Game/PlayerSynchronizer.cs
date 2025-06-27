@@ -56,10 +56,16 @@ namespace GungeonTogether.Game
         {
             try
             {
+                // Only update if we have a valid game manager
+                if (ReferenceEquals(gameManager, null))
+                {
+                    return;
+                }
+                
                 UpdateLocalPlayer();
                 UpdateRemotePlayers();
                 
-                // Send updates at regular intervals
+                // Send updates at regular intervals (but not too frequently to avoid sync issues)
                 if (Time.time - lastSyncTime >= SYNC_INTERVAL)
                 {
                     BroadcastPlayerUpdate();
@@ -68,7 +74,11 @@ namespace GungeonTogether.Game
             }
             catch (Exception e)
             {
-                Debug.LogError($"[PlayerSync] Error in Update: {e.Message}");
+                // Don't log every frame to avoid spam - only log once per second
+                if (Time.time - lastSyncTime >= 1.0f)
+                {
+                    Debug.LogError($"[PlayerSync] Error in Update: {e.Message}");
+                }
             }
         }
         

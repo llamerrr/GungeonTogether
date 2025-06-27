@@ -237,7 +237,7 @@ namespace GungeonTogether.Steam
                 
                 if (bestHost.Equals(0))
                 {
-                    // No hosts found
+                    // No hosts found at all
                     Debug.LogWarning("[SteamP2PTest] No available hosts or ETG friends found");
                     Debug.LogWarning("[SteamP2PTest] Press F7 to see friends list or wait for a Steam invite");
                     return;

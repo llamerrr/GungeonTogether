@@ -127,6 +127,9 @@ namespace GungeonTogether
             {
                 Logger.LogInfo("Initializing modern UI system...");
                 
+                // Initialize the MultiplayerUIManager first
+                MultiplayerUIManager.Initialize();
+                
                 // Create a GameObject for the modern menu
                 var modernMenuObject = new GameObject("ModernMultiplayerMenu");
                 UnityEngine.Object.DontDestroyOnLoad(modernMenuObject);
@@ -158,7 +161,9 @@ namespace GungeonTogether
               // Hook into BepInEx event system - will use Update() and scene detection instead
             
             Logger.LogDebug("Event hooks registered");
-        }          void Update()
+        }
+
+        void Update()
         {
             // Update the session manager each frame (includes P2P networking and player sync)
             _sessionManager?.Update();
