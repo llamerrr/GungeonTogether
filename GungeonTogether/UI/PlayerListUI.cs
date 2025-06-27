@@ -645,7 +645,7 @@ namespace GungeonTogether.UI
             if (!ReferenceEquals(footerText, null))
             {
                 int playerCount = connectedPlayers.Count;
-                footerText.text = $"{playerCount} player{(playerCount != 1 ? "s" : "")} connected";
+                footerText.text = $"{playerCount} player{(!playerCount.Equals(1) ? "s" : "")} connected";
             }
         }
         

@@ -62,6 +62,11 @@ namespace GungeonTogether.UI
         private ETGSteamP2PNetworking steamNetworking;
         private SteamP2PTestScript testScript;
         
+        // Cached values to prevent log spam
+        private ulong cachedSteamId = 0;
+        private bool steamIdCached = false;
+        private float lastSteamIdCheck = 0f;
+        
         void Start()
         {
             // Use Invoke to delay initialization to ensure all systems are ready
@@ -646,13 +651,58 @@ namespace GungeonTogether.UI
                     }
                 }
                 
-                // Update Steam ID text
-                if (!ReferenceEquals(steamIdText, null) && !ReferenceEquals(steamNetworking, null))
+                // Update Steam ID text (cached to prevent log spam)
+                if (!ReferenceEquals(steamIdText, null))
                 {
-                    if (steamNetworking.IsAvailable())
+                    // Only check Steam ID once per second to prevent spam
+                    if (!steamIdCached || Time.time - lastSteamIdCheck > 1.0f)
                     {
-                        var steamId = steamNetworking.GetSteamID();
-                        steamIdText.text = $"Steam: {steamId}";
+                        try
+                        {
+                            // Try to get Steam networking instance if we don't have it
+                            if (ReferenceEquals(steamNetworking, null))
+                            {
+                                steamNetworking = ETGSteamP2PNetworking.Instance;
+                            }
+                            
+                            // Try to get Steam ID directly from reflection helper (more reliable)
+                            ulong steamId = 0;
+                            
+                            if (!ReferenceEquals(steamNetworking, null))
+                            {
+                                steamId = steamNetworking.GetSteamID();
+                            }
+                            else
+                            {
+                                // Fallback: try direct Steam reflection helper
+                                steamId = SteamReflectionHelper.GetSteamID();
+                            }
+                            
+                            if (steamId > 0)
+                            {
+                                cachedSteamId = steamId;
+                                steamIdCached = true;
+                            }
+                            else
+                            {
+                                // Only mark as unavailable if we actually get 0 back
+                                cachedSteamId = 0;
+                                steamIdCached = false;
+                            }
+                        }
+                        catch (Exception steamEx)
+                        {
+                            Debug.LogWarning($"[ModernMultiplayerMenu] Failed to get Steam ID: {steamEx.Message}");
+                            cachedSteamId = 0;
+                            steamIdCached = false;
+                        }
+                        lastSteamIdCheck = Time.time;
+                    }
+                    
+                    // Update UI with cached value
+                    if (steamIdCached && cachedSteamId > 0)
+                    {
+                        steamIdText.text = $"Steam: {cachedSteamId}";
                         steamIdText.color = Color.cyan;
                     }
                     else

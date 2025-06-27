@@ -160,7 +160,7 @@ namespace GungeonTogether
             try
             {
                 // Ensure Time.timeScale stays at 1.0 when hosting (this is the most reliable method)
-                if (!ReferenceEquals(Time.timeScale, 1.0f))
+                if (!Time.timeScale.Equals(1.0f))
                 {
                     Time.timeScale = 1.0f;
                 }
@@ -211,21 +211,19 @@ namespace GungeonTogether
                     }
                 }
                 catch (System.Exception ex)
+                {                // Only log reflection errors once every 5 seconds to avoid spam
+                if (Time.frameCount % 300 == 0)
                 {
-                    // Only log reflection errors once every 5 seconds to avoid spam
-                    if (ReferenceEquals(Time.frameCount % 300, 0))
-                    {
-                        Logger.LogWarning($"[Multiplayer] GameManager pause override failed (using timeScale fallback): {ex.Message}");
-                    }
+                    Logger.LogWarning($"[Multiplayer] GameManager pause override failed (using timeScale fallback): {ex.Message}");
+                }
                 }
             }
             catch (System.Exception e)
+            {            // Fallback error handling
+            if (Time.frameCount % 300 == 0) // Log every ~5 seconds at 60fps
             {
-                // Fallback error handling
-                if (ReferenceEquals(Time.frameCount % 300, 0)) // Log every ~5 seconds at 60fps
-                {
-                    Logger.LogWarning($"[Multiplayer] Pause prevention error (timeScale fallback active): {e.Message}");
-                }
+                Logger.LogWarning($"[Multiplayer] Pause prevention error (timeScale fallback active): {e.Message}");
+            }
             }
         }
         
@@ -590,7 +588,7 @@ namespace GungeonTogether
                 // Get available hosts automatically
                 ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
                 
-                if (ReferenceEquals(availableHosts.Length, 0))
+                if (availableHosts.Length == 0)
                 {
                     Logger.LogInfo("No available hosts found");
                 }
@@ -603,7 +601,7 @@ namespace GungeonTogether
                     }
                     
                     // If there's exactly one host, we could auto-select it
-                    if (ReferenceEquals(availableHosts.Length, 1))
+                    if (availableHosts.Length == 1)
                     {
                         ulong selectedHost = availableHosts[0];
                         Logger.LogInfo($"Auto-selected host: {selectedHost}");
@@ -659,7 +657,7 @@ namespace GungeonTogether
                 
                 string[] friends = SteamSessionHelper.GetFriendsPlayingGame();
                 
-                if (ReferenceEquals(friends.Length, 0))
+                if (friends.Length == 0)
                 {
                     Logger.LogInfo("No friends currently playing GungeonTogether");
                 }
@@ -858,7 +856,7 @@ namespace GungeonTogether
                         // Check available hosts
                         ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
                         
-                        if (ReferenceEquals(availableHosts.Length, 0))
+                        if (availableHosts.Length == 0)
                         {
                             Logger.LogInfo("F4: No available hosts found");
                             Logger.LogInfo("How to connect:");

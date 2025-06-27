@@ -34,22 +34,12 @@ namespace GungeonTogether.Steam
             {
                 Debug.Log("[ETGSteamP2P] 🔄 Initializing Steam callbacks for invite and overlay join support...");
                 
-                // Get ETG's Assembly-CSharp-firstpass which contains Steamworks types
-                Assembly steamworksAssembly = null;
-                Assembly[] assemblies = System.AppDomain.CurrentDomain.GetAssemblies();
-                
-                for (int i = 0; i < assemblies.Length; i++)
-                {
-                    if (ReferenceEquals(assemblies[i].GetName().Name, "Assembly-CSharp-firstpass"))
-                    {
-                        steamworksAssembly = assemblies[i];
-                        break;
-                    }
-                }
+                // Use the cached Steamworks assembly from SteamReflectionHelper
+                Assembly steamworksAssembly = SteamReflectionHelper.GetSteamworksAssembly();
                 
                 if (ReferenceEquals(steamworksAssembly, null))
                 {
-                    Debug.LogWarning("[ETGSteamP2P] Cannot initialize Steam callbacks - Assembly-CSharp-firstpass not found");
+                    Debug.LogWarning("[ETGSteamP2P] Cannot initialize Steam callbacks - Steamworks assembly not available");
                     return;
                 }
                 

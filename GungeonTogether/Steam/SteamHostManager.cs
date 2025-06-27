@@ -84,7 +84,7 @@ namespace GungeonTogether.Steam
                 }
                 
                 // First priority: Direct invite (but not from ourselves)
-                if (lastInvitedBySteamId != 0 && lastInvitedBySteamId != mySteamId)
+                if (!lastInvitedBySteamId.Equals(0UL) && !lastInvitedBySteamId.Equals(mySteamId))
                 {
                     Debug.Log($"[ETGSteamP2P] Using direct invite: {lastInvitedBySteamId}");
                     return lastInvitedBySteamId;

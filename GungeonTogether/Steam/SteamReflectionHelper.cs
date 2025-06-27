@@ -51,6 +51,9 @@ namespace GungeonTogether.Steam
         private static ulong cachedSteamId = 0;
         private static bool steamIdCached = false;
         
+        // Cache the steamworks assembly to avoid repeated lookups
+        private static Assembly cachedSteamworksAssembly = null;
+        
         // Working signature tracking for SendP2PPacket
         private static int workingSendSignatureIndex = -1;
         
@@ -80,6 +83,9 @@ namespace GungeonTogether.Steam
                     Debug.LogWarning("[ETGSteamP2P] Assembly-CSharp-firstpass not found - Steamworks.NET not available");
                     return;
                 }
+                
+                // Cache the assembly for future use
+                cachedSteamworksAssembly = steamworksAssembly;
                 
                 Debug.Log("[ETGSteamP2P] Found Assembly-CSharp-firstpass with Steamworks.NET");
                 
@@ -227,7 +233,7 @@ namespace GungeonTogether.Steam
                 // Find all SendP2PPacket methods
                 foreach (var method in allMethods)
                 {
-                    if (ReferenceEquals(method.Name, "SendP2PPacket"))
+                    if (string.Equals(method.Name, "SendP2PPacket"))
                     {
                         sendMethods.Add(method);
                     }
@@ -277,7 +283,7 @@ namespace GungeonTogether.Steam
                 // Filter methods with name "IsP2PPacketAvailable" without LINQ
                 foreach (var method in allMethodsTemp)
                 {
-                    if (ReferenceEquals(method.Name, "IsP2PPacketAvailable"))
+                    if (string.Equals(method.Name, "IsP2PPacketAvailable"))
                     {
                         allMethodsList.Add(method);
                     }
@@ -465,7 +471,7 @@ namespace GungeonTogether.Steam
                 // Find all SendP2PPacket methods
                 foreach (var method in allMethods)
                 {
-                    if (ReferenceEquals(method.Name, "SendP2PPacket"))
+                    if (string.Equals(method.Name, "SendP2PPacket"))
                     {
                         sendMethods.Add(method);
                     }
@@ -483,7 +489,7 @@ namespace GungeonTogether.Steam
                 // Try all signatures
                 for (int i = 0; i < sendMethods.Count; i++)
                 {
-                    if (ReferenceEquals(i, workingSendSignatureIndex)) continue; // Already tried this one
+                    if (i == workingSendSignatureIndex) continue; // Already tried this one
                     
                     if (TrySendWithSignature(sendMethods[i], steamIdParam, data))
                     {
@@ -508,17 +514,17 @@ namespace GungeonTogether.Steam
                 var parameters = method.GetParameters();
                 
                 // Try different parameter combinations based on common Steamworks patterns
-                if (ReferenceEquals(parameters.Length, 5)) // Common: steamid, data, length, channel, sendtype
+                if (parameters.Length == 5) // Common: steamid, data, length, channel, sendtype
                 {
                     object result = method.Invoke(null, new object[] { steamIdParam, data, (uint)data.Length, 0, 2 });
                     return result is bool success && success;
                 }
-                else if (ReferenceEquals(parameters.Length, 4)) // steamid, data, length, channel
+                else if (parameters.Length == 4) // steamid, data, length, channel
                 {
                     object result = method.Invoke(null, new object[] { steamIdParam, data, (uint)data.Length, 0 });
                     return result is bool success && success;
                 }
-                else if (ReferenceEquals(parameters.Length, 3)) // steamid, data, length
+                else if (parameters.Length == 3) // steamid, data, length
                 {
                     object result = method.Invoke(null, new object[] { steamIdParam, data, (uint)data.Length });
                     return result is bool success && success;
@@ -544,16 +550,22 @@ namespace GungeonTogether.Steam
                     InitializeSteamTypes();
                 }
                 
-                // Try to find CSteamID type
-                Assembly steamworksAssembly = null;
-                Assembly[] assemblies = System.AppDomain.CurrentDomain.GetAssemblies();
+                // Try to find CSteamID type using cached assembly
+                Assembly steamworksAssembly = cachedSteamworksAssembly;
                 
-                for (int i = 0; i < assemblies.Length; i++)
+                // If not cached, try to find it
+                if (ReferenceEquals(steamworksAssembly, null))
                 {
-                    if (ReferenceEquals(assemblies[i].GetName().Name, "Assembly-CSharp-firstpass"))
+                    Assembly[] assemblies = System.AppDomain.CurrentDomain.GetAssemblies();
+                    
+                    for (int i = 0; i < assemblies.Length; i++)
                     {
-                        steamworksAssembly = assemblies[i];
-                        break;
+                        if (string.Equals(assemblies[i].GetName().Name, "Assembly-CSharp-firstpass"))
+                        {
+                            steamworksAssembly = assemblies[i];
+                            cachedSteamworksAssembly = steamworksAssembly; // Cache it
+                            break;
+                        }
                     }
                 }
                 
@@ -577,6 +589,18 @@ namespace GungeonTogether.Steam
             {
                 return steamId; // Fallback to raw ulong
             }
+        }
+        
+        /// <summary>
+        /// Get the cached Steamworks assembly reference
+        /// </summary>
+        public static Assembly GetSteamworksAssembly()
+        {
+            if (ReferenceEquals(cachedSteamworksAssembly, null) && !initialized)
+            {
+                InitializeSteamTypes();
+            }
+            return cachedSteamworksAssembly;
         }
         
         // Property accessors for the cached methods
