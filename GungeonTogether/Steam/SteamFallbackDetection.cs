@@ -191,13 +191,21 @@ namespace GungeonTogether.Steam
             try
             {
                 // Check if we have any pending P2P packets from unknown connections
-                // This could indicate someone is trying to connect
-                // Implementation would depend on having access to the main P2P networking instance
-                // For now, this is a placeholder for future enhancement
+                // This could indicate someone is trying to connect via Steam invite
+                if (ETGSteamP2PNetworking.CheckForJoinRequestNotifications(out ulong requestingSteamId))
+                {
+                    Debug.Log($"[SteamFallbackDetection] Found P2P join request from Steam ID: {requestingSteamId}");
+                    // Trigger the join event
+                    SteamCallbackManager.TriggerJoinRequested(requestingSteamId);
+                }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Ignore errors
+                // Only log errors occasionally to avoid spam
+                if (Time.frameCount % 1800 == 0) // Every 30 seconds at 60fps
+                {
+                    Debug.LogWarning($"[SteamFallbackDetection] Error checking for P2P session requests: {ex.Message}");
+                }
             }
         }
         

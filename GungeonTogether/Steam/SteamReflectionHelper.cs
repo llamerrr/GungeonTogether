@@ -45,6 +45,7 @@ namespace GungeonTogether.Steam
         private static MethodInfo getLobbyDataMethod;
         private static MethodInfo setLobbyJoinableMethod;
         private static MethodInfo inviteUserToLobbyMethod;
+        private static MethodInfo getLobbyOwnerMethod;
         
         // Steam Friends methods
         private static MethodInfo getFriendCountMethod;
@@ -258,6 +259,7 @@ namespace GungeonTogether.Steam
                 getLobbyDataMethod = steamMatchmakingType.GetMethod("GetLobbyData", BindingFlags.Public | BindingFlags.Static);
                 setLobbyJoinableMethod = steamMatchmakingType.GetMethod("SetLobbyJoinable", BindingFlags.Public | BindingFlags.Static);
                 inviteUserToLobbyMethod = steamMatchmakingType.GetMethod("InviteUserToLobby", BindingFlags.Public | BindingFlags.Static);
+                getLobbyOwnerMethod = steamMatchmakingType.GetMethod("GetLobbyOwner", BindingFlags.Public | BindingFlags.Static);
             }
         }
         
@@ -354,13 +356,24 @@ namespace GungeonTogether.Steam
                     if (parameters.Length >= 1 && parameters.Length <= 2)
                     {
                         var firstParam = parameters[0];
-                        bool isOutUint = firstParam.IsOut && (ReferenceEquals(firstParam.ParameterType.GetElementType(), typeof(uint)) || 
-                                                              ReferenceEquals(firstParam.ParameterType.GetElementType(), typeof(System.UInt32)));
+                        bool isOutUint = firstParam.IsOut && 
+                                        (firstParam.ParameterType.GetElementType().Equals(typeof(uint)) || 
+                                         firstParam.ParameterType.GetElementType().Equals(typeof(System.UInt32)));
                         
                         if (isOutUint)
                         {
                             isP2PPacketAvailableMethod = method;
+                            
+                            // Log the exact signature we selected for debugging
+                            var selectedParamStr = string.Join(", ", paramParts.ToArray());
                             Debug.Log($"[ETGSteamP2P] ✅ Selected IsP2PPacketAvailable with out uint parameter");
+                            Debug.Log($"[ETGSteamP2P] ✅ Selected signature: {method.ReturnType.Name} IsP2PPacketAvailable({selectedParamStr})");
+                            Debug.Log($"[ETGSteamP2P] ✅ Parameter count: {parameters.Length}");
+                            for (int i = 0; i < parameters.Length; i++)
+                            {
+                                var p = parameters[i];
+                                Debug.Log($"[ETGSteamP2P] ✅ Param {i}: {(p.IsOut ? "out " : "")}{p.ParameterType.Name} {p.Name}");
+                            }
                             return;
                         }
                     }
@@ -370,7 +383,16 @@ namespace GungeonTogether.Steam
                 if (allMethods.Length > 0)
                 {
                     isP2PPacketAvailableMethod = allMethods[0];
+                    var fallbackParams = isP2PPacketAvailableMethod.GetParameters();
+                    var fallbackParamParts = new List<string>();
+                    foreach (var p in fallbackParams)
+                    {
+                        string prefix = p.IsOut ? "out " : (p.ParameterType.IsByRef ? "ref " : "");
+                        fallbackParamParts.Add($"{prefix}{p.ParameterType.Name} {p.Name}");
+                    }
+                    var fallbackParamStr = string.Join(", ", fallbackParamParts.ToArray());
                     Debug.Log($"[ETGSteamP2P] ⚠️ Using fallback IsP2PPacketAvailable method");
+                    Debug.Log($"[ETGSteamP2P] ⚠️ Fallback signature: {isP2PPacketAvailableMethod.ReturnType.Name} IsP2PPacketAvailable({fallbackParamStr})");
                 }
                 else
                 {
@@ -766,6 +788,7 @@ namespace GungeonTogether.Steam
         public static MethodInfo GetLobbyDataMethod => getLobbyDataMethod;
         public static MethodInfo SetLobbyJoinableMethod => setLobbyJoinableMethod;
         public static MethodInfo InviteUserToLobbyMethod => inviteUserToLobbyMethod;
+        public static MethodInfo GetLobbyOwnerMethod => getLobbyOwnerMethod;
         
         // Friends methods accessors
         public static MethodInfo GetFriendCountMethod => getFriendCountMethod;
@@ -774,5 +797,203 @@ namespace GungeonTogether.Steam
         public static MethodInfo GetFriendPersonaStateMethod => getFriendPersonaStateMethod;
         public static MethodInfo GetFriendGamePlayedMethod => getFriendGamePlayedMethod;
         public static MethodInfo GetFriendRichPresenceMethod => getFriendRichPresenceMethod;
+        
+        /// <summary>
+        /// Get the Steam ID of the lobby owner/host
+        /// </summary>
+        public static ulong GetLobbyOwner(ulong lobbyId)
+        {
+            try
+            {
+                if (ReferenceEquals(getLobbyOwnerMethod, null))
+                {
+                    Debug.LogWarning("[ETGSteamP2P] GetLobbyOwner method not available");
+                    return 0;
+                }
+                
+                var lobbyIdParam = ConvertToCSteamID(lobbyId);
+                if (ReferenceEquals(lobbyIdParam, null))
+                {
+                    Debug.LogWarning($"[ETGSteamP2P] Could not convert lobby ID {lobbyId} to CSteamID");
+                    return 0;
+                }
+                
+                var result = getLobbyOwnerMethod.Invoke(null, new object[] { lobbyIdParam });
+                
+                if (!ReferenceEquals(result, null))
+                {
+                    var ownerSteamId = ExtractSteamId(result);
+                    Debug.Log($"[ETGSteamP2P] GetLobbyOwner: Lobby {lobbyId} is owned by Steam ID {ownerSteamId}");
+                    return ownerSteamId;
+                }
+                
+                Debug.LogWarning($"[ETGSteamP2P] GetLobbyOwner returned null for lobby {lobbyId}");
+                return 0;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error getting lobby owner for lobby {lobbyId}: {e.Message}");
+                return 0;
+            }
+        }
+
+        /// <summary>
+        /// Call IsP2PPacketAvailable using the correct parameter signature discovered at initialization
+        /// </summary>
+        public static bool CallIsP2PPacketAvailable(out uint packetSize, int channel = 0)
+        {
+            packetSize = 0;
+            try
+            {
+                // Check if Steamworks is initialized before calling any API
+                if (!IsSteamworksInitialized())
+                {
+                    Debug.LogWarning("[ETGSteamP2P] Steamworks is not initialized. Skipping IsP2PPacketAvailable call.");
+                    return false;
+                }
+                if (ReferenceEquals(isP2PPacketAvailableMethod, null))
+                {
+                    return false;
+                }
+                var parameters = isP2PPacketAvailableMethod.GetParameters();
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    var p = parameters[i];
+                }
+                if (parameters.Length == 2)
+                {
+                    // Pattern: (out uint packetSize, int channel) or (ref uint, int)
+                    var outType = parameters[0].ParameterType.GetElementType();
+                    object outVal = Activator.CreateInstance(outType);
+                    object[] args = new object[] { outVal, channel };
+                    object result = isP2PPacketAvailableMethod.Invoke(null, args);
+                    if (result is bool hasPacket)
+                    {
+                        try
+                        {
+                            packetSize = Convert.ToUInt32(args[0]);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogWarning($"[ETGSteamP2P] Could not extract packetSize from out/ref param: {ex.Message}");
+                        }
+                        return hasPacket;
+                    }
+                }
+                else if (parameters.Length == 1)
+                {
+                    var firstParam = parameters[0];
+                    if (firstParam.IsOut && firstParam.ParameterType.GetElementType().Equals(typeof(uint)))
+                    {
+                        // Pattern: (out uint packetSize)
+                        var outType = firstParam.ParameterType.GetElementType();
+                        object outVal = Activator.CreateInstance(outType);
+                        object[] args = new object[] { outVal };
+                        object result = isP2PPacketAvailableMethod.Invoke(null, args);
+                        if (result is bool hasPacket)
+                        {
+                            try
+                            {
+                                packetSize = Convert.ToUInt32(args[0]);
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.LogWarning($"[ETGSteamP2P] Could not extract packetSize from out/ref param: {ex.Message}");
+                            }
+                            Debug.Log($"[ETGSteamP2P] 🔍 IsP2PPacketAvailable (out uint): {hasPacket}, Size: {packetSize}");
+                            return hasPacket;
+                        }
+                    }
+                    else
+                    {
+                        // Pattern: (int channel)
+                        object[] args = new object[] { channel };
+                        object result = isP2PPacketAvailableMethod.Invoke(null, args);
+                        if (result is bool hasPacket)
+                        {
+                            Debug.Log($"[ETGSteamP2P] 🔍 IsP2PPacketAvailable (int channel): {hasPacket}");
+                            return hasPacket;
+                        }
+                    }
+                }
+                else if (parameters.Length == 0)
+                {
+                    // Pattern: no parameters
+                    object result = isP2PPacketAvailableMethod.Invoke(null, new object[0]);
+                    if (result is bool hasPacket)
+                    {
+                        Debug.Log($"[ETGSteamP2P] 🔍 IsP2PPacketAvailable (no params): {hasPacket}");
+                        return hasPacket;
+                    }
+                }
+                Debug.LogWarning($"[ETGSteamP2P] ⚠️ Unsupported IsP2PPacketAvailable parameter count: {parameters.Length}");
+                return false;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] ❌ Error calling IsP2PPacketAvailable: {e}");
+                if (e.InnerException != null)
+                {
+                    Debug.LogError($"[ETGSteamP2P] ❌ InnerException: {e.InnerException}");
+                }
+                return false;
+            }
+        }
+
+        private static bool IsSteamworksInitialized()
+        {
+            // Try to use SteamManager.Initialized if available
+            Type steamManagerType = null;
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                foreach (var type in assembly.GetTypes())
+                {
+                    if (type.Name.Equals("SteamManager"))
+                    {
+                        steamManagerType = type;
+                        break;
+                    }
+                }
+                if (!ReferenceEquals(steamManagerType, null))
+                    break;
+            }
+            if (!ReferenceEquals(steamManagerType, null))
+            {
+                var prop = steamManagerType.GetProperty("Initialized", BindingFlags.Public | BindingFlags.Static);
+                if (!ReferenceEquals(prop, null))
+                {
+                    var value = prop.GetValue(null, null);
+                    if (value is bool b)
+                        return b;
+                }
+            }
+            // Fallback: try SteamAPI.IsSteamRunning() if available
+            Type steamApiType = null;
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                foreach (var type in assembly.GetTypes())
+                {
+                    if (type.FullName != null && type.FullName.Equals("Steamworks.SteamAPI"))
+                    {
+                        steamApiType = type;
+                        break;
+                    }
+                }
+                if (!ReferenceEquals(steamApiType, null))
+                    break;
+            }
+            if (!ReferenceEquals(steamApiType, null))
+            {
+                var isSteamRunningMethod = steamApiType.GetMethod("IsSteamRunning", BindingFlags.Public | BindingFlags.Static);
+                if (!ReferenceEquals(isSteamRunningMethod, null))
+                {
+                    var value = isSteamRunningMethod.Invoke(null, null);
+                    if (value is bool b)
+                        return b;
+                }
+            }
+            // If all else fails, assume not initialized
+            return false;
+        }
     }
 }

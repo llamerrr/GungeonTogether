@@ -440,9 +440,31 @@ namespace GungeonTogether.Game
                 }
                 else if (sessionId.StartsWith("steam_lobby_"))
                 {
-                    // Extract from lobby format: "steam_lobby_test_lobby_12345"
-                    // For now, use a default test Steam ID
-                    return 76561198000000001; // Test Steam ID
+                    // Extract from lobby format: "steam_lobby_76561198068703790"
+                    // CRITICAL: This is a lobby ID, NOT the host Steam ID!
+                    string lobbyPart = sessionId.Substring("steam_lobby_".Length);
+                    if (ulong.TryParse(lobbyPart, out ulong lobbyId))
+                    {
+                        Debug.Log($"[SimpleSessionManager] Extracted lobby ID: {lobbyId}, getting host Steam ID...");
+                        
+                        // Get the actual host Steam ID from the lobby using Steam matchmaking API
+                        ulong hostSteamId = SteamReflectionHelper.GetLobbyOwner(lobbyId);
+                        if (hostSteamId != 0)
+                        {
+                            Debug.Log($"[SimpleSessionManager] ✅ Lobby {lobbyId} is owned by Steam ID: {hostSteamId}");
+                            return hostSteamId;
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"[SimpleSessionManager] ❌ Could not get lobby owner for lobby {lobbyId} - lobby may not exist or Steam not ready");
+                            return 0;
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[SimpleSessionManager] Failed to parse lobby ID from: {lobbyPart}");
+                        return 0;
+                    }
                 }
                   Debug.LogWarning($"[SimpleSessionManager] Could not extract Steam ID from session: {sessionId}");
                 return 0;
@@ -1619,21 +1641,46 @@ namespace GungeonTogether.Game
             {
                 if (!IsHost || ReferenceEquals(steamNet, null)) return;
                 
+                // Log periodically to show we're checking
+                if (Time.frameCount % 900 == 0) // Every 15 seconds at 60fps
+                {
+                    Debug.Log($"[SimpleSessionManager] HOST: Checking for incoming P2P requests (IsHost: {IsHost})");
+                }
+                
                 // First, check for join request notifications from joiners
                 if (ETGSteamP2PNetworking.CheckForJoinRequestNotifications(out ulong requestingSteamId))
                 {
-                    Debug.Log($"[SimpleSessionManager] 🎯 HOST: Received join request notification from {requestingSteamId}");
+                    Debug.Log($"[SimpleSessionManager] HOST: Received join request notification from {requestingSteamId}");
                     
                     // Auto-accept the P2P session from the requesting player
                     if (ShouldAcceptP2PRequest(requestingSteamId))
                     {
-                        Debug.Log($"[SimpleSessionManager] ✅ HOST: Auto-accepting P2P session from joiner: {requestingSteamId}");
-                        steamNet.AcceptP2PSession(requestingSteamId);
+                        Debug.Log($"[SimpleSessionManager] HOST: Auto-accepting P2P session from joiner: {requestingSteamId}");
+                        bool acceptResult = steamNet.AcceptP2PSession(requestingSteamId);
+                        Debug.Log($"[SimpleSessionManager] HOST: AcceptP2PSession result: {acceptResult}");
+                        
+                        // Send a confirmation packet back to the joiner
+                        byte[] confirmationPacket = new byte[] { 0xFE, 0xFF, 0x02 }; // Magic bytes for confirmation
+                        bool sendResult = steamNet.SendP2PPacket(requestingSteamId, confirmationPacket);
+                        Debug.Log($"[SimpleSessionManager] HOST: Sent confirmation packet to joiner: {requestingSteamId}, result: {sendResult}");
                     }
                 }
                 
-                // Add frame-based logging to see if this is being called
-                if (Time.frameCount % 300 == 0) // Every 5 seconds at 60fps
+                // Also check Steam callback manager for pending join requests
+                if (SteamCallbackManager.CheckForPendingSessionRequests(out ulong callbackSteamId))
+                {
+                    Debug.Log($"[SimpleSessionManager] HOST: Found pending session request from Steam callbacks: {callbackSteamId}");
+                    
+                    if (ShouldAcceptP2PRequest(callbackSteamId))
+                    {
+                        Debug.Log($"[SimpleSessionManager] HOST: Auto-accepting P2P session from callback: {callbackSteamId}");
+                        bool acceptResult = steamNet.AcceptP2PSession(callbackSteamId);
+                        Debug.Log($"[SimpleSessionManager] HOST: AcceptP2PSession result: {acceptResult}");
+                    }
+                }
+                
+                // Add frame-based logging to see if this is being called (reduced frequency)
+                if (Time.frameCount % 900 == 0) // Every 15 seconds at 60fps
                 {
                     Debug.Log($"[SimpleSessionManager] 🏠 HOST: Actively checking for P2P requests (Frame: {Time.frameCount})");
                 }

@@ -45,6 +45,9 @@ namespace GungeonTogether
                     // Initialize Steam callbacks as early as possible
                     SteamCallbackManager.InitializeSteamCallbacks();
                     
+                    // Initialize the simple Steam join system
+                    SimpleSteamJoinSystem.Initialize();
+                    
                     // Check command line arguments for Steam join requests
                     CheckSteamCommandLineArgs();
                     
@@ -179,6 +182,34 @@ namespace GungeonTogether
                 if (Time.frameCount % 300 == 0) // Every 5 seconds at 60fps
                 {
                     Logger.LogWarning($"Error processing Steam callbacks: {e.Message}");
+                }
+            }
+            
+            // Update the simple Steam join system
+            try
+            {
+                SimpleSteamJoinSystem.Update();
+            }
+            catch (Exception e)
+            {
+                // Only log errors occasionally
+                if (Time.frameCount % 300 == 0) // Every 5 seconds at 60fps
+                {
+                    Logger.LogWarning($"Error updating Steam join system: {e.Message}");
+                }
+            }
+            
+            // Run Steam join diagnostics periodically
+            try
+            {
+                SteamJoinDiagnostics.RunJoinDiagnostics();
+            }
+            catch (Exception e)
+            {
+                // Only log errors occasionally
+                if (Time.frameCount % 600 == 0) // Every 10 seconds at 60fps
+                {
+                    Logger.LogWarning($"Error running Steam diagnostics: {e.Message}");
                 }
             }
             

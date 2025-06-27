@@ -41,7 +41,6 @@ namespace GungeonTogether.Steam
         {
             if (earlyInitialized)
             {
-                Debug.Log("[ETGSteamP2P] Steam callbacks already initialized early, skipping...");
                 return;
             }
             
@@ -49,7 +48,6 @@ namespace GungeonTogether.Steam
             
             try
             {
-                Debug.Log("[ETGSteamP2P] 🔄 Initializing Steam callbacks for invite and overlay join support...");
                 Assembly steamworksAssembly = SteamReflectionHelper.GetSteamworksAssembly();
                 
                 if (ReferenceEquals(steamworksAssembly, null))
@@ -84,16 +82,9 @@ namespace GungeonTogether.Steam
                 {
                     gameJoinRequestedType = steamworksAssembly.GetType("Steamworks.GameRichPresenceJoinRequested", false);
                 }
-                
-                Debug.Log("[ETGSteamP2P] 🔍 Callback types found:");
-                Debug.Log("  Callback base: " + ((!ReferenceEquals(callbackBaseType, null) ? callbackBaseType.FullName : null) ?? "NOT FOUND"));
-                Debug.Log("  GameOverlayActivated_t: " + ((!ReferenceEquals(gameOverlayActivatedType, null) ? gameOverlayActivatedType.FullName : null) ?? "NOT FOUND"));
-                Debug.Log("  GameLobbyJoinRequested_t: " + ((!ReferenceEquals(gameLobbyJoinRequestedType, null) ? gameLobbyJoinRequestedType.FullName : null) ?? "NOT FOUND"));
-                Debug.Log("  GameRichPresenceJoinRequested_t: " + ((!ReferenceEquals(gameJoinRequestedType, null) ? gameJoinRequestedType.FullName : null) ?? "NOT FOUND"));
-                
-                Debug.Log("[ETGSteamP2P] 🔍 Exploring available callback types in Steamworks assembly...");
                 try
                 {
+                    // Only find callback types for diagnostic purposes - don't log them all
                     Type[] types = steamworksAssembly.GetTypes();
                     List<string> callbackTypes = new List<string>();
                     foreach (Type type in types)
@@ -103,17 +94,6 @@ namespace GungeonTogether.Steam
                         {
                             callbackTypes.Add(typeName);
                         }
-                    }
-                    Debug.Log($"[ETGSteamP2P] Found {callbackTypes.Count} callback/struct types:");
-                    int count = 0;
-                    while (count < callbackTypes.Count && count < 20)
-                    {
-                        Debug.Log($"[ETGSteamP2P]   {count + 1}: {callbackTypes[count]}");
-                        count++;
-                    }
-                    if (callbackTypes.Count > 20)
-                    {
-                        Debug.Log($"[ETGSteamP2P]   ... and {callbackTypes.Count - 20} more");
                     }
                 }
                 catch (Exception ex)
@@ -126,53 +106,47 @@ namespace GungeonTogether.Steam
                 if (!ReferenceEquals(steamApiType, null))
                 {
                     runCallbacksMethod = steamApiType.GetMethod("RunCallbacks", BindingFlags.Public | BindingFlags.Static);
-                    if (!ReferenceEquals(runCallbacksMethod, null))
+                    if (ReferenceEquals(runCallbacksMethod, null))
                     {
-                        Debug.Log("[ETGSteamP2P] ✅ Found SteamAPI.RunCallbacks method");
-                    }
-                    else
-                    {
-                        Debug.LogWarning("[ETGSteamP2P] ⚠️ SteamAPI.RunCallbacks method not found");
+                        Debug.LogWarning("[ETGSteamP2P] SteamAPI.RunCallbacks method not found");
                     }
                 }
                 else
                 {
-                    Debug.LogWarning("[ETGSteamP2P] ⚠️ SteamAPI type not found");
+                    Debug.LogWarning("[ETGSteamP2P] SteamAPI type not found");
                 }
 
                 if (ReferenceEquals(callbackBaseType, null))
                 {
-                    Debug.LogWarning("[ETGSteamP2P] ⚠️ Steam callback base type not found - implementing fallback polling system");
+                    Debug.LogWarning("[ETGSteamP2P] Steam callback base type not found - implementing fallback polling system");
                     SteamFallbackDetection.InitializeFallbackJoinDetection();
                     joinCallbacksRegistered = true;
                 }
                 else
                 {
-                    Debug.Log("[ETGSteamP2P] 🔄 Attempting to register Steam callbacks for P2P join detection...");
+                    Debug.Log("[ETGSteamP2P] Attempting to register Steam callbacks for P2P join detection...");
                     bool registered = false;
                     
                     bool richPresenceRegistered = TryRegisterCallback(steamworksAssembly, callbackBaseType, gameJoinRequestedType, "OnGameRichPresenceJoinRequested");
                     if (richPresenceRegistered)
                     {
-                        Debug.Log("[ETGSteamP2P] ✅ Successfully registered GameRichPresenceJoinRequested_t callback");
                         registered = true;
                     }
                     
                     bool lobbyRegistered = TryRegisterCallback(steamworksAssembly, callbackBaseType, gameLobbyJoinRequestedType, "OnGameLobbyJoinRequested");
                     if (lobbyRegistered)
                     {
-                        Debug.Log("[ETGSteamP2P] ✅ Successfully registered GameLobbyJoinRequested_t callback");
                         registered = true;
                     }
                     
                     if (registered)
                     {
-                        Debug.Log("[ETGSteamP2P] ✅ Steam callbacks registered successfully - join requests should work");
+                        Debug.Log("[ETGSteamP2P] Steam callbacks registered successfully");
                         joinCallbacksRegistered = true;
                     }
                     else
                     {
-                        Debug.LogWarning("[ETGSteamP2P] ⚠️ Failed to register Steam callbacks - falling back to manual detection");
+                        Debug.LogWarning("[ETGSteamP2P] Failed to register Steam callbacks - using fallback detection");
                         SteamFallbackDetection.InitializeFallbackJoinDetection();
                         joinCallbacksRegistered = true;
                     }
@@ -180,8 +154,7 @@ namespace GungeonTogether.Steam
             }
             catch (Exception ex)
             {
-                Debug.LogError("[ETGSteamP2P] ❌ Failed to initialize Steam callbacks: " + ex.Message);
-                Debug.LogError("[ETGSteamP2P] Stack trace: " + ex.StackTrace);
+                Debug.LogError("[ETGSteamP2P] Failed to initialize Steam callbacks: " + ex.Message);
                 SteamFallbackDetection.InitializeFallbackJoinDetection();
                 joinCallbacksRegistered = true;
             }
@@ -199,12 +172,10 @@ namespace GungeonTogether.Steam
                     return false;
                 }
                 
-                Debug.Log("[ETGSteamP2P] Registering callback for " + callbackDataType.Name + "...");
                 Type genericCallbackType = null;
                 
                 if (callbackBaseType.IsGenericTypeDefinition)
                 {
-                    Debug.Log("[ETGSteamP2P] Using generic type definition: " + callbackBaseType.Name);
                     genericCallbackType = callbackBaseType.MakeGenericType(new Type[] { callbackDataType });
                 }
                 else
@@ -212,20 +183,15 @@ namespace GungeonTogether.Steam
                     Type callbackGenericType = steamworksAssembly.GetType("Steamworks.Callback`1", false);
                     if (ReferenceEquals(callbackGenericType, null))
                     {
-                        Debug.LogWarning("[ETGSteamP2P] Could not find Callback`1 type in assembly");
                         return false;
                     }
-                    Debug.Log("[ETGSteamP2P] Found Callback`1 type, making generic with " + callbackDataType.Name);
                     genericCallbackType = callbackGenericType.MakeGenericType(new Type[] { callbackDataType });
                 }
                 
                 if (ReferenceEquals(genericCallbackType, null))
                 {
-                    Debug.LogWarning("[ETGSteamP2P] Could not create generic callback type for " + callbackDataType.Name);
                     return false;
                 }
-                
-                Debug.Log("[ETGSteamP2P] Created generic callback type: " + genericCallbackType.FullName);
                 
                 // Find the appropriate delegate type
                 Type delegateType = null;
@@ -236,7 +202,6 @@ namespace GungeonTogether.Steam
                 if (!ReferenceEquals(nestedDispatchDelegate, null))
                 {
                     delegateType = nestedDispatchDelegate.MakeGenericType(new Type[] { callbackDataType });
-                    Debug.Log("[ETGSteamP2P] Found nested DispatchDelegate type: " + delegateType.FullName);
                 }
                 
                 // Try other delegate types
@@ -256,7 +221,6 @@ namespace GungeonTogether.Steam
                         {
                             delegateType = dispatchDelegate;
                         }
-                        Debug.Log("[ETGSteamP2P] Found standalone delegate type: " + delegateType.FullName);
                     }
                 }
                 
@@ -264,33 +228,26 @@ namespace GungeonTogether.Steam
                 if (ReferenceEquals(delegateType, null))
                 {
                     delegateType = typeof(Action<>).MakeGenericType(new Type[] { callbackDataType });
-                    Debug.Log("[ETGSteamP2P] Using Action<T> delegate type: " + delegateType.FullName);
                 }
                 
                 // Find our handler method
                 MethodInfo handlerMethod = typeof(SteamCallbackManager).GetMethod(handlerMethodName, BindingFlags.NonPublic | BindingFlags.Static);
                 if (ReferenceEquals(handlerMethod, null))
                 {
-                    Debug.LogWarning("[ETGSteamP2P] Could not find handler method: " + handlerMethodName);
                     return false;
                 }
-                
-                Debug.Log("[ETGSteamP2P] Found handler method: " + handlerMethodName);
                 
                 try
                 {
                     delegateInstance = Delegate.CreateDelegate(delegateType, handlerMethod);
-                    Debug.Log("[ETGSteamP2P] ✅ Created delegate instance");
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogWarning("[ETGSteamP2P] Could not create delegate: " + ex.Message);
                     return false;
                 }
                 
                 // Try different constructor approaches
                 ConstructorInfo[] constructors = genericCallbackType.GetConstructors();
-                Debug.Log($"[ETGSteamP2P] Found {constructors.Length} constructors for {genericCallbackType.Name}");
                 
                 object callbackInstance = null;
                 bool success = false;
@@ -298,11 +255,6 @@ namespace GungeonTogether.Steam
                 foreach (ConstructorInfo constructor in constructors)
                 {
                     ParameterInfo[] parameters = constructor.GetParameters();
-                    Debug.Log($"[ETGSteamP2P] Trying constructor with {parameters.Length} parameters:");
-                    for (int i = 0; i < parameters.Length; i++)
-                    {
-                        Debug.Log($"[ETGSteamP2P]   Param {i}: {parameters[i].ParameterType.Name} ({parameters[i].ParameterType.FullName})");
-                    }
                     
                     // Try single parameter constructor
                     if (parameters.Length == 1)
@@ -312,41 +264,36 @@ namespace GungeonTogether.Steam
                         // Try Action<T> parameter
                         if (parameterType.IsGenericType && ReferenceEquals(parameterType.GetGenericTypeDefinition(), typeof(Action<>)))
                         {
-                            Debug.Log("[ETGSteamP2P] Trying constructor with Action<T> parameter");
                             try
                             {
                                 Delegate actionDelegate = Delegate.CreateDelegate(parameterType, handlerMethod);
                                 callbackInstance = constructor.Invoke(new object[] { actionDelegate });
                                 success = true;
-                                Debug.Log("[ETGSteamP2P] ✅ Successfully created callback instance with Action<T> constructor");
                                 break;
                             }
                             catch (Exception ex)
                             {
-                                Debug.LogWarning("[ETGSteamP2P] Action<T> constructor failed: " + ex.Message);
+                                // Continue to next constructor
                             }
                         }
                         // Try compatible delegate parameter
                         else if (parameterType.IsAssignableFrom(delegateType) || delegateType.IsAssignableFrom(parameterType))
                         {
-                            Debug.Log("[ETGSteamP2P] Trying constructor with compatible delegate parameter");
                             try
                             {
                                 callbackInstance = constructor.Invoke(new object[] { delegateInstance });
                                 success = true;
-                                Debug.Log("[ETGSteamP2P] ✅ Successfully created callback instance with delegate constructor");
                                 break;
                             }
                             catch (Exception ex)
                             {
-                                Debug.LogWarning("[ETGSteamP2P] Delegate constructor failed: " + ex.Message);
+                                // Continue to next constructor
                             }
                         }
                     }
                     // Try parameterless constructor with field assignment
                     else if (!success && parameters.Length == 0)
                     {
-                        Debug.Log("[ETGSteamP2P] Trying parameterless constructor");
                         try
                         {
                             callbackInstance = constructor.Invoke(new object[0]);
@@ -365,19 +312,13 @@ namespace GungeonTogether.Steam
                                         field.SetValue(callbackInstance, delegateInstance);
                                         success = true;
                                         fieldSet = true;
-                                        Debug.Log("[ETGSteamP2P] ✅ Successfully created callback instance with parameterless constructor + field '" + fieldName + "' assignment");
                                         break;
                                     }
                                     catch (Exception ex)
                                     {
-                                        Debug.LogWarning("[ETGSteamP2P] Failed to set field '" + fieldName + "': " + ex.Message);
+                                        // Continue trying other fields
                                     }
                                 }
-                            }
-                            
-                            if (!fieldSet)
-                            {
-                                Debug.LogWarning("[ETGSteamP2P] Could not set delegate via fields, trying alternative approaches...");
                             }
                             
                             if (success)
@@ -387,13 +328,12 @@ namespace GungeonTogether.Steam
                         }
                         catch (Exception ex)
                         {
-                            Debug.LogWarning("[ETGSteamP2P] Parameterless constructor failed: " + ex.Message);
+                            // Continue to next constructor
                         }
                     }
                     // Try multi-parameter constructor
                     else if (!success && parameters.Length >= 2)
                     {
-                        Debug.Log($"[ETGSteamP2P] Trying constructor with {parameters.Length} parameters");
                         try
                         {
                             object[] args = new object[parameters.Length];
@@ -404,19 +344,17 @@ namespace GungeonTogether.Steam
                             }
                             callbackInstance = constructor.Invoke(args);
                             success = true;
-                            Debug.Log($"[ETGSteamP2P] ✅ Successfully created callback instance with {parameters.Length}-parameter constructor");
                             break;
                         }
                         catch (Exception ex)
                         {
-                            Debug.LogWarning($"[ETGSteamP2P] {parameters.Length}-parameter constructor failed: {ex.Message}");
+                            // Continue to next constructor
                         }
                     }
                 }
                 
                 if (!success)
                 {
-                    Debug.LogWarning("[ETGSteamP2P] Could not find suitable constructor for " + genericCallbackType.Name);
                     return false;
                 }
                 
@@ -426,20 +364,16 @@ namespace GungeonTogether.Steam
                     if (callbackDataType.Name.Contains("Lobby"))
                     {
                         lobbyCallbackHandle = callbackInstance;
-                        Debug.Log("[ETGSteamP2P] Stored lobby callback handle");
                     }
                     else if (callbackDataType.Name.Contains("Overlay"))
                     {
                         overlayCallbackHandle = callbackInstance;
-                        Debug.Log("[ETGSteamP2P] Stored overlay callback handle");
                     }
                     else if (callbackDataType.Name.Contains("RichPresence") || callbackDataType.Name.Contains("Join"))
                     {
                         steamCallbackHandle = callbackInstance;
-                        Debug.Log("[ETGSteamP2P] Stored rich presence callback handle");
                     }
                     
-                    Debug.Log("[ETGSteamP2P] Successfully registered " + callbackDataType.Name + " callback!");
                     return true;
                 }
                 
@@ -447,8 +381,6 @@ namespace GungeonTogether.Steam
             }
             catch (Exception ex)
             {
-                Debug.LogWarning("[ETGSteamP2P] Exception while registering " + callbackDataType.Name + " callback: " + ex.Message);
-                Debug.LogWarning("[ETGSteamP2P] Stack trace: " + ex.StackTrace);
                 return false;
             }
         }
@@ -458,13 +390,12 @@ namespace GungeonTogether.Steam
         /// </summary>
         private static void OnGameRichPresenceJoinRequested(object param)
         {
+            Debug.Log("[SteamCallbackManager] OnGameRichPresenceJoinRequested called!");
             try
             {
-                Debug.Log("[SteamCallbackManager] GameRichPresenceJoinRequested callback triggered!");
-                
                 if (ReferenceEquals(param, null))
                 {
-                    Debug.LogWarning("[SteamCallbackManager] Rich Presence join request parameter is null");
+                    Debug.LogWarning("[SteamCallbackManager] OnGameRichPresenceJoinRequested: param is null");
                     return;
                 }
                 
@@ -472,7 +403,6 @@ namespace GungeonTogether.Steam
                 try
                 {
                     paramType = param.GetType();
-                    Debug.Log("[SteamCallbackManager] Rich Presence join request parameter type: " + paramType.FullName);
                 }
                 catch (Exception ex)
                 {
@@ -482,25 +412,12 @@ namespace GungeonTogether.Steam
                 
                 if (ReferenceEquals(paramType, null))
                 {
-                    Debug.LogWarning("[SteamCallbackManager] Parameter type is null");
                     return;
                 }
                 
                 FieldInfo steamIdField = null;
                 try
                 {
-                    FieldInfo[] fields = paramType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    StringBuilder fieldList = new StringBuilder();
-                    foreach (FieldInfo field in fields)
-                    {
-                        if (fieldList.Length > 0)
-                        {
-                            fieldList.Append(", ");
-                        }
-                        fieldList.Append(field.Name + "(" + field.FieldType.Name + ")");
-                    }
-                    Debug.Log($"[SteamCallbackManager] Available fields in {paramType.Name}: {fieldList}");
-                    
                     string[] steamIdFieldNames = {
                         "m_steamIDFriend", "steamIDFriend", "m_steamID", "steamID",
                         "m_ulSteamIDFriend", "ulSteamIDFriend"
@@ -511,7 +428,6 @@ namespace GungeonTogether.Steam
                         steamIdField = paramType.GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                         if (!ReferenceEquals(steamIdField, null))
                         {
-                            Debug.Log($"[SteamCallbackManager] Found Steam ID field: {fieldName} (Type: {steamIdField.FieldType.Name})");
                             break;
                         }
                     }
@@ -527,7 +443,6 @@ namespace GungeonTogether.Steam
                     try
                     {
                         object steamIdValue = steamIdField.GetValue(param);
-                        Debug.Log($"[SteamCallbackManager] Steam ID value: {steamIdValue?.ToString() ?? "null"} (Type: {steamIdValue?.GetType().FullName ?? "null"})");
                         
                         ulong extractedSteamId = 0;
                         
@@ -537,25 +452,21 @@ namespace GungeonTogether.Steam
                             if (steamIdValue is ulong)
                             {
                                 extractedSteamId = (ulong)steamIdValue;
-                                Debug.Log($"[SteamCallbackManager] Extracted as ulong: {extractedSteamId}");
                             }
                             // Try cast from long
                             else if (steamIdValue is long)
                             {
                                 extractedSteamId = (ulong)(long)steamIdValue;
-                                Debug.Log($"[SteamCallbackManager] Extracted as long->ulong: {extractedSteamId}");
                             }
                             // Try cast from uint
                             else if (steamIdValue is uint)
                             {
                                 extractedSteamId = (ulong)(uint)steamIdValue;
-                                Debug.Log($"[SteamCallbackManager] Extracted as uint->ulong: {extractedSteamId}");
                             }
                             // Try cast from int
                             else if (steamIdValue is int)
                             {
                                 extractedSteamId = (ulong)(long)(int)steamIdValue;
-                                Debug.Log($"[SteamCallbackManager] Extracted as int->ulong: {extractedSteamId}");
                             }
                             else
                             {
@@ -569,18 +480,15 @@ namespace GungeonTogether.Steam
                                     if (!ReferenceEquals(internalField, null))
                                     {
                                         object internalValue = internalField.GetValue(steamIdValue);
-                                        Debug.Log($"[SteamCallbackManager] Found internal field {internalFieldName}: {internalValue}");
                                         
                                         if (internalValue is ulong)
                                         {
                                             extractedSteamId = (ulong)internalValue;
-                                            Debug.Log($"[SteamCallbackManager] Extracted from internal field: {extractedSteamId}");
                                             break;
                                         }
                                         else if (internalValue is long)
                                         {
                                             extractedSteamId = (ulong)(long)internalValue;
-                                            Debug.Log($"[SteamCallbackManager] Extracted from internal field as long->ulong: {extractedSteamId}");
                                             break;
                                         }
                                     }
@@ -593,7 +501,6 @@ namespace GungeonTogether.Steam
                                     if (ulong.TryParse(steamIdString, out ulong parsedSteamId))
                                     {
                                         extractedSteamId = parsedSteamId;
-                                        Debug.Log($"[SteamCallbackManager] Extracted by parsing ToString(): {extractedSteamId}");
                                     }
                                 }
                             }
@@ -601,19 +508,12 @@ namespace GungeonTogether.Steam
                         
                         if (extractedSteamId != 0 && extractedSteamId > 76561197960265728UL)
                         {
-                            Debug.Log($"[SteamCallbackManager] ✅ Rich Presence join request from Steam ID: {extractedSteamId}");
-                            
                             if (!pendingJoinRequests.Contains(extractedSteamId))
                             {
                                 pendingJoinRequests.Enqueue(extractedSteamId);
-                                Debug.Log($"[SteamCallbackManager] Added {extractedSteamId} to pending join requests");
                             }
                             
                             ETGSteamP2PNetworking.TriggerOverlayJoinEvent(extractedSteamId.ToString());
-                        }
-                        else
-                        {
-                            Debug.LogWarning($"[SteamCallbackManager] Extracted Steam ID {extractedSteamId} is invalid or zero");
                         }
                     }
                     catch (Exception ex)
@@ -621,15 +521,10 @@ namespace GungeonTogether.Steam
                         Debug.LogError("[SteamCallbackManager] Error extracting Steam ID from Rich Presence: " + ex.Message);
                     }
                 }
-                else
-                {
-                    Debug.LogWarning("[SteamCallbackManager] Could not find Steam ID field in Rich Presence join request");
-                }
             }
             catch (Exception ex)
             {
                 Debug.LogError("[SteamCallbackManager] Error handling Rich Presence join request: " + ex.Message);
-                Debug.LogError("[SteamCallbackManager] Stack trace: " + ex.StackTrace);
             }
         }
 
@@ -638,18 +533,15 @@ namespace GungeonTogether.Steam
         /// </summary>
         private static void OnGameLobbyJoinRequested(object param)
         {
+            Debug.Log("[SteamCallbackManager] OnGameLobbyJoinRequested called!");
             try
             {
-                Debug.Log("[SteamCallbackManager] GameLobbyJoinRequested callback triggered!");
-                
                 ulong steamId = TryDetectSteamIdFromSteamAPI();
                 if (steamId != 0)
                 {
-                    Debug.Log($"[SteamCallbackManager] ✅ Detected Steam ID from Steam API: {steamId}");
                     if (!pendingJoinRequests.Contains(steamId))
                     {
                         pendingJoinRequests.Enqueue(steamId);
-                        Debug.Log($"[SteamCallbackManager] Added {steamId} to pending join requests");
                     }
                     ETGSteamP2PNetworking.TriggerOverlayJoinEvent(steamId.ToString());
                 }
@@ -658,18 +550,15 @@ namespace GungeonTogether.Steam
                     steamId = TryGetInviteHostSteamId();
                     if (steamId != 0)
                     {
-                        Debug.Log($"[SteamCallbackManager] ✅ Detected invite host Steam ID: {steamId}");
                         ETGSteamP2PNetworking.TriggerOverlayJoinEvent(steamId.ToString());
                     }
                     else if (pendingJoinRequests.Count > 0)
                     {
                         ulong queuedSteamId = pendingJoinRequests.Dequeue();
-                        Debug.Log($"[SteamCallbackManager] ✅ Using queued Steam ID from pending requests: {queuedSteamId}");
                         ETGSteamP2PNetworking.TriggerOverlayJoinEvent(queuedSteamId.ToString());
                     }
                     else
                     {
-                        Debug.Log("[SteamCallbackManager] ✅ Lobby join request detected - triggering generic overlay join event");
                         ETGSteamP2PNetworking.TriggerOverlayJoinEvent("0");
                     }
                 }
@@ -677,10 +566,8 @@ namespace GungeonTogether.Steam
             catch (Exception ex)
             {
                 Debug.LogError("[SteamCallbackManager] Error handling Lobby join request: " + ex.Message);
-                Debug.LogError("[SteamCallbackManager] Stack trace: " + ex.StackTrace);
                 try
                 {
-                    Debug.Log("[SteamCallbackManager] ✅ Exception fallback - triggering generic overlay join event");
                     ETGSteamP2PNetworking.TriggerOverlayJoinEvent("0");
                 }
                 catch (Exception ex2)
@@ -704,6 +591,7 @@ namespace GungeonTogether.Steam
                 
                 if (pendingJoinRequests.Count > 0 || pendingOverlayJoinRequests.Count > 0)
                 {
+                    Debug.Log("[ETGSteamP2P] Processing pending join requests...");
                     ProcessPendingJoinRequests();
                 }
                 
@@ -823,7 +711,17 @@ namespace GungeonTogether.Steam
                         if (ulong.TryParse(target, out ulong lobbyId))
                         {
                             Debug.Log($"[ETGSteamP2P] Found Steam lobby connect for lobby: {lobbyId}");
-                            pendingJoinRequests.Enqueue(lobbyId);
+                            
+                            // CRITICAL: Get the actual host Steam ID from the lobby, not the lobby ID itself
+                            ulong hostSteamId = SteamReflectionHelper.GetLobbyOwner(lobbyId);
+                            if (hostSteamId != 0)
+                            {
+                                pendingJoinRequests.Enqueue(hostSteamId);
+                            }
+                            else
+                            {
+                                Debug.LogWarning($"[ETGSteamP2P] Could not get lobby owner for lobby {lobbyId} - lobby may not exist or Steam not ready");
+                            }
                         }
                     }
                     else if (commandLineArgs[i].Contains("steam://joinlobby/") || commandLineArgs[i].Contains("steam://rungame/"))
@@ -995,51 +893,61 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                Debug.Log("[SteamCallbackManager] Attempting to detect invite host Steam ID...");
                 string[] commandLineArgs = Environment.GetCommandLineArgs();
-                Debug.Log($"[SteamCallbackManager] Checking {commandLineArgs.Length} command line arguments for invite info...");
                 
                 for (int i = 0; i < commandLineArgs.Length; i++)
                 {
-                    Debug.Log($"[SteamCallbackManager] Arg {i}: {commandLineArgs[i]}");
-                    
                     if (commandLineArgs[i].Contains("steam://joinlobby/"))
                     {
-                        Debug.Log("[SteamCallbackManager] Found Steam lobby invite URL: " + commandLineArgs[i]);
                         string[] parts = commandLineArgs[i].Split('/');
                         if (parts.Length >= 5)
                         {
-                            string steamIdStr = parts[4];
-                            if (ulong.TryParse(steamIdStr, out ulong steamId) && steamId > 76561197960265728UL)
+                            string lobbyIdStr = parts[4];
+                            if (ulong.TryParse(lobbyIdStr, out ulong lobbyId) && lobbyId > 76561197960265728UL)
                             {
-                                Debug.Log($"[SteamCallbackManager] ✅ Extracted inviter Steam ID from URL: {steamId}");
-                                return steamId;
+                                
+                                // CRITICAL: Get the actual host Steam ID from the lobby, not the lobby ID itself
+                                ulong hostSteamId = SteamReflectionHelper.GetLobbyOwner(lobbyId);
+                                if (hostSteamId != 0)
+                                {
+                                    return hostSteamId;
+                                }
+                                else
+                                {
+                                    Debug.LogWarning($"[ETGSteamP2P] TryGetInviteHostSteamId: Could not get owner for lobby {lobbyId}");
+                                    return lobbyId; // Fallback to lobby ID (will likely fail but better than nothing)
+                                }
                             }
                         }
                     }
                     else if (commandLineArgs[i].StartsWith("+connect") && i + 1 < commandLineArgs.Length)
                     {
                         string target = commandLineArgs[i + 1];
-                        Debug.Log("[SteamCallbackManager] Found connect command with target: " + target);
                         if (ulong.TryParse(target, out ulong steamId) && steamId > 76561197960265728UL)
                         {
-                            Debug.Log($"[SteamCallbackManager] ✅ Extracted Steam ID from connect command: {steamId}");
                             return steamId;
                         }
                     }
                     else if (commandLineArgs[i].StartsWith("+connect_lobby") && i + 1 < commandLineArgs.Length)
                     {
                         string target = commandLineArgs[i + 1];
-                        Debug.Log("[SteamCallbackManager] Found lobby connect command with target: " + target);
                         if (ulong.TryParse(target, out ulong lobbyId) && lobbyId > 76561197960265728UL)
                         {
-                            Debug.Log($"[SteamCallbackManager] ✅ Extracted lobby ID from connect command: {lobbyId}");
-                            return lobbyId;
+                            // CRITICAL: Get the actual host Steam ID from the lobby, not the lobby ID itself
+                            ulong hostSteamId = SteamReflectionHelper.GetLobbyOwner(lobbyId);
+                            if (hostSteamId != 0)
+                            {
+                                return hostSteamId;
+                            }
+                            else
+                            {
+                                Debug.LogWarning($"[ETGSteamP2P] CheckForNewCommandLineArgs: Could not get owner for lobby {lobbyId}");
+                                return lobbyId; // Fallback to lobby ID (will likely fail but better than nothing)
+                            }
                         }
                     }
                 }
                 
-                Debug.LogWarning("[SteamCallbackManager] Could not detect invite host Steam ID from any source");
                 return 0;
             }
             catch (Exception ex)
@@ -1053,12 +961,10 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                Debug.Log("[SteamCallbackManager] Attempting to detect Steam ID from Steam API...");
                 Assembly steamworksAssembly = SteamReflectionHelper.GetSteamworksAssembly();
                 
                 if (ReferenceEquals(steamworksAssembly, null))
                 {
-                    Debug.LogWarning("[SteamCallbackManager] No Steamworks assembly found");
                     return 0;
                 }
                 
@@ -1073,8 +979,6 @@ namespace GungeonTogether.Steam
                         
                         if (result is int friendCount && friendCount > 0)
                         {
-                            Debug.Log($"[SteamCallbackManager] Found {friendCount} Steam friends");
-                            
                             MethodInfo getFriendByIndexMethod = steamFriendsType.GetMethod("GetFriendByIndex", BindingFlags.Public | BindingFlags.Static);
                             if (!ReferenceEquals(getFriendByIndexMethod, null))
                             {
@@ -1113,7 +1017,6 @@ namespace GungeonTogether.Steam
                                             {
                                                 if (i == 0)
                                                 {
-                                                    Debug.Log($"[SteamCallbackManager] Using first friend as potential inviter: {steamId}");
                                                     return steamId;
                                                 }
                                             }
