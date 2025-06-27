@@ -136,7 +136,11 @@ namespace GungeonTogether
                 
                 uiInitialized = true;
                 Logger.LogInfo("Modern UI system initialized successfully!");
-                Logger.LogInfo("Press Ctrl+P to open the multiplayer menu");
+                Logger.LogInfo("====================================");
+                Logger.LogInfo(" GungeonTogether Ready!");
+                Logger.LogInfo("Press Ctrl+P to open multiplayer menu");
+                Logger.LogInfo("All multiplayer actions are in the UI");
+                Logger.LogInfo("====================================");
                 
                 // Initialize Steam P2P test script for debugging
                 InitializeTestScript();
@@ -311,6 +315,10 @@ namespace GungeonTogether
             }
         }
         
+        /// <summary>
+        /// Handle debug input - only developer debugging keys remain
+        /// All user functionality is now in the UI (Ctrl+P)
+        /// </summary>
         private void HandleDebugInput()
         {
             if (_sessionManager is null) return;

@@ -848,9 +848,9 @@ namespace GungeonTogether.UI
             }
             
             message += "\n💡 Use number keys (1-9) to quick-join:";
-            message += "\n• Press 1 to join first host";
-            message += "\n• Press 2 to join second host, etc.";
-            message += "\n• Or use Friends button for detailed view";
+            message += "\n  • Press 1 to join first host";
+            message += "\n  • Press 2 to join second host, etc.";
+            message += "\n  • Or use Friends button for detailed view";
             
             MultiplayerUIManager.ShowNotification(message, 8f);
             
