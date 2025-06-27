@@ -62,6 +62,9 @@ namespace GungeonTogether.UI
         private ETGSteamP2PNetworking steamNetworking;
         private SteamP2PTestScript testScript;
         
+        // Host selection
+        private HostInfo[] _availableHostsForSelection = new HostInfo[0];
+        
         // Cached values to prevent log spam
         private ulong cachedSteamId = 0;
         private bool steamIdCached = false;
@@ -107,10 +110,58 @@ namespace GungeonTogether.UI
                 HideMenu();
             }
             
+            // Handle number keys for quick-join when hosts are available
+            if (_availableHostsForSelection.Length > 0)
+            {
+                for (int i = 1; i <= 9; i++)
+                {
+                    if (Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1 + i - 1)))
+                    {
+                        QuickJoinHost(i);
+                        break;
+                    }
+                }
+            }
+            
             // Update UI elements
             if (isMenuVisible)
             {
                 UpdateMenuContent();
+            }
+        }
+        
+        /// <summary>
+        /// Quick join a host by number (1-9)
+        /// </summary>
+        private void QuickJoinHost(int hostNumber)
+        {
+            try
+            {
+                if (_availableHostsForSelection.Length == 0)
+                {
+                    Debug.Log($"[ModernMultiplayerMenu] No hosts available for quick-join {hostNumber}");
+                    return;
+                }
+                
+                if (hostNumber < 1 || hostNumber > _availableHostsForSelection.Length)
+                {
+                    Debug.Log($"[ModernMultiplayerMenu] Host number {hostNumber} out of range (1-{_availableHostsForSelection.Length})");
+                    return;
+                }
+                
+                var selectedHost = _availableHostsForSelection[hostNumber - 1];
+                Debug.Log($"[ModernMultiplayerMenu] Quick-joining host {hostNumber}: {selectedHost.Name} ({selectedHost.SteamId})");
+                
+                GungeonTogetherMod.Instance?.JoinSpecificHost(selectedHost.SteamId);
+                MultiplayerUIManager.ShowNotification($"Quick-joining {selectedHost.Name}...", 3f);
+                
+                // Clear the selection and hide menu
+                _availableHostsForSelection = new HostInfo[0];
+                HideMenu();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ModernMultiplayerMenu] Error in quick-join {hostNumber}: {e.Message}");
             }
         }
         
@@ -743,7 +794,67 @@ namespace GungeonTogether.UI
         private void OnJoinClicked()
         {
             Debug.Log("[ModernMultiplayerMenu] Join button clicked");
-            GungeonTogetherMod.Instance?.TryJoinHost();
+            
+            try
+            {
+                // Get available hosts
+                var hosts = GungeonTogetherMod.Instance?.GetAvailableHosts();
+                if (hosts == null || hosts.Length == 0)
+                {
+                    MultiplayerUIManager.ShowNotification("No available hosts found.\n\nHow to connect:\n• Ask friends to host a session\n• They'll appear automatically when hosting\n• Use Steam overlay 'Join Game' for direct invites", 6f);
+                    return;
+                }
+                
+                // Show host selection 
+                if (hosts.Length == 1)
+                {
+                    // Only one host available, join directly
+                    var host = hosts[0];
+                    Debug.Log($"[ModernMultiplayerMenu] Auto-joining single host: {host.Name} ({host.SteamId})");
+                    GungeonTogetherMod.Instance?.JoinSpecificHost(host.SteamId);
+                    MultiplayerUIManager.ShowNotification($"Joining {host.Name}...", 3f);
+                    HideMenu(); // Close menu after joining
+                }
+                else
+                {
+                    // Multiple hosts available, show selection dialog
+                    ShowMultipleHostsDialog(hosts);
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ModernMultiplayerMenu] Error getting hosts: {e.Message}");
+                MultiplayerUIManager.ShowNotification($"Error getting hosts: {e.Message}", 4f);
+            }
+        }
+        
+        /// <summary>
+        /// Show dialog when multiple hosts are available
+        /// </summary>
+        private void ShowMultipleHostsDialog(HostInfo[] hosts)
+        {
+            // Store hosts for quick selection
+            _availableHostsForSelection = hosts;
+            
+            string message = $"🌐 Available hosts ({hosts.Length}):\n\n";
+            for (int i = 0; i < Math.Min(hosts.Length, 5); i++)
+            {
+                message += $"  {i + 1}. {hosts[i].Name}\n";
+            }
+            
+            if (hosts.Length > 5)
+            {
+                message += $"  ...and {hosts.Length - 5} more\n";
+            }
+            
+            message += "\n💡 Use number keys (1-9) to quick-join:";
+            message += "\n• Press 1 to join first host";
+            message += "\n• Press 2 to join second host, etc.";
+            message += "\n• Or use Friends button for detailed view";
+            
+            MultiplayerUIManager.ShowNotification(message, 8f);
+            
+            Debug.Log($"[ModernMultiplayerMenu] Multiple hosts available - use number keys 1-{Math.Min(hosts.Length, 9)} to join");
         }
         
         private void OnDisconnectClicked()
@@ -766,12 +877,12 @@ namespace GungeonTogether.UI
                     return;
                 }
 
+                // Get available hosts first (most important)
+                var availableHosts = GungeonTogetherMod.Instance?.GetAvailableHosts() ?? new HostInfo[0];
+                
                 // Get all friends playing Enter the Gungeon (base game)
                 var allFriends = ETGSteamP2PNetworking.Instance?.GetSteamFriends(0) ?? new SteamFriendsHelper.FriendInfo[0];
                 var etgFriends = ETGSteamP2PNetworking.Instance?.GetETGFriends() ?? new SteamFriendsHelper.FriendInfo[0];
-                
-                // Also check for available hosts (people actually running GungeonTogether and hosting)
-                ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
                 
                 // Build comprehensive message
                 string message = "";
@@ -786,76 +897,69 @@ namespace GungeonTogether.UI
                 }
                 
                 // Header with general info
-                message += $"🔍 Steam Friends Analysis:\n";
+                message += $"🔍 Steam Friends & Hosts:\n";
                 message += $"• Total friends online: {totalOnlineFriends}\n";
                 message += $"• Playing Enter the Gungeon: {etgPlayingFriends}\n\n";
+                
+                // Show confirmed GungeonTogether hosts (PRIORITY)
+                if (availableHosts.Length > 0)
+                {
+                    message += $"� GungeonTogether Hosts ({availableHosts.Length}):\n";
+                    for (int i = 0; i < Math.Min(availableHosts.Length, 5); i++)
+                    {
+                        message += $"  {i + 1}. {availableHosts[i].Name}\n";
+                    }
+                    if (availableHosts.Length > 5)
+                    {
+                        message += $"  ...and {availableHosts.Length - 5} more\n";
+                    }
+                    message += "\n✅ Press Join Session to connect!";
+                    message += "\n💡 Or use number keys (1-9) for quick-join";
+                    
+                    // Store hosts for quick selection
+                    _availableHostsForSelection = availableHosts;
+                }
+                else
+                {
+                    message += "� No GungeonTogether hosts found\n";
+                }
                 
                 // Show friends playing ETG (potential GungeonTogether players)
                 if (etgFriends.Length > 0)
                 {
-                    message += $"🎮 Friends in Enter the Gungeon ({etgFriends.Length}):\n";
+                    message += $"\n\n� Friends in Enter the Gungeon ({etgFriends.Length}):\n";
                     for (int i = 0; i < Math.Min(etgFriends.Length, 4); i++)
                     {
                         var friend = etgFriends[i];
                         string status = friend.isOnline ? "Online" : "Offline";
                         message += $"• {friend.personaName} ({status})\n";
-                        message += $"  Steam ID: {friend.steamId}\n";
                     }
                     if (etgFriends.Length > 4)
                     {
                         message += $"• ...and {etgFriends.Length - 4} more\n";
                     }
-                    message += "\n💡 These friends might have GungeonTogether!\n";
+                    
+                    if (availableHosts.Length == 0)
+                    {
+                        message += "\n💬 Ask these friends to install GungeonTogether!";
+                    }
                 }
-                else
+                else if (availableHosts.Length == 0)
                 {
-                    message += "🎮 No friends currently in Enter the Gungeon\n\n";
-                }
-                
-                // Show confirmed GungeonTogether hosts
-                if (availableHosts.Length > 0)
-                {
-                    message += $"🌐 Confirmed GungeonTogether hosts ({availableHosts.Length}):\n";
-                    for (int i = 0; i < Math.Min(availableHosts.Length, 3); i++)
-                    {
-                        message += $"• Host: {availableHosts[i]}\n";
-                    }
-                    if (availableHosts.Length > 3)
-                    {
-                        message += $"• ...and {availableHosts.Length - 3} more\n";
-                    }
-                    message += "\n✅ Press 'Join Session' to connect!";
-                }
-                else
-                {
-                    message += "🌐 No confirmed GungeonTogether hosts found\n";
-                    if (etgPlayingFriends > 0)
-                    {
-                        message += "💬 Try asking friends above to install GungeonTogether!";
-                    }
-                    else
-                    {
-                        message += "💡 Ask friends to play Enter the Gungeon with GungeonTogether!";
-                    }
+                    message += "\n🎮 No friends currently in Enter the Gungeon\n";
+                    message += "💡 Ask friends to play ETG with GungeonTogether!";
                 }
                 
                 // Show the information as a notification with longer duration
-                MultiplayerUIManager.ShowNotification(message, 10f);
+                MultiplayerUIManager.ShowNotification(message, 12f);
                 
                 // Enhanced debugging
                 Debug.Log($"[ModernMultiplayerMenu] Enhanced Friends Analysis:");
                 Debug.Log($"  Total friends: {allFriends.Length}");
                 Debug.Log($"  Online friends: {totalOnlineFriends}");
                 Debug.Log($"  ETG players: {etgPlayingFriends}");
-                Debug.Log($"  Available hosts: {availableHosts.Length}");
-                Debug.Log($"  Steam networking available: {steamNet.IsAvailable()}");
-                Debug.Log($"  Your Steam ID: {steamNet.GetSteamID()}");
-                
-                // List all friends for debugging
-                foreach (var friend in allFriends)
-                {
-                    Debug.Log($"  Friend: {friend.personaName} (ID: {friend.steamId}) - Online: {friend.isOnline}, ETG: {friend.isPlayingETG}, Game: {friend.currentGameName}");
-                }
+                Debug.Log($"  GT hosts: {availableHosts.Length}");
+                Debug.Log($"  Steam ID: {steamNet.GetSteamID()}");
             }
             catch (Exception ex)
             {

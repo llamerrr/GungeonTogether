@@ -314,6 +314,9 @@ namespace GungeonTogether.Game
                 if (IsHost)
                 {
                     steamNet?.CheckForJoinRequests();
+                    
+                    // CRITICAL: Check for incoming P2P session requests and auto-accept them
+                    CheckForIncomingP2PRequests();
                 }
                 
                 // Check connections health
@@ -791,18 +794,44 @@ namespace GungeonTogether.Game
                 var mySteamId = steamNet?.GetSteamID() ?? 0;
                 BitConverter.GetBytes(mySteamId).CopyTo(packet, 1);
                 
+                Debug.Log($"[SimpleSessionManager] Handshake packet created - My Steam ID: {mySteamId}, Target: {hostSteamId}");
+                
+                // Ensure P2P session is accepted before sending
+                if (!steamNet.AcceptP2PSession(hostSteamId))
+                {
+                    Debug.LogWarning($"[SimpleSessionManager] Warning: Could not ensure P2P session acceptance with {hostSteamId}");
+                }
+                
                 if (ReferenceEquals(steamNet?.SendP2PPacket(hostSteamId, packet), true))
                 {
-                    Debug.Log($"[SimpleSessionManager] Handshake request sent to {hostSteamId}");
+                    Debug.Log($"[SimpleSessionManager] ✅ Handshake request sent successfully to {hostSteamId}");
+                    
+                    // Add connection entry to track handshake progress
+                    var connection = new PlayerConnection
+                    {
+                        steamId = hostSteamId,
+                        playerName = $"Host_{hostSteamId}",
+                        isConnected = false, // Will be set to true when handshake completes
+                        handshakeComplete = false,
+                        lastActivity = Time.time,
+                        connectionTime = Time.time
+                    };
+                    connectedPlayers[hostSteamId] = connection;
                 }
                 else
                 {
-                    Debug.LogError($"[SimpleSessionManager] Failed to send handshake request to {hostSteamId}");
+                    Debug.LogError($"[SimpleSessionManager] ❌ Failed to send handshake request to {hostSteamId}");
+                    Debug.LogError($"[SimpleSessionManager] This usually means:");
+                    Debug.LogError($"[SimpleSessionManager]   • P2P session not established");
+                    Debug.LogError($"[SimpleSessionManager]   • Host is not accepting connections");
+                    Debug.LogError($"[SimpleSessionManager]   • Network connectivity issues");
+                    Debug.LogError($"[SimpleSessionManager]   • Steam networking initialization failed");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[SimpleSessionManager] Error sending handshake request: {e.Message}");
+                Debug.LogError($"[SimpleSessionManager] Stack trace: {e.StackTrace}");
             }
         }
         
@@ -1306,6 +1335,68 @@ namespace GungeonTogether.Game
             catch (Exception e)
             {
                 Debug.LogError($"[Host Connection Status] Error logging connection status: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Check for incoming P2P session requests and auto-accept them (HOST ONLY)
+        /// This is critical for allowing clients to establish P2P connections
+        /// </summary>
+        private void CheckForIncomingP2PRequests()
+        {
+            try
+            {
+                if (!IsHost || ReferenceEquals(steamNet, null)) return;
+                
+                // Get our Steam ID
+                ulong mySteamId = steamNet.GetSteamID();
+                if (ReferenceEquals(mySteamId, 0)) return;
+                
+                // Check for available hosts who might be trying to connect to us
+                // This is a heuristic approach since we can't directly detect P2P session requests
+                ulong[] potentialJoiners = ETGSteamP2PNetworking.GetAvailableHosts();
+                
+                foreach (ulong potentialJoinerSteamId in potentialJoiners)
+                {
+                    if (object.Equals(potentialJoinerSteamId, mySteamId)) continue; // Skip ourselves
+                    
+                    // If this player isn't already connected, preemptively accept their P2P session
+                    if (!connectedPlayers.ContainsKey(potentialJoinerSteamId))
+                    {
+                        if (steamNet.AcceptP2PSession(potentialJoinerSteamId))
+                        {
+                            Debug.Log($"[SimpleSessionManager] Preemptively accepted P2P session from potential joiner: {potentialJoinerSteamId}");
+                        }
+                    }
+                }
+                
+                // Also try to accept P2P sessions from anyone in our Steam friends list who might be trying to join
+                try
+                {
+                    var friends = SteamFriendsHelper.GetSteamFriends();
+                    foreach (var friend in friends)
+                    {
+                        if (friend.isOnline && friend.isPlayingETG && !object.Equals(friend.steamId, mySteamId))
+                        {
+                            if (!connectedPlayers.ContainsKey(friend.steamId))
+                            {
+                                // Try to accept P2P session with this friend in case they're trying to join
+                                steamNet.AcceptP2PSession(friend.steamId);
+                            }
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    // Silent failure for friends check
+                }
+            }
+            catch (Exception e)
+            {
+                if (ReferenceEquals(Time.frameCount % 300, 0)) // Log every 5 seconds
+                {
+                    Debug.LogWarning($"[SimpleSessionManager] Error checking for incoming P2P requests: {e.Message}");
+                }
             }
         }
     }
