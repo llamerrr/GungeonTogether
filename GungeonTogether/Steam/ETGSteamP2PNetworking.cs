@@ -78,6 +78,9 @@ namespace GungeonTogether.Steam
                     
                     // Initialize Steam callbacks for overlay join functionality
                     SteamCallbackManager.InitializeSteamCallbacks();
+                    
+                    // Process any pending join requests that arrived during early initialization
+                    SteamCallbackManager.ProcessPendingJoinRequests();
                 }
                 else
                 {

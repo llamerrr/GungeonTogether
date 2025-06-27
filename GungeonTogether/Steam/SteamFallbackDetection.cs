@@ -48,20 +48,27 @@ namespace GungeonTogether.Steam
             try
             {
                 // If we're using fallback detection, do active monitoring
-                if (usingFallbackJoinDetection && Time.time - lastFallbackCheck > 1.0f) // Check every second
+                if (usingFallbackJoinDetection)
                 {
-                    lastFallbackCheck = Time.time;
+                    // Check for Steam join requests every frame
+                    CheckCommandLineForJoinRequests();
                     
-                    // Active fallback monitoring for Steam join requests
-                    PerformFallbackJoinDetection();
+                    // Check for P2P connection requests more frequently
+                    if (Time.time - lastFallbackCheck > 0.1f) // Every 100ms
+                    {
+                        CheckForIncomingP2PSessionRequests();
+                        MonitorSteamOverlayState();
+                        CheckEnvironmentVariablesForJoinRequests();
+                        lastFallbackCheck = Time.time;
+                    }
                 }
             }
             catch (Exception e)
             {
-                // Don't spam the log with callback errors
-                if (ReferenceEquals(Time.frameCount % 300, 0)) // Log every 5 seconds at 60fps
+                // Don't spam the log with fallback errors
+                if (ReferenceEquals(Time.frameCount % 600, 0)) // Log every 10 seconds at 60fps
                 {
-                    Debug.LogWarning($"[ETGSteamP2P] Error in fallback detection processing: {e.Message}");
+                    Debug.LogWarning($"[ETGSteamP2P] Error in fallback detection: {e.Message}");
                 }
             }
         }

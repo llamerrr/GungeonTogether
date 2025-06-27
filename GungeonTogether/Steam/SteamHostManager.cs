@@ -217,6 +217,7 @@ namespace GungeonTogether.Steam
         }
         
         /// <summary>
+        /// <summary>
         /// Automatically discover available hosts on the network
         /// </summary>
         public static ulong[] GetAvailableHosts()
@@ -246,6 +247,16 @@ namespace GungeonTogether.Steam
                 foreach (var hostId in hostsToRemove)
                 {
                     availableHosts.Remove(hostId);
+                }
+                
+                // CRITICAL: Actively scan Steam friends for ETG players who might be hosting
+                try
+                {
+                    ScanFriendsForHosts();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[ETGSteamP2P] Error scanning friends for hosts: {ex.Message}");
                 }
                 
                 // Return active host Steam IDs, excluding our own Steam ID
@@ -548,5 +559,109 @@ namespace GungeonTogether.Steam
         public static ulong CurrentLobbyId => currentLobbyId;
         public static bool IsLobbyHost => isLobbyHost;
         public static string LastInviteLobbyId => lastInviteLobbyId;
+        
+        /// <summary>
+        /// Scan Steam friends to find those playing ETG who might be hosting GungeonTogether
+        /// </summary>
+        private static void ScanFriendsForHosts()
+        {
+            try
+            {
+                // Get Steam friends who are playing ETG
+                var friends = SteamFriendsHelper.GetSteamFriends();
+                
+                Debug.Log($"[ETGSteamP2P] Scanning {friends.Length} Steam friends for GungeonTogether hosts...");
+                
+                int etgPlayersFound = 0;
+                int actualHostsFound = 0;
+                int potentialHostsAdded = 0;
+                
+                foreach (var friend in friends)
+                {
+                    if (friend.isPlayingETG && friend.isOnline)
+                    {
+                        etgPlayersFound++;
+                        
+                        Debug.Log($"[ETGSteamP2P] Found friend {friend.name} ({friend.steamId}) playing ETG - checking if hosting GungeonTogether...");
+                        
+                        // Check if this friend is actually hosting GungeonTogether by checking Rich Presence
+                        bool isHostingGungeonTogether = false;
+                        try
+                        {
+                            // Check for GungeonTogether-specific Rich Presence keys
+                            string gungeonTogetherStatus = SteamReflectionHelper.GetFriendRichPresence(friend.steamId, "gungeon_together");
+                            string gtVersion = SteamReflectionHelper.GetFriendRichPresence(friend.steamId, "gt_version");
+                            string connectString = SteamReflectionHelper.GetFriendRichPresence(friend.steamId, "connect");
+                            
+                            // Friend is hosting if they have GungeonTogether Rich Presence set to "hosting"
+                            if (string.Equals(gungeonTogetherStatus, "hosting") || 
+                                (!string.IsNullOrEmpty(gtVersion) && !string.IsNullOrEmpty(connectString)))
+                            {
+                                isHostingGungeonTogether = true;
+                                actualHostsFound++;
+                                Debug.Log($"[ETGSteamP2P] ✅ {friend.name} is hosting GungeonTogether (status: {gungeonTogetherStatus}, version: {gtVersion})");
+                            }
+                            else if (!string.IsNullOrEmpty(gungeonTogetherStatus))
+                            {
+                                Debug.Log($"[ETGSteamP2P] 📝 {friend.name} is playing GungeonTogether but not hosting (status: {gungeonTogetherStatus})");
+                            }
+                            else
+                            {
+                                Debug.Log($"[ETGSteamP2P] ❌ {friend.name} is playing Enter the Gungeon but not GungeonTogether (no GT Rich Presence)");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogWarning($"[ETGSteamP2P] Could not check Rich Presence for {friend.name}: {ex.Message}");
+                        }
+                        
+                        // Only add as host if they're actually hosting GungeonTogether
+                        if (isHostingGungeonTogether)
+                        {
+                            if (!availableHosts.ContainsKey(friend.steamId))
+                            {
+                                availableHosts[friend.steamId] = new HostInfo
+                                {
+                                    steamId = friend.steamId,
+                                    sessionName = $"{friend.name}'s GungeonTogether",
+                                    playerCount = 1,
+                                    lastSeen = Time.time,
+                                    isActive = true
+                                };
+                                potentialHostsAdded++;
+                                
+                                Debug.Log($"[ETGSteamP2P] ✅ Added {friend.name} as confirmed GungeonTogether host");
+                            }
+                            else
+                            {
+                                // Update existing entry
+                                var hostInfo = availableHosts[friend.steamId];
+                                hostInfo.lastSeen = Time.time;
+                                hostInfo.isActive = true;
+                                hostInfo.sessionName = $"{friend.name}'s GungeonTogether";
+                                availableHosts[friend.steamId] = hostInfo;
+                                
+                                Debug.Log($"[ETGSteamP2P] 🔄 Updated existing host entry for {friend.name}");
+                            }
+                        }
+                    }
+                }
+                
+                Debug.Log($"[ETGSteamP2P] Friend scan complete: {etgPlayersFound} playing ETG, {actualHostsFound} hosting GungeonTogether, {potentialHostsAdded} new hosts added");
+                
+                if (etgPlayersFound == 0)
+                {
+                    Debug.Log("[ETGSteamP2P] No friends currently playing Enter the Gungeon");
+                }
+                else if (actualHostsFound == 0)
+                {
+                    Debug.Log("[ETGSteamP2P] No friends currently hosting GungeonTogether multiplayer sessions");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error scanning friends for hosts: {e.Message}");
+            }
+        }
     }
 }

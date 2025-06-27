@@ -1083,25 +1083,42 @@ namespace GungeonTogether.Game
                 // Check if GameManager exists and if we're not in a dungeon
                 if (ReferenceEquals(GameManager.Instance, null))
                 {
+                    Debug.Log("[SimpleSessionManager] IsInMainMenu: GameManager is null - MAIN MENU");
                     return true; // Likely in main menu if GameManager not initialized
                 }
                 
                 // Check if we're in the MainMenuFoyer scene
                 var currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+                Debug.Log($"[SimpleSessionManager] IsInMainMenu: Current scene = '{currentScene}'");
                 if (currentScene.Contains("MainMenu") || currentScene.Contains("Foyer_001"))
                 {
+                    Debug.Log("[SimpleSessionManager] IsInMainMenu: Scene indicates main menu - MAIN MENU");
                     return true;
                 }
                 
                 // Check GameManager state
                 var gameManager = GameManager.Instance;
-                if (object.Equals(gameManager.CurrentLevelOverrideState, GameManager.LevelOverrideState.NONE) &&
-                    object.Equals(gameManager.CurrentGameType, GameManager.GameType.SINGLE_PLAYER) &&
-                    ReferenceEquals(gameManager.PrimaryPlayer, null))
+                Debug.Log($"[SimpleSessionManager] IsInMainMenu: Checking GameManager states...");
+                Debug.Log($"  CurrentLevelOverrideState: {gameManager.CurrentLevelOverrideState}");
+                Debug.Log($"  CurrentGameType: {gameManager.CurrentGameType}");
+                Debug.Log($"  PrimaryPlayer: {(ReferenceEquals(gameManager.PrimaryPlayer, null) ? "NULL" : "EXISTS")}");
+                
+                // Be more permissive with main menu detection - if there's no primary player, we're likely in main menu
+                if (ReferenceEquals(gameManager.PrimaryPlayer, null))
                 {
+                    Debug.Log("[SimpleSessionManager] IsInMainMenu: No primary player - MAIN MENU");
+                    return true; // No player means we're in main menu
+                }
+                
+                // If there is a primary player, check other conditions
+                if (object.Equals(gameManager.CurrentLevelOverrideState, GameManager.LevelOverrideState.NONE) &&
+                    object.Equals(gameManager.CurrentGameType, GameManager.GameType.SINGLE_PLAYER))
+                {
+                    Debug.Log("[SimpleSessionManager] IsInMainMenu: GameManager states indicate main menu - MAIN MENU");
                     return true; // Likely in main menu
                 }
                 
+                Debug.Log("[SimpleSessionManager] IsInMainMenu: Not in main menu - IN GAME");
                 return false;
             }
             catch (Exception e)

@@ -45,6 +45,14 @@ namespace GungeonTogether.Steam
         private static MethodInfo setLobbyJoinableMethod;
         private static MethodInfo inviteUserToLobbyMethod;
         
+        // Steam Friends methods
+        private static MethodInfo getFriendCountMethod;
+        private static MethodInfo getFriendByIndexMethod;
+        private static MethodInfo getFriendPersonaNameMethod;
+        private static MethodInfo getFriendPersonaStateMethod;
+        private static MethodInfo getFriendGamePlayedMethod;
+        private static MethodInfo getFriendRichPresenceMethod;
+        
         private static bool initialized = false;
         
         // Cache for Steam ID to prevent repeated expensive reflection calls
@@ -203,6 +211,36 @@ namespace GungeonTogether.Steam
             {
                 setRichPresenceMethod = steamFriendsType.GetMethod("SetRichPresence", BindingFlags.Public | BindingFlags.Static);
                 clearRichPresenceMethod = steamFriendsType.GetMethod("ClearRichPresence", BindingFlags.Public | BindingFlags.Static);
+                
+                // Cache friends list methods
+                getFriendCountMethod = steamFriendsType.GetMethod("GetFriendCount", BindingFlags.Public | BindingFlags.Static);
+                getFriendByIndexMethod = steamFriendsType.GetMethod("GetFriendByIndex", BindingFlags.Public | BindingFlags.Static);
+                getFriendPersonaNameMethod = steamFriendsType.GetMethod("GetFriendPersonaName", BindingFlags.Public | BindingFlags.Static);
+                getFriendPersonaStateMethod = steamFriendsType.GetMethod("GetFriendPersonaState", BindingFlags.Public | BindingFlags.Static);
+                getFriendGamePlayedMethod = steamFriendsType.GetMethod("GetFriendGamePlayed", BindingFlags.Public | BindingFlags.Static);
+                getFriendRichPresenceMethod = steamFriendsType.GetMethod("GetFriendRichPresence", BindingFlags.Public | BindingFlags.Static);
+                
+                Debug.Log($"[ETGSteamP2P] Friends methods found:");
+                Debug.Log($"  GetFriendCount: {(!ReferenceEquals(getFriendCountMethod, null) ? "Found" : "Not found")}");
+                Debug.Log($"  GetFriendByIndex: {(!ReferenceEquals(getFriendByIndexMethod, null) ? "Found" : "Not found")}");
+                Debug.Log($"  GetFriendPersonaName: {(!ReferenceEquals(getFriendPersonaNameMethod, null) ? "Found" : "Not found")}");
+                Debug.Log($"  GetFriendPersonaState: {(!ReferenceEquals(getFriendPersonaStateMethod, null) ? "Found" : "Not found")}");
+                Debug.Log($"  GetFriendGamePlayed: {(!ReferenceEquals(getFriendGamePlayedMethod, null) ? "Found" : "Not found")}");
+                Debug.Log($"  GetFriendRichPresence: {(!ReferenceEquals(getFriendRichPresenceMethod, null) ? "Found" : "Not found")}");
+                
+                // Log GetFriendGamePlayed method signature for debugging
+                if (!ReferenceEquals(getFriendGamePlayedMethod, null))
+                {
+                    var parameters = getFriendGamePlayedMethod.GetParameters();
+                    var paramStr = "";
+                    for (int i = 0; i < parameters.Length; i++)
+                    {
+                        if (i > 0) paramStr += ", ";
+                        string prefix = parameters[i].IsOut ? "out " : (parameters[i].ParameterType.IsByRef ? "ref " : "");
+                        paramStr += $"{prefix}{parameters[i].ParameterType.Name} {parameters[i].Name}";
+                    }
+                    Debug.Log($"[ETGSteamP2P]   GetFriendGamePlayed signature: {getFriendGamePlayedMethod.ReturnType.Name} GetFriendGamePlayed({paramStr})");
+                }
             }
         }
         
@@ -603,6 +641,43 @@ namespace GungeonTogether.Steam
             return cachedSteamworksAssembly;
         }
         
+        /// <summary>
+        /// Get Rich Presence data for a specific Steam friend
+        /// </summary>
+        public static string GetFriendRichPresence(ulong friendSteamId, string key)
+        {
+            try
+            {
+                if (ReferenceEquals(getFriendRichPresenceMethod, null))
+                {
+                    Debug.LogWarning("[ETGSteamP2P] GetFriendRichPresence method not available");
+                    return "";
+                }
+                
+                if (string.IsNullOrEmpty(key))
+                {
+                    Debug.LogWarning("[ETGSteamP2P] Rich Presence key is null or empty");
+                    return "";
+                }
+                
+                var steamIdParam = ConvertToCSteamID(friendSteamId);
+                if (ReferenceEquals(steamIdParam, null))
+                {
+                    Debug.LogWarning($"[ETGSteamP2P] Could not convert Steam ID {friendSteamId} to CSteamID");
+                    return "";
+                }
+                
+                var result = getFriendRichPresenceMethod.Invoke(null, new object[] { steamIdParam, key });
+                
+                return result?.ToString() ?? "";
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[ETGSteamP2P] Error getting friend Rich Presence for key '{key}': {e.Message}");
+                return "";
+            }
+        }
+
         // Property accessors for the cached methods
         public static bool IsInitialized => initialized;
         public static MethodInfo SendP2PPacketMethod => sendP2PPacketMethod;
@@ -619,5 +694,13 @@ namespace GungeonTogether.Steam
         public static MethodInfo GetLobbyDataMethod => getLobbyDataMethod;
         public static MethodInfo SetLobbyJoinableMethod => setLobbyJoinableMethod;
         public static MethodInfo InviteUserToLobbyMethod => inviteUserToLobbyMethod;
+        
+        // Friends methods accessors
+        public static MethodInfo GetFriendCountMethod => getFriendCountMethod;
+        public static MethodInfo GetFriendByIndexMethod => getFriendByIndexMethod;
+        public static MethodInfo GetFriendPersonaNameMethod => getFriendPersonaNameMethod;
+        public static MethodInfo GetFriendPersonaStateMethod => getFriendPersonaStateMethod;
+        public static MethodInfo GetFriendGamePlayedMethod => getFriendGamePlayedMethod;
+        public static MethodInfo GetFriendRichPresenceMethod => getFriendRichPresenceMethod;
     }
 }

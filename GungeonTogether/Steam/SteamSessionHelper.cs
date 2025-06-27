@@ -227,9 +227,20 @@ namespace GungeonTogether.Steam
                     return new string[0];
                 }
                 
-                // Get all ETG friends first
-                var etgFriends = steamNet.GetETGFriends();
-                if (ReferenceEquals(etgFriends.Length, 0))
+                // Get all Steam friends who are playing ETG
+                var allFriends = SteamFriendsHelper.GetSteamFriends();
+                
+                // Filter to only friends playing ETG
+                var etgFriendsCount = 0;
+                foreach (var friend in allFriends)
+                {
+                    if (friend.isPlayingETG && friend.isOnline)
+                    {
+                        etgFriendsCount++;
+                    }
+                }
+                
+                if (etgFriendsCount == 0)
                 {
                     Debug.Log("[SteamSessionHelper] No friends currently playing Enter the Gungeon");
                     return new string[0];
@@ -241,9 +252,9 @@ namespace GungeonTogether.Steam
                 // Filter to only friends who are hosting GungeonTogether sessions
                 System.Collections.Generic.List<string> gungeonTogetherFriends = new System.Collections.Generic.List<string>();
                 
-                for (int i = 0; i < etgFriends.Length; i++)
+                foreach (var friend in allFriends)
                 {
-                    var friend = etgFriends[i];
+                    if (!friend.isPlayingETG || !friend.isOnline) continue;
                     
                     // Check if this friend is hosting a GungeonTogether session
                     bool isHostingGungeonTogether = false;
@@ -258,14 +269,14 @@ namespace GungeonTogether.Steam
                     
                     if (isHostingGungeonTogether)
                     {
-                        gungeonTogetherFriends.Add($"{friend.personaName} (Hosting GungeonTogether)");
-                        Debug.Log($"[SteamSessionHelper] Found GungeonTogether host: {friend.personaName} (ID: {friend.steamId})");
+                        gungeonTogetherFriends.Add($"{friend.name} (Hosting GungeonTogether)");
+                        Debug.Log($"[SteamSessionHelper] Found GungeonTogether host: {friend.name} (ID: {friend.steamId})");
                     }
                     else
                     {
                         // Still show ETG friends, but indicate they're not hosting GungeonTogether
-                        gungeonTogetherFriends.Add($"{friend.personaName} (Playing ETG)");
-                        Debug.Log($"[SteamSessionHelper] Found ETG friend (not hosting GT): {friend.personaName} (ID: {friend.steamId})");
+                        gungeonTogetherFriends.Add($"{friend.name} (Playing ETG)");
+                        Debug.Log($"[SteamSessionHelper] Found ETG friend (not hosting GT): {friend.name} (ID: {friend.steamId})");
                     }
                 }
                 
