@@ -440,7 +440,6 @@ namespace GungeonTogether.Game
                 }
                 else if (sessionId.StartsWith("steam_lobby_"))
                 {
-                    // Extract from lobby format: "steam_lobby_76561198068703790"
                     // CRITICAL: This is a lobby ID, NOT the host Steam ID!
                     string lobbyPart = sessionId.Substring("steam_lobby_".Length);
                     if (ulong.TryParse(lobbyPart, out ulong lobbyId))

@@ -174,25 +174,13 @@ namespace GungeonTogether.Steam
                 if (isHosting)
                 {
                     Debug.Log($"[SteamSessionHelper] 🎯 Rich Presence: Hosting GungeonTogether ({sessionId})");
-                    
-                    // Extract Steam ID from session ID for the connect field
-                    string connectValue = sessionId;
-                    if (!string.IsNullOrEmpty(sessionId) && sessionId.StartsWith("steam_"))
-                    {
-                        connectValue = sessionId.Substring(6); // Remove "steam_" prefix to get raw Steam ID
-                        Debug.Log($"[SteamSessionHelper] Extracted Steam ID for connect field: {connectValue}");
-                    }
-                    
-                    // Set Rich Presence to indicate hosting GungeonTogether
+                    // Do NOT set the 'connect' field here. It is now set only after lobby creation in SteamHostManager.
                     steamNet.SetRichPresence("status", "Hosting GungeonTogether");
                     steamNet.SetRichPresence("steam_display", "#Status_HostingGT");
-                    steamNet.SetRichPresence("connect", connectValue); // Steam ID only, not full session ID
-                    
-                    // Custom key to identify GungeonTogether users
+                    // steamNet.SetRichPresence("connect", connectValue); // REMOVED: Only set after lobby creation
                     steamNet.SetRichPresence("gungeon_together", "hosting");
                     steamNet.SetRichPresence("gt_version", GungeonTogether.GungeonTogetherMod.VERSION);
-                    
-                    Debug.Log($"[SteamSessionHelper] Rich Presence 'connect' field set to: {connectValue}");
+                    // Debug.Log($"[SteamSessionHelper] Rich Presence 'connect' field set to: {connectValue}"); // REMOVED
                 }
                 else if (!string.IsNullOrEmpty(sessionId))
                 {

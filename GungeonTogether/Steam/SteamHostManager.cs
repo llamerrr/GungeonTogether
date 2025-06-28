@@ -340,12 +340,9 @@ namespace GungeonTogether.Steam
                     // Set status to show we're in a multiplayer game
                     setRichPresenceMethod.Invoke(null, new object[] { "status", "In Game" });
                     setRichPresenceMethod.Invoke(null, new object[] { "steam_display", "#Status_InGame" });
-                    
-                    // Set connect string so friends can join
-                    setRichPresenceMethod.Invoke(null, new object[] { "connect", steamId.ToString() });
-                    
-                    Debug.Log($"[ETGSteamP2P] Started hosting session with Steam ID: {steamId}");
                 }
+                
+                // Do NOT set connect string here; only set after lobby is created and valid
                 
                 // Register as host
                 RegisterAsHost();
@@ -361,6 +358,26 @@ namespace GungeonTogether.Steam
                         var result = createLobbyMethod.Invoke(null, new object[] { 1, 50 }); // ELobbyType.k_ELobbyTypePublic = 1
                         Debug.Log($"[ETGSteamP2P] Created lobby: {result}");
                         isLobbyHost = true;
+                        // Set the lobby ID from the result if possible
+                        if (!ReferenceEquals(result, null))
+                        {
+                            // Steamworks.NET returns a CSteamID or ulong for the lobby
+                            ulong lobbyId = 0;
+                            if (result is ulong)
+                            {
+                                lobbyId = (ulong)result;
+                            }
+                            else if (!ReferenceEquals(result.GetType().GetProperty("m_SteamID"), null))
+                            {
+                                lobbyId = (ulong)result.GetType().GetProperty("m_SteamID").GetValue(result, null);
+                            }
+                            if (!ReferenceEquals(lobbyId, 0))
+                            {
+                                currentLobbyId = lobbyId;
+                                // Set Rich Presence connect string to the correct lobby ID
+                                UpdateRichPresenceConnectToLobby();
+                            }
+                        }
                     }
                     catch (Exception e)
                     {
@@ -482,15 +499,30 @@ namespace GungeonTogether.Steam
                     // Create lobby with specified parameters
                     // ELobbyType.k_ELobbyTypePublic = 1, maxPlayers
                     var result = createLobbyMethod.Invoke(null, new object[] { 1, maxPlayers });
-                    
+
                     if (!ReferenceEquals(result, null))
                     {
                         Debug.Log($"[ETGSteamP2P] Creating lobby for {maxPlayers} players...");
                         isLobbyHost = true;
+                        // Set the lobby ID from the result if possible
+                        ulong lobbyId = 0;
+                        if (result is ulong)
+                        {
+                            lobbyId = (ulong)result;
+                        }
+                        else if (!ReferenceEquals(result.GetType().GetProperty("m_SteamID"), null))
+                        {
+                            lobbyId = (ulong)result.GetType().GetProperty("m_SteamID").GetValue(result, null);
+                        }
+                        if (!ReferenceEquals(lobbyId, 0))
+                        {
+                            currentLobbyId = lobbyId;
+                            UpdateRichPresenceConnectToLobby();
+                        }
                         return true;
                     }
                 }
-                
+
                 return false;
             }
             catch (Exception e)
@@ -676,6 +708,19 @@ namespace GungeonTogether.Steam
             catch (Exception e)
             {
                 Debug.LogError($"[ETGSteamP2P] Error scanning friends for hosts: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Set the Rich Presence 'connect' field to the current lobby ID (if valid)
+        /// </summary>
+        private static void UpdateRichPresenceConnectToLobby()
+        {
+            var setRichPresenceMethod = SteamReflectionHelper.SetRichPresenceMethod;
+            if (!ReferenceEquals(setRichPresenceMethod, null) && !ReferenceEquals(currentLobbyId, 0))
+            {
+                setRichPresenceMethod.Invoke(null, new object[] { "connect", currentLobbyId.ToString() });
+                Debug.Log($"[ETGSteamP2P] Set Rich Presence connect string to lobby ID: {currentLobbyId}");
             }
         }
     }

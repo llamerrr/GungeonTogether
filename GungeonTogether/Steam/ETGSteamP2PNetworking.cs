@@ -427,22 +427,17 @@ namespace GungeonTogether.Steam
             {
                 Debug.Log($"[ETGSteamP2P] Processing overlay join request: {connectString}");
 
-                if (ulong.TryParse(connectString, out ulong hostSteamId))
+                // Try to parse as lobby ID first
+                if (ulong.TryParse(connectString, out ulong lobbyId))
                 {
-                    // Set invite info so the system knows someone wants to join us
-                    SteamHostManager.SetInviteInfo(hostSteamId);
-
-                    // Send join request notification to the host so they know we're trying to join
-                    SendJoinRequestToHost(hostSteamId);
-
-                    // Fire join requested event
-                    Instance?.OnJoinRequested?.Invoke(hostSteamId);
-
-                    Debug.Log($"[ETGSteamP2P] Processed overlay join request for host: {hostSteamId}");
+                    Debug.Log($"[ETGSteamP2P] Attempting to join lobby with ID: {lobbyId}");
+                    // Join the Steam lobby, not direct P2P to user
+                    Instance?.JoinLobby(lobbyId);
+                    // Optionally, fire an event or notification here if needed
                 }
                 else
                 {
-                    Debug.LogWarning($"[ETGSteamP2P] Could not parse Steam ID from connect string: {connectString}");
+                    Debug.LogWarning($"[ETGSteamP2P] Could not parse lobby ID from connect string: {connectString}");
                 }
             }
             catch (Exception e)
@@ -749,6 +744,14 @@ namespace GungeonTogether.Steam
             {
                 EnsureInitialized();
                 SteamHostManager.StartHostingSession();
+
+                // Do NOT set the 'connect' field here. It is now set only after lobby creation in SteamHostManager.
+                // var setRichPresenceMethod = SteamReflectionHelper.SetRichPresenceMethod;
+                // if (!ReferenceEquals(setRichPresenceMethod, null) && !ReferenceEquals(SteamHostManager.CurrentLobbyId, 0))
+                // {
+                //     setRichPresenceMethod.Invoke(null, new object[] { "connect", SteamHostManager.CurrentLobbyId.ToString() });
+                //     Debug.Log($"[ETGSteamP2P] Set Rich Presence connect string to lobby ID: {SteamHostManager.CurrentLobbyId}");
+                // }
             }
             catch (Exception e)
             {

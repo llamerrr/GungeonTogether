@@ -1,6 +1,6 @@
  <Project Sdk="Microsoft.NET.Sdk"> 
   <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>net35</TargetFramework>
     <LangVersion>latest</LangVersion>
     <AssemblyName>GungeonTogether</AssemblyName>
     <OutputPath>bin\$(Configuration)\</OutputPath>

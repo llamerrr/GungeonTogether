@@ -776,7 +776,7 @@ namespace GungeonTogether
             try
             {
                 Logger.LogInfo("Starting ETG Steam diagnostics...");
-                ETGSteamDiagnostics.DiagnoseETGSteamTypes();
+                // ETGSteamDiagnostics.DiagnoseETGSteamTypes(); // Removed: file and class deleted
                 Logger.LogInfo("Steam diagnostics completed - check Unity console for details");
             }
             catch (Exception e)

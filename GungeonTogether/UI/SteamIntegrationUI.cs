@@ -530,7 +530,7 @@ namespace GungeonTogether.UI
         
         private void OnSteamOverlayJoinRequested(string hostSteamId)
         {
-            MultiplayerUIManager.ShowNotification($"🎮 Steam join request: {hostSteamId}", 3f);
+            MultiplayerUIManager.ShowNotification($"\ud83c\udfae Steam join request: {hostSteamId}", 3f);
         }
         
         void OnDestroy()
