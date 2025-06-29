@@ -344,7 +344,7 @@ namespace GungeonTogether.Steam
                 {
                     if (ulong.TryParse(match.Value, out ulong steamId) && steamId > 76561197960265728)
                     {
-                        Debug.Log($"[ETGSteamP2P] 🎯 FALLBACK: Found potential Steam ID in argument: {steamId}");
+                        Debug.Log($"[FallbackDetection] 🎯 FALLBACK: Found potential Steam ID in argument: {steamId}");
                         ProcessFallbackJoinRequest(steamId);
                         return;
                     }
@@ -354,20 +354,20 @@ namespace GungeonTogether.Steam
                 // this might be a Steam Rich Presence join where Steam didn't pass the Steam ID correctly
                 if (arg.Equals("+connect_lobby") || arg.Equals("+join_game"))
                 {
-                    Debug.Log($"[ETGSteamP2P] 🔍 FALLBACK: Empty {arg} command detected - this suggests Steam Rich Presence join");
-                    Debug.Log($"[ETGSteamP2P] 💡 FALLBACK: The host's Rich Presence 'connect' field might be misconfigured");
-                    Debug.Log($"[ETGSteamP2P] 💡 FALLBACK: Host should set Rich Presence 'connect' to their Steam ID, not session ID");
+                    Debug.Log($"[FallbackDetection] 🔍 FALLBACK: Empty {arg} command detected - this suggests Steam Rich Presence join");
+                    Debug.Log($"[FallbackDetection] 💡 FALLBACK: The host's Rich Presence 'connect' field might be misconfigured");
+                    Debug.Log($"[FallbackDetection] 💡 FALLBACK: Host should set Rich Presence 'connect' to their Steam ID, not session ID");
                     
                     // Try to get the Steam ID from other sources or recent host data
                     TryRecoverSteamIdFromRecent();
                     return;
                 }
                 
-                Debug.Log($"[ETGSteamP2P] ❌ FALLBACK: Could not extract Steam ID from: {arg}");
+                Debug.Log($"[FallbackDetection] ❌ FALLBACK: Could not extract Steam ID from: {arg}");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error extracting Steam ID from argument: {e.Message}");
+                Debug.LogError($"[FallbackDetection] Error extracting Steam ID from argument: {e.Message}");
             }
         }
         

@@ -13,7 +13,7 @@ namespace GungeonTogether.Game
     {
         public bool IsActive { get; private set; }
         public string Status { get; private set; }
-        public string CurrentSessionId { get; private set; }
+        public string currentHostId { get; private set; }
         public bool IsHost { get; private set; }
         
         // Steam P2P networking using ETG's built-in Steamworks (stored as interface to avoid TypeLoadException)
@@ -54,7 +54,7 @@ namespace GungeonTogether.Game
         {
             IsActive = false;
             Status = "Ready";
-            CurrentSessionId = null;
+            currentHostId = null;
             IsHost = false;
             connectedPlayers = new Dictionary<ulong, PlayerConnection>();
             
@@ -101,14 +101,14 @@ namespace GungeonTogether.Game
                 if (!ReferenceEquals(steamId, null) && (!ReferenceEquals(steamId, 0)))
                 {
                     // Generate a session ID based on Steam ID
-                    CurrentSessionId = $"steam_{steamId}";
+                    currentHostId = $"steam_{steamId}";
                     
                     // Set status and log hosting details
                     IsHost = true;
                     Status = $"Hosting P2P: {steamId} (Waiting for connections)";
                     
                     // Log the hosting details
-                    Debug.Log($"[SimpleSessionManager] Hosting Steam P2P session with ID: {CurrentSessionId}");
+                    Debug.Log($"[SimpleSessionManager] Hosting Steam P2P session with ID: {currentHostId}");
                     
                     // Start the hosting session
                     UpdateSteamNetworking();
@@ -117,30 +117,25 @@ namespace GungeonTogether.Game
                     ETGSteamP2PNetworking.RegisterAsHost();
                     
                     // Update Steam Rich Presence to show GungeonTogether hosting
-                    SteamSessionHelper.UpdateRichPresence(true, CurrentSessionId);
+                    SteamSessionHelper.UpdateRichPresence(true, currentHostId);
                     
                     // Notify Steam networking to start hosting
                     if (!ReferenceEquals(steamNet, null))
                     {
                         steamNet.StartHostingSession();
                         
-                        // CRITICAL: Start actively checking for incoming connections immediately
-                        Debug.Log("[SimpleSessionManager] 🏠 Host is now actively accepting P2P connections");
-                        Debug.Log("[SimpleSessionManager] 🏠 Other players can now join this session");
                     }
                 }
                 else if (!ReferenceEquals(steamId, 0))
                 {
-                    CurrentSessionId = $"steam_{steamId}";
+                    currentHostId = $"steam_{steamId}";
                     Status = $"Hosting P2P: {steamId} (Waiting for connections)";
-                    Debug.Log($"[SimpleSessionManager] Hosting Steam P2P session: {steamId}");
-                    Debug.Log($"[SimpleSessionManager] Real P2P networking active - ready to accept connections");
                     
                     // Register as a GungeonTogether host for friends detection
                     ETGSteamP2PNetworking.RegisterAsHost();
                     
                     // Update Steam Rich Presence to show GungeonTogether hosting
-                    SteamSessionHelper.UpdateRichPresence(true, CurrentSessionId);
+                    SteamSessionHelper.UpdateRichPresence(true, currentHostId);
                     
                     // Setup Rich Presence and lobby for Steam overlay invites
                     steamNet.StartHostingSession();
@@ -154,8 +149,8 @@ namespace GungeonTogether.Game
             else
             {
                 // Fallback for offline mode
-                CurrentSessionId = GenerateSessionId();
-                Status = $"Hosting offline: {CurrentSessionId}";
+                currentHostId = GenerateSessionId();
+                Status = $"Hosting offline: {currentHostId}";
                 Debug.LogWarning("[SimpleSessionManager] Steam not available - hosting offline session");
             }
             
@@ -176,7 +171,7 @@ namespace GungeonTogether.Game
             IsActive = true;
             IsHost = false;
             Status = $"Connecting to Steam P2P session: {sessionId}";
-            CurrentSessionId = sessionId;
+            currentHostId = sessionId;
             connectedPlayers.Clear();
             
             Debug.Log("[SimpleSessionManager] Location validated - joining multiplayer session");
@@ -270,11 +265,11 @@ namespace GungeonTogether.Game
         public void StopSession()
         {
             var wasHosting = IsHost;
-            var sessionId = CurrentSessionId;
+            var sessionId = currentHostId;
             
             IsActive = false;
             IsHost = false;
-            CurrentSessionId = null;
+            currentHostId = null;
             Status = "Stopped";
             
             // Send disconnect packets to all connected players
@@ -888,11 +883,6 @@ namespace GungeonTogether.Game
             {
                 Debug.Log($"[SimpleSessionManager] Sending handshake request to host: {hostSteamId}");
         
-                // DIAGNOSTIC: Check Steam P2P status before sending
-                if (steamNet is ETGSteamP2PNetworking etgSteam)
-                {
-                    etgSteam.DiagnoseSteamP2PStatus();
-                }
                 
                 var packet = new byte[1 + 8]; // packet type + steam ID
                 packet[0] = PACKET_TYPE_HANDSHAKE_REQUEST;
@@ -1288,7 +1278,7 @@ namespace GungeonTogether.Game
                 }
                 else
                 {
-                    var hostSteamId = ExtractSteamIdFromSession(CurrentSessionId);
+                    var hostSteamId = ExtractSteamIdFromSession(currentHostId);
                     bool fullyConnected = connectedPlayers.ContainsKey(hostSteamId) && 
                                          connectedPlayers[hostSteamId].handshakeComplete;
                     
@@ -1640,11 +1630,6 @@ namespace GungeonTogether.Game
             {
                 if (!IsHost || ReferenceEquals(steamNet, null)) return;
                 
-                // Log periodically to show we're checking
-                if (Time.frameCount % 900 == 0) // Every 15 seconds at 60fps
-                {
-                    Debug.Log($"[SimpleSessionManager] HOST: Checking for incoming P2P requests (IsHost: {IsHost})");
-                }
                 
                 // First, check for join request notifications from joiners
                 if (ETGSteamP2PNetworking.CheckForJoinRequestNotifications(out ulong requestingSteamId))
@@ -1678,11 +1663,6 @@ namespace GungeonTogether.Game
                     }
                 }
                 
-                // Add frame-based logging to see if this is being called (reduced frequency)
-                if (Time.frameCount % 900 == 0) // Every 15 seconds at 60fps
-                {
-                    Debug.Log($"[SimpleSessionManager] 🏠 HOST: Actively checking for P2P requests (Frame: {Time.frameCount})");
-                }
                 
                 // Use our packet-based detection approach
                 CheckForUnknownSenders();
@@ -1699,16 +1679,6 @@ namespace GungeonTogether.Game
             try
             {
                 if (!IsHost || ReferenceEquals(steamNet, null)) return;
-                
-                // DIAGNOSTIC: Periodically check Steam status
-                if (Time.frameCount % 3600 == 0) // Every minute at 60fps
-                {
-                    Debug.Log($"[SimpleSessionManager] 🔍 HOST DIAGNOSTIC: Checking Steam P2P status...");
-                    if (steamNet is ETGSteamP2PNetworking etgSteam)
-                    {
-                        etgSteam.DiagnoseSteamP2PStatus();
-                    }
-                }
 
                 // Check for incoming packets from any sender
                 ulong senderSteamId;
@@ -1977,7 +1947,7 @@ namespace GungeonTogether.Game
                 Debug.Log($"[SimpleSessionManager] ✅ CONNECTION ESTABLISHED");
                 Debug.Log($"[SimpleSessionManager] ✅ My Steam ID: {mySteamId}");
                 Debug.Log($"[SimpleSessionManager] ✅ Connected to: {steamId}");
-                Debug.Log($"[SimpleSessionManager] ✅ Session ID: {CurrentSessionId}");
+                Debug.Log($"[SimpleSessionManager] ✅ Session ID: {currentHostId}");
                 Debug.Log($"[SimpleSessionManager] ✅ Role: {(IsHost ? "Host" : "Client")}");
                 Debug.Log($"[SimpleSessionManager] ✅ Connection is ready for multiplayer gameplay");
                 

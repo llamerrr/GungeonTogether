@@ -77,12 +77,6 @@ namespace GungeonTogether.Steam
                     Debug.Log($"[SimpleSteamJoin] Status check - P2P Instance available: {!ReferenceEquals(steamNet, null)}, IsCurrentlyHosting: {ETGSteamP2PNetworking.IsCurrentlyHosting}");
                 }
                 
-                // If we're hosting, broadcast our availability and check for join requests
-                if (ETGSteamP2PNetworking.IsCurrentlyHosting)
-                {
-                    UpdateHosting();
-                }
-                
                 // Always check for incoming join requests (in case we become a host)
                 CheckForJoinRequests();
             }
@@ -93,47 +87,6 @@ namespace GungeonTogether.Steam
                 {
                     Debug.LogWarning($"[SimpleSteamJoin] Error in update: {ex.Message}");
                 }
-            }
-        }
-        
-        /// <summary>
-        /// Update hosting functionality
-        /// </summary>
-        private static void UpdateHosting()
-        {
-            // Broadcast our availability every 5 seconds
-            if (Time.time - lastHostBroadcast > 5f)
-            {
-                BroadcastHostAvailability();
-                lastHostBroadcast = Time.time;
-            }
-        }
-        
-        /// <summary>
-        /// Broadcast that we're available for joining
-        /// </summary>
-        private static void BroadcastHostAvailability()
-        {
-            try
-            {
-                var steamNet = ETGSteamP2PNetworking.Instance;
-                if (ReferenceEquals(steamNet, null)) return;
-                
-                // Set Rich Presence to indicate we're hosting and available for join
-                steamNet.SetRichPresence("status", "Hosting GungeonTogether");
-                steamNet.SetRichPresence("steam_display", "#Status_HostingGT");
-                
-                // Set the connect field to our Steam ID so friends can join
-                var mySteamId = GetMySteamId();
-                if (mySteamId != 0)
-                {
-                    steamNet.SetRichPresence("connect", mySteamId.ToString());
-                    Debug.Log($"[SimpleSteamJoin] Broadcasting host availability - Steam ID: {mySteamId}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[SimpleSteamJoin] Error broadcasting host availability: {ex.Message}");
             }
         }
         
@@ -226,13 +179,13 @@ namespace GungeonTogether.Steam
             {
                 Debug.Log($"[SimpleSteamJoin] Handling join request from Steam ID: {steamId}");
                 
-                // Accept the P2P session
-                var steamNet = ETGSteamP2PNetworking.Instance;
-                if (!ReferenceEquals(steamNet, null))
-                {
-                    steamNet.AcceptP2PSession(steamId);
-                    Debug.Log($"[SimpleSteamJoin] Accepted P2P session with Steam ID: {steamId}");
-                }
+                // Commented out: AcceptP2PSession calls here are now handled in SteamCallbackManager.OnLobbyEnter
+                // var steamNet = ETGSteamP2PNetworking.Instance;
+                // if (!ReferenceEquals(steamNet, null))
+                // {
+                //     steamNet.AcceptP2PSession(steamId);
+                //     Debug.Log($"[SimpleSteamJoin] Accepted P2P session with Steam ID: {steamId}");
+                // }
                 
                 // Trigger the join event through the callback manager
                 SteamCallbackManager.TriggerJoinRequested(steamId);

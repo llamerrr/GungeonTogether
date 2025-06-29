@@ -43,8 +43,7 @@ namespace GungeonTogether.Steam
         {
             lastInvitedBySteamId = hostSteamId;
             lastInviteLobbyId = lobbyId;
-            Debug.Log($"[ETGSteamP2P] Auto-received invite from Steam ID: {hostSteamId}");
-            
+            // Debug.Log($"[ETGSteamP2P] Auto-received invite from Steam ID: {hostSteamId}");
             // Add to available hosts if not already there
             if (!availableHosts.ContainsKey(hostSteamId))
             {
@@ -56,7 +55,7 @@ namespace GungeonTogether.Steam
                     lastSeen = Time.time,
                     isActive = true
                 };
-                Debug.Log($"[ETGSteamP2P] Added host from invite: {hostSteamId}");
+                // Debug.Log($"[ETGSteamP2P] Added host from invite: {hostSteamId}");
             }
         }
         
@@ -84,20 +83,17 @@ namespace GungeonTogether.Steam
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogWarning($"[ETGSteamP2P] Could not get own Steam ID for host filtering: {ex.Message}");
+                    // Debug.LogWarning($"[ETGSteamP2P] Could not get own Steam ID for host filtering: {ex.Message}");
                 }
-                
                 // First priority: Direct invite (but not from ourselves)
                 if (!lastInvitedBySteamId.Equals(0UL) && !lastInvitedBySteamId.Equals(mySteamId))
                 {
-                    Debug.Log($"[ETGSteamP2P] Using direct invite: {lastInvitedBySteamId}");
+                    // Debug.Log($"[ETGSteamP2P] Using direct invite: {lastInvitedBySteamId}");
                     return lastInvitedBySteamId;
                 }
-                
                 // Second priority: Most recent active host (excluding ourselves)
                 ulong bestHost = 0;
                 float mostRecent = 0;
-                
                 foreach (var kvp in availableHosts)
                 {
                     var host = kvp.Value;
@@ -110,16 +106,14 @@ namespace GungeonTogether.Steam
                         mostRecent = host.lastSeen;
                     }
                 }
-                
-                if (!ReferenceEquals(bestHost,0))
-                {
-                    Debug.Log($"[ETGSteamP2P] Auto-selected best host: {bestHost}");
-                }
-                else
-                {
-                    Debug.Log("[ETGSteamP2P] No available hosts found (excluding self)");
-                }
-                
+                // if (!ReferenceEquals(bestHost,0))
+                // {
+                //     Debug.Log($"[ETGSteamP2P] Auto-selected best host: {bestHost}");
+                // }
+                // else
+                // {
+                //     Debug.Log("[ETGSteamP2P] No available hosts found (excluding self)");
+                // }
                 return bestHost;
             }
             catch (Exception e)
@@ -136,7 +130,7 @@ namespace GungeonTogether.Steam
         {
             lastInvitedBySteamId = 0;
             lastInviteLobbyId = "";
-            Debug.Log("[ETGSteamP2P] Cleared invite info");
+            // Debug.Log("[ETGSteamP2P] Cleared invite info");
         }
         
         /// <summary>
@@ -151,7 +145,6 @@ namespace GungeonTogether.Steam
                 {
                     currentHostSteamId = mySteamId;
                     isCurrentlyHosting = true;
-                    
                     availableHosts[mySteamId] = new HostInfo
                     {
                         steamId = mySteamId,
@@ -160,8 +153,7 @@ namespace GungeonTogether.Steam
                         lastSeen = Time.time,
                         isActive = true
                     };
-                    
-                    Debug.Log($"[ETGSteamP2P] Registered as host: {mySteamId}");
+                    // Debug.Log($"[ETGSteamP2P] Registered as host: {mySteamId}");
                 }
             }
             catch (Exception e)
@@ -180,9 +172,8 @@ namespace GungeonTogether.Steam
                 if (isCurrentlyHosting && (!ReferenceEquals(currentHostSteamId,0)))
                 {
                     availableHosts.Remove(currentHostSteamId);
-                    Debug.Log($"[ETGSteamP2P] Unregistered as host: {currentHostSteamId}");
+                    // Debug.Log($"[ETGSteamP2P] Unregistered as host: {currentHostSteamId}");
                 }
-                
                 currentHostSteamId = 0;
                 isCurrentlyHosting = false;
             }
@@ -209,7 +200,6 @@ namespace GungeonTogether.Steam
                         info.isActive = true;
                         availableHosts[currentHostSteamId] = info;
                     }
-                    
                     // In a real implementation, this would broadcast via P2P or Steam Rich Presence
                     // For now, we'll rely on Rich Presence and lobby system
                 }
@@ -235,9 +225,8 @@ namespace GungeonTogether.Steam
                     mySteamId = SteamReflectionHelper.GetSteamID();
                 } catch (Exception ex)
                 {
-                    Debug.LogWarning($"[ETGSteamP2P] Could not get own Steam ID for host filtering: {ex.Message}");
+                    // Debug.LogWarning($"[ETGSteamP2P] Could not get own Steam ID for host filtering: {ex.Message}");
                 }
-                
                 // Clean up old hosts
                 var hostsToRemove = new List<ulong>();
                 foreach (var kvp in availableHosts)
@@ -247,12 +236,10 @@ namespace GungeonTogether.Steam
                         hostsToRemove.Add(kvp.Key);
                     }
                 }
-                
                 foreach (var hostId in hostsToRemove)
                 {
                     availableHosts.Remove(hostId);
                 }
-                
                 // CRITICAL: Actively scan Steam friends for ETG players who might be hosting
                 try
                 {
@@ -260,9 +247,8 @@ namespace GungeonTogether.Steam
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogWarning($"[ETGSteamP2P] Error scanning friends for hosts: {ex.Message}");
+                    // Debug.LogWarning($"[ETGSteamP2P] Error scanning friends for hosts: {ex.Message}");
                 }
-                
                 // Return active host Steam IDs, excluding our own Steam ID
                 var activeHostsList = new List<ulong>();
                 foreach (var kvp in availableHosts)
@@ -272,12 +258,10 @@ namespace GungeonTogether.Steam
                         activeHostsList.Add(kvp.Key);
                     }
                 }
-                
-                if (mySteamId > 0 && activeHostsList.Count < availableHosts.Count)
-                {
-                    Debug.Log($"[ETGSteamP2P] Filtered out own Steam ID {mySteamId} from available hosts");
-                }
-                
+                // if (mySteamId > 0 && activeHostsList.Count < availableHosts.Count)
+                // {
+                //     Debug.Log($"[ETGSteamP2P] Filtered out own Steam ID {mySteamId} from available hosts");
+                // }
                 return activeHostsList.ToArray();
             }
             catch (Exception e)
@@ -303,12 +287,10 @@ namespace GungeonTogether.Steam
                         hostsToRemove.Add(kvp.Key);
                     }
                 }
-                
                 foreach (var hostId in hostsToRemove)
                 {
                     availableHosts.Remove(hostId);
                 }
-                
                 return new Dictionary<ulong, HostInfo>(availableHosts);
             }
             catch (Exception e)
@@ -329,59 +311,87 @@ namespace GungeonTogether.Steam
                 ulong steamId = SteamReflectionHelper.GetSteamID();
                 if (ReferenceEquals(steamId, 0))
                 {
-                    Debug.LogWarning("[ETGSteamP2P] Cannot start hosting session - Steam ID not available");
+                    Debug.LogError("[ETGSteamP2P] Cannot start hosting session - Steam ID not available");
                     return;
                 }
-                
                 // Set Rich Presence to show we're hosting
                 var setRichPresenceMethod = SteamReflectionHelper.SetRichPresenceMethod;
                 if (!ReferenceEquals(setRichPresenceMethod, null))
                 {
-                    // Set status to show we're in a multiplayer game
                     setRichPresenceMethod.Invoke(null, new object[] { "status", "In Game" });
                     setRichPresenceMethod.Invoke(null, new object[] { "steam_display", "#Status_InGame" });
                 }
-                
-                // Do NOT set connect string here; only set after lobby is created and valid
-                
                 // Register as host
                 RegisterAsHost();
-                
                 // Create lobby if possible
                 var createLobbyMethod = SteamReflectionHelper.CreateLobbyMethod;
                 if (!ReferenceEquals(createLobbyMethod, null))
                 {
                     try
                     {
-                        // Create a lobby for X players
-                        // to do: make max players configurable through the ui
-                        var result = createLobbyMethod.Invoke(null, new object[] { 1, 50 }); // ELobbyType.k_ELobbyTypePublic = 1
-                        Debug.Log($"[ETGSteamP2P] Created lobby: {result}");
+                        var result = createLobbyMethod.Invoke(null, new object[] { 1, 50 });
                         isLobbyHost = true;
-                        // Set the lobby ID from the result if possible
+                        ulong lobbyId = 0;
                         if (!ReferenceEquals(result, null))
                         {
-                            // Steamworks.NET returns a CSteamID or ulong for the lobby
-                            ulong lobbyId = 0;
+                            // Try to extract lobby ID robustly
                             if (result is ulong)
                             {
                                 lobbyId = (ulong)result;
                             }
-                            else if (!ReferenceEquals(result.GetType().GetProperty("m_SteamID"), null))
+                            else
                             {
-                                lobbyId = (ulong)result.GetType().GetProperty("m_SteamID").GetValue(result, null);
+                                var type = result.GetType();
+                                var mSteamIDProp = type.GetProperty("m_SteamID");
+                                var steamIDProp = type.GetProperty("steamID");
+                                var valueField = type.GetField("m_SteamID");
+                                var altValueField = type.GetField("steamID");
+                                if (!ReferenceEquals(mSteamIDProp, null))
+                                {
+                                    lobbyId = (ulong)mSteamIDProp.GetValue(result, null);
+                                }
+                                else if (!ReferenceEquals(steamIDProp, null))
+                                {
+                                    lobbyId = (ulong)steamIDProp.GetValue(result, null);
+                                }
+                                else if (!ReferenceEquals(valueField, null))
+                                {
+                                    lobbyId = (ulong)valueField.GetValue(result);
+                                }
+                                else if (!ReferenceEquals(altValueField, null))
+                                {
+                                    lobbyId = (ulong)altValueField.GetValue(result);
+                                }
+                                else
+                                {
+                                    // Try parsing ToString() as ulong
+                                    ulong parsedId = 0;
+                                    if (ulong.TryParse(result.ToString(), out parsedId) && !ReferenceEquals(parsedId, 0UL))
+                                    {
+                                        lobbyId = parsedId;
+                                    }
+                                    else
+                                    {
+                                        Debug.LogError($"[Host manager] Could not extract lobby ID from result of type {type.FullName}. ");
+                                        Debug.LogError($"[Host manager] Result: {result}");
+                                    }
+                                }
                             }
-                            if (!ReferenceEquals(lobbyId, 0))
-                            {
-                                currentLobbyId = lobbyId;
-                                // Set Rich Presence connect string to the correct lobby ID
-                                UpdateRichPresenceConnectToLobby();
-                            }
+                        }
+                        if (!ReferenceEquals(lobbyId, 0))
+                        {
+                            currentLobbyId = lobbyId;
+                            Debug.Log($"[Host manager] Hosting lobby with ID: {currentLobbyId}");
+                            UpdateRichPresenceConnectToLobby();
+                        }
+                        else
+                        {
+                            Debug.LogError($"[Host manager] Failed to get valid lobby ID from CreateLobby result. Result: {result}");
                         }
                     }
                     catch (Exception e)
                     {
-                        Debug.LogWarning($"[ETGSteamP2P] Could not create lobby: {e.Message}");
+                        Debug.LogError($"[ETGSteamP2P] Could not create lobby: {e.Message}");
                     }
                 }
             }
@@ -517,6 +527,7 @@ namespace GungeonTogether.Steam
                         if (!ReferenceEquals(lobbyId, 0))
                         {
                             currentLobbyId = lobbyId;
+                            Debug.Log($"[ETGSteamP2P] Hosting lobby with ID: {currentLobbyId}");
                             UpdateRichPresenceConnectToLobby();
                         }
                         return true;
@@ -612,12 +623,12 @@ namespace GungeonTogether.Steam
                 
                 lastHostScan = Time.time;
                 
-                Debug.Log("[SteamHostManager] Scanning friends for GungeonTogether hosts...");
+                // Debug.Log("[SteamHostManager] Scanning friends for GungeonTogether hosts...");
                 
                 // Get Steam friends who are playing ETG
                 var friends = SteamFriendsHelper.GetSteamFriends();
                 
-                Debug.Log($"[ETGSteamP2P] Scanning {friends.Length} Steam friends for GungeonTogether hosts...");
+                // Debug.Log($"[ETGSteamP2P] Scanning {friends.Length} Steam friends for GungeonTogether hosts...");
                 
                 int etgPlayersFound = 0;
                 int actualHostsFound = 0;
@@ -629,7 +640,7 @@ namespace GungeonTogether.Steam
                     {
                         etgPlayersFound++;
                         
-                        Debug.Log($"[ETGSteamP2P] Found friend {friend.name} ({friend.steamId}) playing ETG - checking if hosting GungeonTogether...");
+                        // Debug.Log($"[ETGSteamP2P] Found friend {friend.name} ({friend.steamId}) playing ETG - checking if hosting GungeonTogether...");
                         
                         // Check if this friend is actually hosting GungeonTogether by checking Rich Presence
                         bool isHostingGungeonTogether = false;
@@ -719,8 +730,8 @@ namespace GungeonTogether.Steam
             var setRichPresenceMethod = SteamReflectionHelper.SetRichPresenceMethod;
             if (!ReferenceEquals(setRichPresenceMethod, null) && !ReferenceEquals(currentLobbyId, 0))
             {
+                Debug.Log($"[Host Manager] Setting Rich Presence 'connect' to lobby ID: {currentLobbyId}");
                 setRichPresenceMethod.Invoke(null, new object[] { "connect", currentLobbyId.ToString() });
-                Debug.Log($"[ETGSteamP2P] Set Rich Presence connect string to lobby ID: {currentLobbyId}");
             }
         }
     }

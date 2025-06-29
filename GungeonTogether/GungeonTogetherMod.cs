@@ -199,20 +199,6 @@ namespace GungeonTogether
                 }
             }
             
-            // Run Steam join diagnostics periodically
-            try
-            {
-                SteamJoinDiagnostics.RunJoinDiagnostics();
-            }
-            catch (Exception e)
-            {
-                // Only log errors occasionally
-                if (Time.frameCount % 600 == 0) // Every 10 seconds at 60fps
-                {
-                    Logger.LogWarning($"Error running Steam diagnostics: {e.Message}");
-                }
-            }
-            
             // CRITICAL: Prevent game pausing when hosting a multiplayer session
             if (_sessionManager is not null && _sessionManager.IsActive && _sessionManager.IsHost)
             {

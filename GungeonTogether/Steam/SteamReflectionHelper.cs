@@ -90,14 +90,15 @@ namespace GungeonTogether.Steam
                 
                 if (ReferenceEquals(steamworksAssembly, null))
                 {
-                    Debug.LogWarning("[ETGSteamP2P] Assembly-CSharp-firstpass not found - Steamworks.NET not available");
+                    // Commented out verbose logs for production cleanliness
+                    // Debug.LogWarning("[ETGSteamP2P] Assembly-CSharp-firstpass not found - Steamworks.NET not available");
                     return;
                 }
                 
                 // Cache the assembly for future use
                 cachedSteamworksAssembly = steamworksAssembly;
                 
-                Debug.Log("[ETGSteamP2P] Found Assembly-CSharp-firstpass with Steamworks.NET");
+                // Debug.Log("[ETGSteamP2P] Found Assembly-CSharp-firstpass with Steamworks.NET");
                 
                 // Find Steam types in Steamworks namespace (discovered via diagnostics)
                 steamUserType = steamworksAssembly.GetType("Steamworks.SteamUser", false);
@@ -133,11 +134,11 @@ namespace GungeonTogether.Steam
                 
                 if (initialized)
                 {
-                    Debug.Log("[ETGSteamP2P] Steam types initialized successfully!");
+                    // Debug.Log("[ETGSteamP2P] Steam types initialized successfully!");
                 }
                 else
                 {
-                    Debug.LogWarning("[ETGSteamP2P] Steam networking types not found - ETG may not have P2P networking support");
+                    // Debug.LogWarning("[ETGSteamP2P] Steam networking types not found - ETG may not have P2P networking support");
                 }
             }
             catch (Exception e)
@@ -177,20 +178,20 @@ namespace GungeonTogether.Steam
                 closeP2PSessionMethod = steamNetworkingType.GetMethod("CloseP2PSessionWithUser", BindingFlags.Public | BindingFlags.Static);
                 
                 // Debug output for packet methods
-                Debug.Log($"[ETGSteamP2P] Packet methods found:");
-                Debug.Log($"[ETGSteamP2P]   ReadP2PPacket: {(!ReferenceEquals(readP2PPacketMethod, null) ? "Found" : "Not found")}");
-                Debug.Log($"[ETGSteamP2P]   ReadP2PSessionRequest: {(!ReferenceEquals(readP2PSessionRequestMethod, null) ? "Found" : "Not found")}");
-                Debug.Log($"[ETGSteamP2P]   IsP2PPacketAvailable: {(!ReferenceEquals(isP2PPacketAvailableMethod, null) ? "Found" : "Not found")}");
-                Debug.Log($"[ETGSteamP2P]   AcceptP2PSessionWithUser: {(!ReferenceEquals(acceptP2PSessionMethod, null) ? "Found" : "Not found")}");
-                Debug.Log($"[ETGSteamP2P]   CloseP2PSessionWithUser: {(!ReferenceEquals(closeP2PSessionMethod, null) ? "Found" : "Not found")}");
+                // Debug.Log($"[ETGSteamP2P] Packet methods found:");
+                // Debug.Log($"[ETGSteamP2P]   ReadP2PPacket: {(!ReferenceEquals(readP2PPacketMethod, null) ? "Found" : "Not found")}");
+                // Debug.Log($"[ETGSteamP2P]   ReadP2PSessionRequest: {(!ReferenceEquals(readP2PSessionRequestMethod, null) ? "Found" : "Not found")}");
+                // Debug.Log($"[ETGSteamP2P]   IsP2PPacketAvailable: {(!ReferenceEquals(isP2PPacketAvailableMethod, null) ? "Found" : "Not found")}");
+                // Debug.Log($"[ETGSteamP2P]   AcceptP2PSessionWithUser: {(!ReferenceEquals(acceptP2PSessionMethod, null) ? "Found" : "Not found")}");
+                // Debug.Log($"[ETGSteamP2P]   CloseP2PSessionWithUser: {(!ReferenceEquals(closeP2PSessionMethod, null) ? "Found" : "Not found")}");
                 
                 // Log all available networking methods for debugging
                 if (ReferenceEquals(readP2PPacketMethod, null) || ReferenceEquals(isP2PPacketAvailableMethod, null))
                 {
-                    Debug.LogWarning("[ETGSteamP2P] P2P packet reception methods not found!");
+                    // Debug.LogWarning("[ETGSteamP2P] P2P packet reception methods not found!");
                     // List all methods containing "P2P" for debugging
                     var allMethods = steamNetworkingType.GetMethods(BindingFlags.Public | BindingFlags.Static);
-                    Debug.Log("[ETGSteamP2P] Available SteamNetworking methods containing 'P2P':");
+                    // Debug.Log("[ETGSteamP2P] Available SteamNetworking methods containing 'P2P':");
                     foreach (var method in allMethods)
                     {
                         if (method.Name.Contains("P2P"))
@@ -202,7 +203,7 @@ namespace GungeonTogether.Steam
                                 if (i > 0) paramStr += ", ";
                                 paramStr += parameters[i].ParameterType.Name + " " + parameters[i].Name;
                             }
-                            Debug.Log($"[ETGSteamP2P]   {method.Name}({paramStr})");
+                            // Debug.Log($"[ETGSteamP2P]   {method.Name}({paramStr})");
                         }
                     }
                 }
@@ -224,13 +225,13 @@ namespace GungeonTogether.Steam
                 getFriendGamePlayedMethod = steamFriendsType.GetMethod("GetFriendGamePlayed", BindingFlags.Public | BindingFlags.Static);
                 getFriendRichPresenceMethod = steamFriendsType.GetMethod("GetFriendRichPresence", BindingFlags.Public | BindingFlags.Static);
                 
-                Debug.Log($"[ETGSteamP2P] Friends methods found:");
-                Debug.Log($"  GetFriendCount: {(!ReferenceEquals(getFriendCountMethod, null) ? "Found" : "Not found")}");
-                Debug.Log($"  GetFriendByIndex: {(!ReferenceEquals(getFriendByIndexMethod, null) ? "Found" : "Not found")}");
-                Debug.Log($"  GetFriendPersonaName: {(!ReferenceEquals(getFriendPersonaNameMethod, null) ? "Found" : "Not found")}");
-                Debug.Log($"  GetFriendPersonaState: {(!ReferenceEquals(getFriendPersonaStateMethod, null) ? "Found" : "Not found")}");
-                Debug.Log($"  GetFriendGamePlayed: {(!ReferenceEquals(getFriendGamePlayedMethod, null) ? "Found" : "Not found")}");
-                Debug.Log($"  GetFriendRichPresence: {(!ReferenceEquals(getFriendRichPresenceMethod, null) ? "Found" : "Not found")}");
+                // Debug.Log($"[ETGSteamP2P] Friends methods found:");
+                // Debug.Log($"  GetFriendCount: {(!ReferenceEquals(getFriendCountMethod, null) ? "Found" : "Not found")}");
+                // Debug.Log($"  GetFriendByIndex: {(!ReferenceEquals(getFriendByIndexMethod, null) ? "Found" : "Not found")}");
+                // Debug.Log($"  GetFriendPersonaName: {(!ReferenceEquals(getFriendPersonaNameMethod, null) ? "Found" : "Not found")}");
+                // Debug.Log($"  GetFriendPersonaState: {(!ReferenceEquals(getFriendPersonaStateMethod, null) ? "Found" : "Not found")}");
+                // Debug.Log($"  GetFriendGamePlayed: {(!ReferenceEquals(getFriendGamePlayedMethod, null) ? "Found" : "Not found")}");
+                // Debug.Log($"  GetFriendRichPresence: {(!ReferenceEquals(getFriendRichPresenceMethod, null) ? "Found" : "Not found")}");
                 
                 // Log GetFriendGamePlayed method signature for debugging
                 if (!ReferenceEquals(getFriendGamePlayedMethod, null))
@@ -243,7 +244,7 @@ namespace GungeonTogether.Steam
                         string prefix = parameters[i].IsOut ? "out " : (parameters[i].ParameterType.IsByRef ? "ref " : "");
                         paramStr += $"{prefix}{parameters[i].ParameterType.Name} {parameters[i].Name}";
                     }
-                    Debug.Log($"[ETGSteamP2P]   GetFriendGamePlayed signature: {getFriendGamePlayedMethod.ReturnType.Name} GetFriendGamePlayed({paramStr})");
+                    // Debug.Log($"[ETGSteamP2P]   GetFriendGamePlayed signature: {getFriendGamePlayedMethod.ReturnType.Name} GetFriendGamePlayed({paramStr})");
                 }
             }
         }
@@ -282,7 +283,7 @@ namespace GungeonTogether.Steam
                     }
                 }
                 
-                Debug.Log($"[ETGSteamP2P] Found {sendMethods.Count} SendP2PPacket method signatures:");
+                // Debug.Log($"[ETGSteamP2P] Found {sendMethods.Count} SendP2PPacket method signatures:");
                 
                 for (int i = 0; i < sendMethods.Count; i++)
                 {
@@ -296,7 +297,7 @@ namespace GungeonTogether.Steam
                         paramStr += parameters[j].ParameterType.Name + " " + parameters[j].Name;
                     }
                     
-                    Debug.Log($"[ETGSteamP2P]   Signature {i}: {method.Name}({paramStr})");
+                    // Debug.Log($"[ETGSteamP2P]   Signature {i}: {method.Name}({paramStr})");
                 }
                 
                 // Use the first one as default, but we'll try different signatures in TryDifferentSendSignatures
@@ -318,7 +319,7 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                Debug.Log("[ETGSteamP2P] Discovering IsP2PPacketAvailable method signature...");
+                // Debug.Log("[ETGSteamP2P] Discovering IsP2PPacketAvailable method signature...");
                 
                 var allMethodsTemp = steamNetworkingType.GetMethods(BindingFlags.Public | BindingFlags.Static);
                 var allMethodsList = new List<MethodInfo>();
@@ -334,7 +335,7 @@ namespace GungeonTogether.Steam
                 
                 var allMethods = allMethodsList.ToArray();
                 
-                Debug.Log($"[ETGSteamP2P] Found {allMethods.Length} IsP2PPacketAvailable method(s)");
+                // Debug.Log($"[ETGSteamP2P] Found {allMethods.Length} IsP2PPacketAvailable method(s)");
                 
                 foreach (var method in allMethods)
                 {
@@ -350,7 +351,7 @@ namespace GungeonTogether.Steam
                     
                     var paramStr = string.Join(", ", paramParts.ToArray());
                     
-                    Debug.Log($"[ETGSteamP2P]   Signature: {method.ReturnType.Name} IsP2PPacketAvailable({paramStr})");
+                    // Debug.Log($"[ETGSteamP2P]   Signature: {method.ReturnType.Name} IsP2PPacketAvailable({paramStr})");
                     
                     // Look for the most common signature: bool IsP2PPacketAvailable(out uint, int)
                     if (parameters.Length >= 1 && parameters.Length <= 2)
@@ -366,13 +367,13 @@ namespace GungeonTogether.Steam
                             
                             // Log the exact signature we selected for debugging
                             var selectedParamStr = string.Join(", ", paramParts.ToArray());
-                            Debug.Log($"[ETGSteamP2P] ✅ Selected IsP2PPacketAvailable with out uint parameter");
-                            Debug.Log($"[ETGSteamP2P] ✅ Selected signature: {method.ReturnType.Name} IsP2PPacketAvailable({selectedParamStr})");
-                            Debug.Log($"[ETGSteamP2P] ✅ Parameter count: {parameters.Length}");
+                            // Debug.Log($"[ETGSteamP2P] ✅ Selected IsP2PPacketAvailable with out uint parameter");
+                            // Debug.Log($"[ETGSteamP2P] ✅ Selected signature: {method.ReturnType.Name} IsP2PPacketAvailable({selectedParamStr})");
+                            // Debug.Log($"[ETGSteamP2P] ✅ Parameter count: {parameters.Length}");
                             for (int i = 0; i < parameters.Length; i++)
                             {
                                 var p = parameters[i];
-                                Debug.Log($"[ETGSteamP2P] ✅ Param {i}: {(p.IsOut ? "out " : "")}{p.ParameterType.Name} {p.Name}");
+                                // Debug.Log($"[ETGSteamP2P] ✅ Param {i}: {(p.IsOut ? "out " : "")}{p.ParameterType.Name} {p.Name}");
                             }
                             return;
                         }
@@ -391,12 +392,12 @@ namespace GungeonTogether.Steam
                         fallbackParamParts.Add($"{prefix}{p.ParameterType.Name} {p.Name}");
                     }
                     var fallbackParamStr = string.Join(", ", fallbackParamParts.ToArray());
-                    Debug.Log($"[ETGSteamP2P] ⚠️ Using fallback IsP2PPacketAvailable method");
-                    Debug.Log($"[ETGSteamP2P] ⚠️ Fallback signature: {isP2PPacketAvailableMethod.ReturnType.Name} IsP2PPacketAvailable({fallbackParamStr})");
+                    // Debug.Log($"[ETGSteamP2P] ⚠️ Using fallback IsP2PPacketAvailable method");
+                    // Debug.Log($"[ETGSteamP2P] ⚠️ Fallback signature: {isP2PPacketAvailableMethod.ReturnType.Name} IsP2PPacketAvailable({fallbackParamStr})");
                 }
                 else
                 {
-                    Debug.LogWarning("[ETGSteamP2P] ❌ No IsP2PPacketAvailable method found!");
+                    // Debug.LogWarning("[ETGSteamP2P] ❌ No IsP2PPacketAvailable method found!");
                 }
             }
             catch (Exception e)
@@ -823,7 +824,7 @@ namespace GungeonTogether.Steam
                 if (!ReferenceEquals(result, null))
                 {
                     var ownerSteamId = ExtractSteamId(result);
-                    Debug.Log($"[ETGSteamP2P] GetLobbyOwner: Lobby {lobbyId} is owned by Steam ID {ownerSteamId}");
+                    // Debug.Log($"[ETGSteamP2P] GetLobbyOwner: Lobby {lobbyId} is owned by Steam ID {ownerSteamId}");
                     return ownerSteamId;
                 }
                 

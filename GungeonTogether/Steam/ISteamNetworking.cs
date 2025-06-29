@@ -18,7 +18,6 @@ namespace GungeonTogether.Steam
         // Rich Presence and lobby methods for Steam overlay invites
         bool SetRichPresence(string key, string value);
         bool ClearRichPresence();
-        bool CreateLobby(int maxPlayers = 4);
         bool JoinLobby(ulong lobbyId);
         bool LeaveLobby();
         bool SetLobbyData(string key, string value);

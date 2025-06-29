@@ -46,12 +46,10 @@ namespace GungeonTogether.Steam
             {
                 Instance = this;
                 isInitialized = false; // Will be set to true when/if initialization succeeds
-
                 // Wire up Steam callback events
                 SteamCallbackManager.OnOverlayJoinRequested += HandleOverlayJoinRequest;
                 SteamCallbackManager.OnJoinRequested += HandleJoinRequested;
-
-                Debug.Log("[ETGSteamP2P] Created Steam P2P networking instance (lazy initialization)");
+                // Debug.Log("[ETGSteamP2P] Created Steam P2P networking instance (lazy initialization)");
             }
             catch (Exception e)
             {
@@ -66,7 +64,6 @@ namespace GungeonTogether.Steam
         private void EnsureInitialized()
         {
             if (isInitialized) return;
-
             try
             {
                 // Initialize Steam reflection helper
@@ -81,34 +78,22 @@ namespace GungeonTogether.Steam
                 isP2PPacketAvailableMethod = SteamReflectionHelper.IsP2PPacketAvailableMethod;
 
                 isInitialized = SteamReflectionHelper.IsInitialized;
-
                 if (isInitialized)
                 {
-                    // Initialize Steam callbacks for overlay join functionality
                     SteamCallbackManager.InitializeSteamCallbacks();
-
-                    // Check callback registration status
-                    if (SteamCallbackManager.AreCallbacksRegistered)
-                    {
-                        Debug.Log("[ETGSteamP2P] Steam join callbacks registered - invites should work");
-                    }
-                    else
-                    {
-                        Debug.LogWarning("[ETGSteamP2P] Steam join callbacks NOT registered - invites may not work");
-                    }
-
-                    // Process any pending join requests that arrived during early initialization
-                    SteamCallbackManager.ProcessPendingJoinRequests();
-                }
-                else
-                {
-                    Debug.LogWarning("[ETGSteamP2P] Steam networking not available - ETG may not have P2P support");
+                    // if (SteamCallbackManager.AreCallbacksRegistered)
+                    // {
+                    //     Debug.Log("[ETGSteamP2P] Steam join callbacks registered - invites should work");
+                    // }
+                    // else
+                    // {
+                    //     Debug.LogWarning("[ETGSteamP2P] Steam join callbacks NOT registered - invites may not work");
+                    // }
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[ETGSteamP2P] Failed to initialize Steam types: {e.Message}");
-                isInitialized = false;
             }
         }
 
@@ -185,7 +170,7 @@ namespace GungeonTogether.Steam
 
                         foreach (var sendMode in sendModes)
                         {
-                            Debug.Log($"[ETGSteamP2P] 📤 Attempting send with mode {sendMode}...");
+                            // Debug.Log($"[ETGSteamP2P] 📤 Attempting send with mode {sendMode}...");
 
                             // Call: SendP2PPacket(CSteamID steamIDRemote, byte[] data, uint cubData, EP2PSend eP2PSendType, int nChannel)
                             object result = sendP2PPacketMethod.Invoke(null, new object[]
@@ -609,22 +594,6 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                EnsureInitialized();
-
-                var setRichPresenceMethod = SteamReflectionHelper.SetRichPresenceMethod;
-                if (!ReferenceEquals(setRichPresenceMethod, null))
-                {
-                    object result = setRichPresenceMethod.Invoke(null, new object[] { key, value });
-                    if (!ReferenceEquals(result, null) && result is bool success)
-                    {
-                        if (success)
-                        {
-                            Debug.Log($"[ETGSteamP2P] Set Rich Presence - {key}: {value}");
-                            return true;
-                        }
-                    }
-                }
-
                 return false;
             }
             catch (Exception e)
@@ -662,23 +631,6 @@ namespace GungeonTogether.Steam
             catch (Exception e)
             {
                 Debug.LogError($"[ETGSteamP2P] Error clearing Rich Presence: {e.Message}");
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Create a Steam lobby for multiplayer session
-        /// </summary>
-        public bool CreateLobby(int maxPlayers = 4)
-        {
-            try
-            {
-                EnsureInitialized();
-                return SteamHostManager.CreateLobby(maxPlayers);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[ETGSteamP2P] Error creating lobby: {e.Message}");
                 return false;
             }
         }
@@ -1023,51 +975,10 @@ namespace GungeonTogether.Steam
             try
             {
                 EnsureInitialized();
-
-                // Log the method signature for debugging (only once per session)
-                if (!ReferenceEquals(readP2PPacketMethod, null) && Time.frameCount % 1800 == 0) // Every 30 seconds at 60fps
-                {
-                    var parameters = readP2PPacketMethod.GetParameters();
-                    var paramStr = "";
-                    for (int i = 0; i < parameters.Length; i++)
-                    {
-                        if (i > 0) paramStr += ", ";
-                        string prefix = parameters[i].IsOut ? "out " : (parameters[i].ParameterType.IsByRef ? "ref " : "");
-                        paramStr += $"{prefix}{parameters[i].ParameterType.Name} {parameters[i].Name}";
-                    }
-                    Debug.Log($"[ETGSteamP2P] 🔍 ReadP2PPacket signature: {readP2PPacketMethod.ReturnType.Name} ReadP2PPacket({paramStr})");
-                }
-                
-                // Also log IsP2PPacketAvailable signature
-                if (!ReferenceEquals(isP2PPacketAvailableMethod, null) && Time.frameCount % 1800 == 0)
-                {
-                    var parameters = isP2PPacketAvailableMethod.GetParameters();
-                    var paramStr = "";
-                    for (int i = 0; i < parameters.Length; i++)
-                    {
-                        if (i > 0) paramStr += ", ";
-                        string prefix = parameters[i].IsOut ? "out " : (parameters[i].ParameterType.IsByRef ? "ref " : "");
-                        paramStr += $"{prefix}{parameters[i].ParameterType.Name} {parameters[i].Name}";
-                    }
-                    Debug.Log($"[ETGSteamP2P] 🔍 IsP2PPacketAvailable signature: {isP2PPacketAvailableMethod.ReturnType.Name} IsP2PPacketAvailable({paramStr})");
-                }
-
+            
                 // Check if packets are available first using the smart helper
                 uint packetSize = 0;
                 bool hasPacket = SteamReflectionHelper.CallIsP2PPacketAvailable(out packetSize, 0);
-                
-                if (!hasPacket)
-                {
-                    // Add periodic debug logging
-                    if (Time.frameCount % 600 == 0) // Every 10 seconds at 60fps
-                    {
-                        Debug.Log($"[ETGSteamP2P] 📭 No packets available (Frame: {Time.frameCount})");
-                    }
-                    return false;
-                }
-
-                Debug.Log($"[ETGSteamP2P] 📬 PACKET DETECTED! Size: {packetSize}");
-
                 // Try to read the packet
                 if (!ReferenceEquals(readP2PPacketMethod, null))
                 {
@@ -1110,65 +1021,65 @@ namespace GungeonTogether.Steam
                         }
                     }
                     
-                    // Method 2: Try with ulong Steam ID
-                    if (!packetReadSuccess)
-                    {
-                        try
-                        {
-                            uint outSize = 0;
-                            ulong outSteamId = 0;
-                            int channel = 0;
+                    // // Method 2: Try with ulong Steam ID
+                    // if (!packetReadSuccess)
+                    // {
+                    //     try
+                    //     {
+                    //         uint outSize = 0;
+                    //         ulong outSteamId = 0;
+                    //         int channel = 0;
                             
-                            object[] params2 = new object[] { buffer, bufferSize, outSize, outSteamId, channel };
-                            object result2 = readP2PPacketMethod.Invoke(null, params2);
+                    //         object[] params2 = new object[] { buffer, bufferSize, outSize, outSteamId, channel };
+                    //         object result2 = readP2PPacketMethod.Invoke(null, params2);
                             
-                            if (result2 is bool success2 && success2)
-                            {
-                                actualSize = Convert.ToUInt32(params2[2]);
-                                senderSteamIdOut = Convert.ToUInt64(params2[3]);
+                    //         if (result2 is bool success2 && success2)
+                    //         {
+                    //             actualSize = Convert.ToUInt32(params2[2]);
+                    //             senderSteamIdOut = Convert.ToUInt64(params2[3]);
                                 
-                                if (actualSize > 0 && senderSteamIdOut > 0)
-                                {
-                                    packetReadSuccess = true;
-                                    Debug.Log($"[ETGSteamP2P] 📨 PACKET READ SUCCESS (ulong method): {actualSize} bytes from {senderSteamIdOut}");
-                                }
-                            }
-                        }
-                        catch (Exception ex2)
-                        {
-                            Debug.Log($"[ETGSteamP2P] ReadP2PPacket ulong method failed: {ex2.Message}");
-                        }
-                    }
+                    //             if (actualSize > 0 && senderSteamIdOut > 0)
+                    //             {
+                    //                 packetReadSuccess = true;
+                    //                 Debug.Log($"[ETGSteamP2P] 📨 PACKET READ SUCCESS (ulong method): {actualSize} bytes from {senderSteamIdOut}");
+                    //             }
+                    //         }
+                    //     }
+                    //     catch (Exception ex2)
+                    //     {
+                    //         Debug.Log($"[ETGSteamP2P] ReadP2PPacket ulong method failed: {ex2.Message}");
+                    //     }
+                    // }
                     
-                    // Method 3: Try simpler signature without buffer size
-                    if (!packetReadSuccess)
-                    {
-                        try
-                        {
-                            uint outSize = 0;
-                            ulong outSteamId = 0;
-                            int channel = 0;
+                    // // Method 3: Try simpler signature without buffer size
+                    // if (!packetReadSuccess)
+                    // {
+                    //     try
+                    //     {
+                    //         uint outSize = 0;
+                    //         ulong outSteamId = 0;
+                    //         int channel = 0;
                             
-                            object[] params3 = new object[] { buffer, outSize, outSteamId, channel };
-                            object result3 = readP2PPacketMethod.Invoke(null, params3);
+                    //         object[] params3 = new object[] { buffer, outSize, outSteamId, channel };
+                    //         object result3 = readP2PPacketMethod.Invoke(null, params3);
                             
-                            if (result3 is bool success3 && success3)
-                            {
-                                actualSize = Convert.ToUInt32(params3[1]);
-                                senderSteamIdOut = Convert.ToUInt64(params3[2]);
+                    //         if (result3 is bool success3 && success3)
+                    //         {
+                    //             actualSize = Convert.ToUInt32(params3[1]);
+                    //             senderSteamIdOut = Convert.ToUInt64(params3[2]);
                                 
-                                if (actualSize > 0 && senderSteamIdOut > 0)
-                                {
-                                    packetReadSuccess = true;
-                                    Debug.Log($"[ETGSteamP2P] 📨 PACKET READ SUCCESS (simple method): {actualSize} bytes from {senderSteamIdOut}");
-                                }
-                            }
-                        }
-                        catch (Exception ex3)
-                        {
-                            Debug.Log($"[ETGSteamP2P] ReadP2PPacket simple method failed: {ex3.Message}");
-                        }
-                    }
+                    //             if (actualSize > 0 && senderSteamIdOut > 0)
+                    //             {
+                    //                 packetReadSuccess = true;
+                    //                 Debug.Log($"[ETGSteamP2P] 📨 PACKET READ SUCCESS (simple method): {actualSize} bytes from {senderSteamIdOut}");
+                    //             }
+                    //         }
+                    //     }
+                    //     catch (Exception ex3)
+                    //     {
+                    //         Debug.Log($"[ETGSteamP2P] ReadP2PPacket simple method failed: {ex3.Message}");
+                    //     }
+                    // }
                     
                     // If we successfully read a packet, process it
                     if (packetReadSuccess && actualSize > 0 && senderSteamIdOut > 0)
@@ -1311,38 +1222,6 @@ namespace GungeonTogether.Steam
         }
         
         /// <summary>
-        /// Check Steam API status and P2P connectivity
-        /// </summary>
-        public void DiagnoseSteamP2PStatus()
-        {
-            try
-            {
-                Debug.Log($"[ETGSteamP2P] 🔍 STEAM P2P DIAGNOSTIC REPORT");
-                Debug.Log($"[ETGSteamP2P] ================================");
-                
-                // Check if Steam is running and get basic info
-                var mySteamId = GetSteamID();
-                Debug.Log($"[ETGSteamP2P] My Steam ID: {mySteamId}");
-                
-                // Check Steam initialization
-                Debug.Log($"[ETGSteamP2P] Steam reflection initialized: {SteamReflectionHelper.IsInitialized}");
-                Debug.Log($"[ETGSteamP2P] ETGSteamP2P initialized: {isInitialized}");
-                
-                // Check P2P networking status
-                Debug.Log($"[ETGSteamP2P] SendP2PPacket method available: {!ReferenceEquals(sendP2PPacketMethod, null)}");
-                Debug.Log($"[ETGSteamP2P] ReadP2PPacket method available: {!ReferenceEquals(readP2PPacketMethod, null)}");
-                Debug.Log($"[ETGSteamP2P] IsP2PPacketAvailable method available: {!ReferenceEquals(isP2PPacketAvailableMethod, null)}");
-                Debug.Log($"[ETGSteamP2P] AcceptP2PSession method available: {!ReferenceEquals(SteamReflectionHelper.AcceptP2PSessionMethod, null)}");
-                
-                Debug.Log($"[ETGSteamP2P] ================================");
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[ETGSteamP2P] Error in diagnostic: {e.Message}");
-            }
-        }
-
-        /// <summary>
         /// Monitor for incoming P2P connections (for hosts to detect joiners)
         /// </summary>
         public static bool DetectIncomingJoinAttempts(out ulong requestingSteamId)
@@ -1447,14 +1326,6 @@ namespace GungeonTogether.Steam
                 {
                     Debug.LogWarning("[ETGSteamP2P] Instance not available for checking join requests");
                     return false;
-                }
-                
-                // Log periodically to show we're checking
-                if (Time.frameCount % 900 == 0) // Every 15 seconds at 60fps
-                {
-                    Debug.Log("[ETGSteamP2P] HOST: Actively checking for join request notifications...");
-                    Debug.Log($"[ETGSteamP2P] HOST: Instance initialized: {instance.isInitialized}");
-                    Debug.Log($"[ETGSteamP2P] HOST: HasP2PPacketsAvailable: {instance.HasP2PPacketsAvailable()}");
                 }
                 
                 if (!instance.HasP2PPacketsAvailable())

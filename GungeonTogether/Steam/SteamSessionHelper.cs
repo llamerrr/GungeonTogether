@@ -322,7 +322,7 @@ namespace GungeonTogether.Steam
                 }
                 
                 Debug.Log("[SteamSessionHelper] 💌 Opening Steam invite dialog...");
-                Debug.Log($"[SteamSessionHelper] 🎯 Current session: {sessionManager.CurrentSessionId}");
+                Debug.Log($"[SteamSessionHelper] 🎯 Current session: {sessionManager.currentHostId}");
                 
                 // In real implementation:
                 // SteamFriends.ActivateGameOverlayInviteDialog(currentLobbyId);
