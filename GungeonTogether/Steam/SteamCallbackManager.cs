@@ -176,20 +176,20 @@ namespace GungeonTogether.Steam
                 }
 
                 // Find our handler method
-                MethodInfo handlerMethod = typeof(SteamCallbackManager).GetMethod(handlerMethodName, BindingFlags.NonPublic | BindingFlags.Static);
-                if (ReferenceEquals(handlerMethod, null))
+                // Instead of using the object-based handler directly, use the generic wrapper
+                MethodInfo genericWrapper = typeof(SteamCallbackManager).GetMethod("GenericCallbackWrapper", BindingFlags.NonPublic | BindingFlags.Static);
+                if (ReferenceEquals(genericWrapper, null))
                 {
-                    Debug.LogWarning($"[SteamCallbackManager] [TryRegisterCallback] handlerMethod {handlerMethodName} not found");
+                    Debug.LogWarning($"[SteamCallbackManager] [TryRegisterCallback] GenericCallbackWrapper not found");
                     return false;
                 }
-
+                MethodInfo constructedWrapper = genericWrapper.MakeGenericMethod(callbackDataType);
                 // Log the types and method info for diagnosis
-                Debug.LogWarning($"[SteamCallbackManager] [TryRegisterCallback] About to create delegate: handlerMethod={handlerMethodName}");
-                Debug.Log($"[SteamCallbackManager] [TryRegisterCallback] Registering callback: handlerMethod={handlerMethod}, delegateType={delegateType}, callbackDataType={callbackDataType}, genericCallbackType={genericCallbackType}");
-
+                Debug.LogWarning($"[SteamCallbackManager] [TryRegisterCallback] About to create delegate: handlerMethod=GenericCallbackWrapper<{callbackDataType.Name}>");
+                Debug.Log($"[SteamCallbackManager] [TryRegisterCallback] Registering callback: handlerMethod={constructedWrapper}, delegateType={delegateType}, callbackDataType={callbackDataType}, genericCallbackType={genericCallbackType}");
                 try
                 {
-                    delegateInstance = Delegate.CreateDelegate(delegateType, handlerMethod);
+                    delegateInstance = Delegate.CreateDelegate(delegateType, constructedWrapper);
                 }
                 catch (Exception ex)
                 {
@@ -217,7 +217,8 @@ namespace GungeonTogether.Steam
                         {
                             try
                             {
-                                Delegate actionDelegate = Delegate.CreateDelegate(parameterType, handlerMethod);
+                                // Use the constructed generic wrapper, not handlerMethod
+                                Delegate actionDelegate = Delegate.CreateDelegate(parameterType, constructedWrapper);
                                 callbackInstance = constructor.Invoke(new object[] { actionDelegate });
                                 success = true;
                                 break;
@@ -1118,77 +1119,193 @@ namespace GungeonTogether.Steam
         /// </summary>
         private static void OnLobbyDataUpdate(object callbackData)
         {
+            Debug.Log("[SteamCallbackManager] OnLobbyDataUpdate: ENTERED");
             try
             {
-                if (callbackData == null) {
-                    Debug.LogError("[SteamCallbackManager] OnLobbyDataUpdate: callbackData is null");
+                if (ReferenceEquals(callbackData, null))
+                {
+                    Debug.LogWarning("[SteamCallbackManager] OnLobbyDataUpdate: callbackData is null");
                     return;
                 }
+
+                var type = callbackData.GetType();
+
+                // Extract lobbyId, memberId, and success flag
                 ulong lobbyId = 0;
                 ulong memberId = 0;
-                bool isSuccess = true;
-                var type = callbackData.GetType();
+                bool success = false;
+
                 var lobbyIdField = type.GetField("m_ulSteamIDLobby") ?? type.GetField("m_SteamIDLobby") ?? type.GetField("lobbyID");
                 var memberIdField = type.GetField("m_ulSteamIDMember") ?? type.GetField("m_SteamIDMember") ?? type.GetField("memberID");
-                var successField = type.GetField("m_bSuccess");
-                if (lobbyIdField != null)
+                var successField = type.GetField("m_bSuccess") ?? type.GetField("bSuccess") ?? type.GetField("Success");
+
+                if (!ReferenceEquals(lobbyIdField, null))
                 {
                     var value = lobbyIdField.GetValue(callbackData);
                     if (value is ulong ul)
                         lobbyId = ul;
-                    else if (value != null && ulong.TryParse(value.ToString(), out ulong parsed))
+                    else if (!ReferenceEquals(value, null) && ulong.TryParse(value.ToString(), out ulong parsed))
                         lobbyId = parsed;
                 }
-                if (memberIdField != null)
+                if (!ReferenceEquals(memberIdField, null))
                 {
                     var value = memberIdField.GetValue(callbackData);
                     if (value is ulong ul)
                         memberId = ul;
-                    else if (value != null && ulong.TryParse(value.ToString(), out ulong parsed))
+                    else if (!ReferenceEquals(value, null) && ulong.TryParse(value.ToString(), out ulong parsed))
                         memberId = parsed;
                 }
-                if (successField != null)
+                if (!ReferenceEquals(successField, null))
                 {
-                    var val = successField.GetValue(callbackData);
-                    if (val is bool b) isSuccess = b;
-                    else if (val is byte by) isSuccess = by != 0;
-                }
-                Debug.Log($"[SteamCallbackManager] OnLobbyDataUpdate: lobbyId={lobbyId}, memberId={memberId}, isSuccess={isSuccess}, CurrentLobbyId={SteamHostManager.CurrentLobbyId}");
-                if (!isSuccess) {
-                    Debug.Log("[SteamCallbackManager] OnLobbyDataUpdate: isSuccess is false");
-                    return;
-                }
-                if (SteamHostManager.CurrentLobbyId == 0) {
-                    Debug.LogError("[SteamCallbackManager] OnLobbyDataUpdate: SteamHostManager.CurrentLobbyId is 0");
-                    return;
-                }
-                if (!lobbyId.Equals(SteamHostManager.CurrentLobbyId)) {
-                    Debug.Log($"[SteamCallbackManager] OnLobbyDataUpdate: lobbyId ({lobbyId}) does not match CurrentLobbyId ({SteamHostManager.CurrentLobbyId})");
-                    return;
-                }
-                ulong mySteamId = SteamReflectionHelper.GetSteamID();
-                Debug.Log($"[SteamCallbackManager] OnLobbyDataUpdate: mySteamId={mySteamId}");
-                if (mySteamId == 0) {
-                    Debug.LogError("[SteamCallbackManager] OnLobbyDataUpdate: mySteamId is 0");
-                    return;
-                }
-                if (!memberId.Equals(lobbyId) && !memberId.Equals(mySteamId))
-                {
-                    Debug.Log($"[SteamCallbackManager] OnLobbyDataUpdate: invoking OnPlayerJoined for memberId={memberId}, lobbyId={lobbyId}");
-                    if (SteamHostManager.OnPlayerJoined != null)
+                    var value = successField.GetValue(callbackData);
+                    if (!ReferenceEquals(value, null))
                     {
-                        SteamHostManager.OnPlayerJoined.Invoke(memberId, lobbyId.ToString());
+                        if (value is bool b)
+                        {
+                            success = b;
+                        }
+                        else if (value is byte by)
+                        {
+                            success = !by.Equals((byte)0);
+                        }
+                        else if (value is int i)
+                        {
+                            success = !i.Equals(0);
+                        }
+                        else if (bool.TryParse(value.ToString(), out bool parsed))
+                        {
+                            success = parsed;
+                        }
+                        // If value is string or other type, try to parse as bool
+                        else
+                        {
+                            success = value.ToString().Equals("true", StringComparison.OrdinalIgnoreCase);
+                        }
                     }
-                    else
+                }
+
+                if (!lobbyId.Equals(0UL))
+                {
+                    ulong mySteamId = SteamReflectionHelper.GetSteamID();
+                    if (!memberId.Equals(0UL) && !memberId.Equals(mySteamId))
                     {
-                        Debug.LogError("[SteamCallbackManager] OnLobbyDataUpdate: OnPlayerJoined is null");
+                        Debug.Log($"[SteamCallbackManager] Detected new player joined lobby: {memberId}");
+                        NotifyHostOfNewPlayer(memberId);
                     }
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Debug.LogError($"[SteamCallbackManager] Error in OnLobbyDataUpdate: {e.Message}\n{e.StackTrace}");
+                Debug.LogError($"[SteamCallbackManager] Error in OnLobbyDataUpdate: {ex.Message}\n{ex.StackTrace}");
             }
+        }
+
+        /// <summary>
+        /// Handles Steam LobbyChatUpdate_t callback for robust join/leave detection.
+        /// </summary>
+        private static void OnLobbyChatUpdate(object callbackData)
+        {
+            Debug.Log("[SteamCallbackManager] OnLobbyChatUpdate: ENTERED");
+            try
+            {
+                if (ReferenceEquals(callbackData, null))
+                {
+                    Debug.LogWarning("[SteamCallbackManager] OnLobbyChatUpdate: callbackData is null");
+                    return;
+                }
+
+                var type = callbackData.GetType();
+
+                // Extract lobbyId, userChanged, userMakingChange, and stateChange
+                ulong lobbyId = 0;
+                ulong userChanged = 0;
+                ulong userMakingChange = 0;
+                uint stateChange = 0;
+
+                var lobbyIdField = type.GetField("m_ulSteamIDLobby") ?? type.GetField("m_SteamIDLobby") ?? type.GetField("lobbyID");
+                var userChangedField = type.GetField("m_ulSteamIDUserChanged") ?? type.GetField("m_SteamIDUserChanged") ?? type.GetField("userChanged");
+                var userMakingChangeField = type.GetField("m_ulSteamIDMakingChange") ?? type.GetField("m_SteamIDMakingChange") ?? type.GetField("userMakingChange");
+                var stateChangeField = type.GetField("m_rgfChatMemberStateChange") ?? type.GetField("m_StateChange") ?? type.GetField("stateChange");
+
+                if (!ReferenceEquals(lobbyIdField, null))
+                {
+                    var value = lobbyIdField.GetValue(callbackData);
+                    if (value is ulong ul)
+                        lobbyId = ul;
+                    else if (!ReferenceEquals(value, null) && ulong.TryParse(value.ToString(), out ulong parsed))
+                        lobbyId = parsed;
+                }
+                if (!ReferenceEquals(userChangedField, null))
+                {
+                    var value = userChangedField.GetValue(callbackData);
+                    if (value is ulong ul)
+                        userChanged = ul;
+                    else if (!ReferenceEquals(value, null) && ulong.TryParse(value.ToString(), out ulong parsed))
+                        userChanged = parsed;
+                }
+                if (!ReferenceEquals(userMakingChangeField, null))
+                {
+                    var value = userMakingChangeField.GetValue(callbackData);
+                    if (value is ulong ul)
+                        userMakingChange = ul;
+                    else if (!ReferenceEquals(value, null) && ulong.TryParse(value.ToString(), out ulong parsed))
+                        userMakingChange = parsed;
+                }
+                if (!ReferenceEquals(stateChangeField, null))
+                {
+                    var value = stateChangeField.GetValue(callbackData);
+                    if (value is uint u)
+                        stateChange = u;
+                    else if (!ReferenceEquals(value, null) && uint.TryParse(value.ToString(), out uint parsed))
+                        stateChange = parsed;
+                }
+
+                // State change flags (from Steamworks):
+                // 0x01: Entered, 0x02: Left, 0x04: Disconnected, 0x08: Kicked, 0x10: Banned
+                if (!lobbyId.Equals(0UL) && !userChanged.Equals(0UL))
+                {
+                    if ((stateChange & 0x01) == 0x01)
+                    {
+                        Debug.Log($"[SteamCallbackManager] Player {userChanged} has joined the lobby (LobbyChatUpdate)");
+                        NotifyHostOfNewPlayer(userChanged);
+                    }
+                    if ((stateChange & 0x02) == 0x02 || (stateChange & 0x04) == 0x04 || (stateChange & 0x08) == 0x08 || (stateChange & 0x10) == 0x10)
+                    {
+                        Debug.Log($"[SteamCallbackManager] Player {userChanged} has left the lobby (LobbyChatUpdate), reason: 0x{stateChange:X}");
+                        // Notify your game logic/UI about player leaving here
+                        // Removed call to SteamHostManager.OnPlayerLeft as it does not exist
+                        // If you need to handle player leave, implement the logic here or in another appropriate place
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SteamCallbackManager] Error in OnLobbyChatUpdate: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+        // Generic wrapper for Steam callback handlers to ensure correct delegate signature
+        private static void GenericCallbackWrapper<T>(T callbackData)
+        {
+            // Route to the object-based handler by name
+            string typeName = typeof(T).Name;
+            if (typeName.Contains("LobbyDataUpdate"))
+            {
+                OnLobbyDataUpdate((object)callbackData);
+            }
+            else if (typeName.Contains("GameLobbyJoinRequested"))
+            {
+                OnGameLobbyJoinRequested((object)callbackData);
+            }
+            else if (typeName.Contains("GameRichPresenceJoinRequested"))
+            {
+                OnGameRichPresenceJoinRequested((object)callbackData);
+            }
+            else if (typeName.Contains("LobbyChatUpdate"))
+            {
+                OnLobbyChatUpdate((object)callbackData);
+            }
+            // Add more as needed
         }
     }
 }

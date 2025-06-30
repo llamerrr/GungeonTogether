@@ -303,16 +303,10 @@ namespace GungeonTogether.Game
                 {
                     var steamId = kvp.Key;
                     var connection = kvp.Value;
-                    float timeSinceLastActivity = Time.time - connection.lastActivity;
                     float timeSinceConnection = Time.time - connection.connectionTime;
                     if (!connection.isConnected)
                     {
                         Debug.LogWarning($"[SimpleSessionManager] Player {steamId} is not connected (removing)");
-                        playersToRemove.Add(steamId);
-                    }
-                    else if (timeSinceLastActivity > 60.0f)
-                    {
-                        Debug.LogWarning($"[SimpleSessionManager] Player {steamId} timeout - no activity for {timeSinceLastActivity:F1}s (removing)");
                         playersToRemove.Add(steamId);
                     }
                 }
