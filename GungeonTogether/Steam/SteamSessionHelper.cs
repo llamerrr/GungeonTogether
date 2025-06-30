@@ -129,7 +129,6 @@ namespace GungeonTogether.Steam
                 
                 if (isHosting)
                 {
-                    Debug.Log($"[SteamSessionHelper] 🎯 Rich Presence: Hosting GungeonTogether ({sessionId})");
                     // Do NOT set the 'connect' field here. It is now set only after lobby creation in SteamHostManager.
                     steamNet.SetRichPresence("status", "Hosting GungeonTogether");
                     steamNet.SetRichPresence("steam_display", "#Status_HostingGT");

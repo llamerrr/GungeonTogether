@@ -876,48 +876,34 @@ namespace GungeonTogether
             {
                 string[] args = System.Environment.GetCommandLineArgs();
                 Logger.LogInfo($"[Steam Args] Checking {args.Length} command line arguments...");
-                
                 for (int i = 0; i < args.Length; i++)
                 {
                     Logger.LogInfo($"[Steam Args] Arg {i}: {args[i]}");
-                    
                     // Check for Steam connect commands
                     if (args[i].StartsWith("+connect") && i + 1 < args.Length)
                     {
                         string connectTarget = args[i + 1];
                         Logger.LogInfo($"[Steam Args] Found Steam connect command: {args[i]} {connectTarget}");
-                        
-                        // Try to parse as Steam ID
                         if (ulong.TryParse(connectTarget, out ulong steamId) && steamId > 0)
                         {
                             Logger.LogInfo($"[Steam Args] Detected Steam overlay join request for Steam ID: {steamId}");
-                            
-                            // Set this as a pending join request
                             ETGSteamP2PNetworking.SetInviteInfo(steamId);
-                            
-                            // Schedule automatic join after initialization
-                            ScheduleAutoJoin(steamId);
+                            ScheduleAutoJoin($"steam_{steamId}");
                         }
                     }
-                    
                     // Check for lobby connect commands
                     if (args[i].StartsWith("+connect_lobby") && i + 1 < args.Length)
                     {
                         string lobbyId = args[i + 1];
                         Logger.LogInfo($"[Steam Args] Found Steam lobby connect command: {args[i]} {lobbyId}");
-                        
-                        // Try to parse lobby ID and extract host Steam ID
                         if (ulong.TryParse(lobbyId, out ulong parsedLobbyId) && parsedLobbyId > 0)
                         {
                             Logger.LogInfo($"[Steam Args] Detected Steam lobby join request for lobby: {parsedLobbyId}");
-                            
-                            // For now, treat lobby ID as potential Steam ID
                             ETGSteamP2PNetworking.SetInviteInfo(parsedLobbyId, lobbyId);
-                            ScheduleAutoJoin(parsedLobbyId);
+                            ScheduleAutoJoin($"lobby_{parsedLobbyId}");
                         }
                     }
                 }
-                
                 Logger.LogInfo("[Steam Args] Command line argument check complete");
             }
             catch (Exception e)
@@ -929,17 +915,13 @@ namespace GungeonTogether
         /// <summary>
         /// Schedule an automatic join after the session manager is initialized
         /// </summary>
-        private void ScheduleAutoJoin(ulong hostSteamId)
+        private void ScheduleAutoJoin(string sessionId)
         {
             try
             {
-                Logger.LogInfo($"[Steam Args] Scheduling auto-join for Steam ID: {hostSteamId}");
-                
-                // Use a coroutine-like approach with Unity's Invoke
-                Invoke(nameof(ExecuteScheduledJoin), 2.0f); // Wait 2 seconds for initialization
-                
-                // Store the target for the delayed join
-                scheduledJoinTarget = hostSteamId;
+                Logger.LogInfo($"[Steam Args] Scheduling auto-join for session: {sessionId}");
+                scheduledJoinTarget = sessionId;
+                Invoke(nameof(ExecuteScheduledJoin), 2.0f);
             }
             catch (Exception e)
             {
@@ -947,8 +929,7 @@ namespace GungeonTogether
             }
         }
         
-        private ulong scheduledJoinTarget = 0;
-        
+        private string scheduledJoinTarget = null;
         /// <summary>
         /// Execute the scheduled join operation
         /// </summary>
@@ -956,15 +937,11 @@ namespace GungeonTogether
         {
             try
             {
-                if (scheduledJoinTarget > 0 && _sessionManager is not null)
+                if (!string.IsNullOrEmpty(scheduledJoinTarget) && _sessionManager is not null)
                 {
-                    Logger.LogInfo($"[Steam Args] Executing scheduled join for Steam ID: {scheduledJoinTarget}");
-                    
-                    // Join the specified session
-                    string sessionId = $"steam_{scheduledJoinTarget}";
-                    _sessionManager.JoinSession(sessionId);
-                    
-                    scheduledJoinTarget = 0; // Clear after use
+                    Logger.LogInfo($"[Steam Args] Executing scheduled join for session: {scheduledJoinTarget}");
+                    _sessionManager.JoinSession(scheduledJoinTarget);
+                    scheduledJoinTarget = null;
                 }
             }
             catch (Exception e)

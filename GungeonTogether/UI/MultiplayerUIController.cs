@@ -913,6 +913,7 @@ namespace GungeonTogether.UI
             if (!ReferenceEquals(sessionManager, null))
             {
                 GungeonTogetherMod.Instance?.StopMultiplayer();
+                sessionManager?.StopSession();
                 UpdateUIElements();
                 RefreshHostList();
             }

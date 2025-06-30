@@ -102,7 +102,7 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                Debug.Log($"[ETGSteamP2P] Attempting to join lobby with ID: {lobbyId}");
+                Debug.Log($"[ETGSteamP2P] [JoinLobby] Called with lobbyId: {lobbyId} (type: {lobbyId.GetType().FullName})");
                 if (lobbyId.Equals(0))
                 {
                     Debug.LogError("[ETGSteamP2P] Invalid lobby ID: 0");
@@ -116,13 +116,14 @@ namespace GungeonTogether.Steam
                     return false;
                 }
                 var csteamId = SteamReflectionHelper.ConvertToCSteamID(lobbyId);
+                Debug.Log($"[ETGSteamP2P] [JoinLobby] Converted lobbyId to csteamId: {csteamId} (type: {(csteamId == null ? "null" : csteamId.GetType().FullName)})");
                 if (ReferenceEquals(csteamId, null))
                 {
                     Debug.LogError("[ETGSteamP2P] Failed to convert lobbyId to CSteamID");
                     return false;
                 }
                 joinLobbyMethod.Invoke(null, new object[] { csteamId });
-                Debug.Log($"[ETGSteamP2P] JoinLobby called for lobby: {lobbyId}");
+                Debug.Log($"[ETGSteamP2P] JoinLobby invoked for lobby: {lobbyId}");
                 return true;
             }
             catch (Exception ex)
@@ -464,6 +465,15 @@ namespace GungeonTogether.Steam
                     Debug.LogWarning($"[ETGSteamP2P] Error in Update(): {e.Message}");
                 }
             }
+        }
+
+        /// <summary>
+        /// Event triggered when a player joins the Steam lobby (host only)
+        /// </summary>
+        public event Action<ulong, string> OnPlayerJoined
+        {
+            add { SteamHostManager.OnPlayerJoined += value; }
+            remove { SteamHostManager.OnPlayerJoined -= value; }
         }
     }
 }

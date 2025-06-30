@@ -50,6 +50,33 @@ namespace GungeonTogether.Game
             steamNet = null;
             Debug.Log("[SimpleSessionManager] Steam-compatible session manager initialized");
         }
+
+        // Subscribe to player join events after Steam networking is initialized
+        private void SubscribeToSteamEvents()
+        {
+            if (!ReferenceEquals(steamNet, null))
+            {
+                steamNet.OnPlayerJoined += OnPlayerJoined;
+            }
+        }
+
+        // Handler for new player joining the lobby (host only)
+        private void OnPlayerJoined(ulong steamId, string lobbyId)
+        {
+            if (!connectedPlayers.ContainsKey(steamId))
+            {
+                connectedPlayers[steamId] = new PlayerConnection
+                {
+                    steamId = steamId,
+                    playerName = $"Player_{steamId}",
+                    isConnected = true,
+                    lastActivity = Time.time,
+                    connectionTime = Time.time
+                };
+                Debug.Log($"[SimpleSessionManager] Player joined lobby: {steamId} (lobby {lobbyId})");
+                UpdateConnectionStatus();
+            }
+        }
         
         public void StartSession()
         {
@@ -67,15 +94,26 @@ namespace GungeonTogether.Game
             connectedPlayers.Clear();
             Debug.Log("[SimpleSessionManager] Location validated - starting multiplayer session");
             EnsureSteamNetworkingInitialized();
+            SubscribeToSteamEvents();
             if (!ReferenceEquals(steamNet, null) && steamNet.IsAvailable())
             {
                 var steamId = steamNet.GetSteamID();
                 if (!ReferenceEquals(steamId, null) && (!ReferenceEquals(steamId, 0)))
                 {
-                    currentHostId = $"steam_{steamId}";
-                    IsHost = true;
-                    Status = $"Hosting: {steamId} (Waiting for connections)";
-                    Debug.Log($"[SimpleSessionManager] Hosting Steam session with ID: {currentHostId}");
+                    // Get the actual lobby ID from SteamHostManager
+                    ulong lobbyId = GungeonTogether.Steam.SteamHostManager.CurrentLobbyId;
+                    if (!ReferenceEquals(lobbyId, 0UL))
+                    {
+                        currentHostId = $"lobby_{lobbyId}";
+                        IsHost = true;
+                        Status = $"Hosting: {lobbyId} (Waiting for connections)";
+                    }
+                    else
+                    {
+                        currentHostId = $"steam_{steamId}";
+                        IsHost = true;
+                        Status = $"Hosting: {steamId} (Waiting for connections)";
+                    }
                     UpdateSteamNetworking();
                     ETGSteamP2PNetworking.RegisterAsHost();
                     SteamSessionHelper.UpdateRichPresence(true, currentHostId);
@@ -125,16 +163,17 @@ namespace GungeonTogether.Game
             EnsureSteamNetworkingInitialized();
             if (!ReferenceEquals(steamNet, null) && steamNet.IsAvailable())
             {
-                ulong hostSteamId = ExtractSteamIdFromSession(sessionId);
-                if (!ReferenceEquals(hostSteamId, 0))
+                // Only accept lobby IDs (not host Steam IDs)
+                ulong lobbyId = 0;
+                if (sessionId.StartsWith("lobby_") && ulong.TryParse(sessionId.Substring(6), out lobbyId) && !ReferenceEquals(lobbyId, 0UL))
                 {
-                    Debug.Log($"[SimpleSessionManager] Initiating connection to host: {hostSteamId}");
-                    steamNet.StartJoiningSession(hostSteamId);
-                    Status = $"Connected to host: {hostSteamId}";
+                    Debug.Log($"[SimpleSessionManager] Initiating connection to lobby: {lobbyId}");
+                    steamNet.JoinLobby(lobbyId);
+                    Status = $"Connected to lobby: {lobbyId}";
                 }
                 else
                 {
-                    Status = "Invalid session format";
+                    Status = "Invalid session format (must be lobby ID)";
                     Debug.LogError($"[SimpleSessionManager] Invalid session format: {sessionId}");
                     return;
                 }
@@ -182,10 +221,10 @@ namespace GungeonTogether.Game
                 playerSync?.Update();
                 CheckConnections();
                 UpdateSteamNetworking();
-                // Log lobby joins if hosting
-                if (IsHost)
+                // Poll for new lobby members every second if hosting
+                if (IsHost && Time.time - lastConnectionCheck >= CONNECTION_CHECK_INTERVAL)
                 {
-                    SteamHostManager.PollAndLogLobbyJoins();
+                    GungeonTogether.Steam.SteamHostManager.CheckForLobbyJoins();
                 }
             }
             catch (Exception e)

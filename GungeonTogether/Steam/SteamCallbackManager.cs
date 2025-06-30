@@ -18,19 +18,19 @@ namespace GungeonTogether.Steam
         private static object overlayCallbackHandle = null;
         private static object lobbyCallbackHandle = null;
         private static MethodInfo runCallbacksMethod = null;
-        
+
         // Steam callback event handlers
         public static event Action<string> OnOverlayJoinRequested;
         public static event Action<bool> OnOverlayActivated;
         public static event Action<ulong> OnJoinRequested;
-        
+
         private static bool joinCallbacksRegistered = false;
         private static bool earlyInitialized = false;
-        
+
         // Store pending join requests that arrive before the game is ready
         private static Queue<ulong> pendingJoinRequests = new Queue<ulong>();
         private static Queue<string> pendingOverlayJoinRequests = new Queue<string>();
-        
+
         /// <summary>
         /// Initialize Steam callbacks for overlay join functionality and invite handling
         /// </summary>
@@ -51,6 +51,7 @@ namespace GungeonTogether.Steam
                     UnityEngine.Debug.LogWarning("[ETGSteamP2P] Cannot initialize Steam callbacks - Steamworks assembly not available");
                     return;
                 }
+
                 // Try to find a valid callback base type
                 Type callbackBaseType = steamworksAssembly.GetType("Steamworks.Callback", false)
                     ?? steamworksAssembly.GetType("Steamworks.Callback`1", false)
@@ -63,8 +64,24 @@ namespace GungeonTogether.Steam
                     ?? steamworksAssembly.GetType("Steamworks.GameLobbyJoinRequested", false);
                 Type gameRichPresenceJoinRequestedType = steamworksAssembly.GetType("Steamworks.GameRichPresenceJoinRequested_t", false)
                     ?? steamworksAssembly.GetType("Steamworks.GameRichPresenceJoinRequested", false);
+                Type steamNetworkingType = steamworksAssembly.GetType("Steamworks.SteamNetworking", false);
+
+                Type lobbyDataUpdateType = steamworksAssembly.GetType("LobbyDataUpdate_t", false);
+                if (!ReferenceEquals(lobbyDataUpdateType, null))
+                {
+                    try
+                    {
+                        TryRegisterCallback(steamworksAssembly, callbackBaseType, lobbyDataUpdateType, "OnLobbyDataUpdate");
+                    }
+                    catch (Exception exception)
+                    { 
+                        UnityEngine.Debug.LogError($"[ETGSteamP2P] Failed to register OnLobbyDataUpdate callback: {exception.Message}");
+                    }
+                    
+                }
+
                 // Register callbacks if possible
-                if (ReferenceEquals(callbackBaseType,null))
+                if (ReferenceEquals(callbackBaseType, null))
                 {
                     UnityEngine.Debug.LogWarning("[ETGSteamP2P] ⚠️ Steam callback base type not found - implementing fallback polling system");
                     SteamFallbackDetection.InitializeFallbackJoinDetection();
@@ -95,70 +112,6 @@ namespace GungeonTogether.Steam
             catch (Exception ex)
             {
                 UnityEngine.Debug.LogError($"[ETGSteamP2P] Exception during Steam callback initialization: {ex.Message}\n{ex.StackTrace}");
-            }
-        }
-
-                    // Static field to hold the object handler for the callback
-        private static Action<object> s_lobbyJoinRequestedObjectHandler;
-
-                    // Helper to create a strongly-typed Action<T> delegate that calls the static object handler
-        private static Delegate CreateTypedCallbackDelegate(Type callbackDataType, Action<object> handler)
-        {
-            s_lobbyJoinRequestedObjectHandler = handler;
-            var method = typeof(SteamCallbackManager).GetMethod("InvokeObjectHandlerStatic", BindingFlags.NonPublic | BindingFlags.Static);
-            var genericMethod = method.MakeGenericMethod(callbackDataType);
-            return Delegate.CreateDelegate(typeof(Action<>).MakeGenericType(callbackDataType), genericMethod);
-        }
-
-        private static void InvokeObjectHandlerStatic<T>(T param)
-        {
-            // Calls the static object handler with the strongly-typed param
-            s_lobbyJoinRequestedObjectHandler?.Invoke(param);
-        }
-
-        /// <summary>
-        /// Registers a Steam callback handler for the given callback type name.
-        /// </summary>
-        private static void RegisterSteamCallback(string callbackTypeName, Action<object> handler)
-        {
-            try
-            {
-                var steamworksAssembly = SteamReflectionHelper.GetSteamworksAssembly();
-                if (steamworksAssembly == null) return;
-                var callbackType = steamworksAssembly.GetType("Steamworks." + callbackTypeName, false);
-                if (callbackType == null) return;
-                var callbackBaseType = steamworksAssembly.GetType("Steamworks.CallbackBase", false);
-                if (callbackBaseType == null) return;
-
-                // Create a strongly-typed Action<T> delegate for the callback type
-                var method = typeof(SteamCallbackManager).GetMethod("InvokeObjectHandlerStatic", BindingFlags.NonPublic | BindingFlags.Static);
-                var genericMethod = method.MakeGenericMethod(callbackType);
-                var delegateType = typeof(Action<>).MakeGenericType(callbackType);
-                var delegateInstance = Delegate.CreateDelegate(delegateType, genericMethod);
-
-                // Register the callback using the correct type and delegate
-                var callbackGenericType = steamworksAssembly.GetType("Steamworks.Callback`1", false);
-                if (callbackGenericType == null) return;
-                var genericCallbackType = callbackGenericType.MakeGenericType(callbackType);
-                var callbackInstance = Activator.CreateInstance(genericCallbackType, delegateInstance);
-
-                // Store callback instance to prevent GC
-                if (callbackTypeName.Contains("Lobby"))
-                {
-                    lobbyCallbackHandle = callbackInstance;
-                }
-                else if (callbackTypeName.Contains("Overlay"))
-                {
-                    overlayCallbackHandle = callbackInstance;
-                }
-                else if (callbackTypeName.Contains("RichPresence") || callbackTypeName.Contains("Join"))
-                {
-                    steamCallbackHandle = callbackInstance;
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[ETGSteamP2P] Failed to register callback {callbackTypeName}: {ex.Message}");
             }
         }
 
@@ -216,7 +169,7 @@ namespace GungeonTogether.Steam
                     Type dispatchDelegate = steamworksAssembly.GetType("Steamworks.DispatchDelegate", false) ??
                                         steamworksAssembly.GetType("Steamworks.CallbackDispatchDelegate", false) ??
                                         steamworksAssembly.GetType("Steamworks.SteamAPICall_t+CallbackDispatchDelegate", false);
-                    
+
                     if (!ReferenceEquals(dispatchDelegate, null))
                     {
                         if (dispatchDelegate.IsGenericTypeDefinition)
@@ -229,7 +182,7 @@ namespace GungeonTogether.Steam
                         }
                     }
                 }
-                
+
                 // Fallback to Action<T>
                 if (ReferenceEquals(delegateType, null))
                 {
@@ -257,22 +210,22 @@ namespace GungeonTogether.Steam
                     Debug.LogError($"[SteamCallbackManager] [TryRegisterCallback] Failed to create delegate: {ex.Message}\n{ex.StackTrace}");
                     return false;
                 }
-                
+
                 // Try different constructor approaches
                 ConstructorInfo[] constructors = genericCallbackType.GetConstructors();
-                
+
                 object callbackInstance = null;
                 bool success = false;
-                
+
                 foreach (ConstructorInfo constructor in constructors)
                 {
                     ParameterInfo[] parameters = constructor.GetParameters();
-                    
+
                     // Try single parameter constructor
                     if (parameters.Length == 1)
                     {
                         Type parameterType = parameters[0].ParameterType;
-                        
+
                         // Try Action<T> parameter
                         if (parameterType.IsGenericType && ReferenceEquals(parameterType.GetGenericTypeDefinition(), typeof(Action<>)))
                         {
@@ -309,10 +262,10 @@ namespace GungeonTogether.Steam
                         try
                         {
                             callbackInstance = constructor.Invoke(new object[0]);
-                            
+
                             // Try to find and set delegate field
                             string[] fieldNames = { "m_Func", "Func", "m_pCallback", "m_Callback", "callback", "Callback" };
-                            
+
                             foreach (string fieldName in fieldNames)
                             {
                                 FieldInfo field = genericCallbackType.GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
@@ -330,7 +283,7 @@ namespace GungeonTogether.Steam
                                     }
                                 }
                             }
-                            
+
                             if (success)
                             {
                                 break;
@@ -362,12 +315,12 @@ namespace GungeonTogether.Steam
                         }
                     }
                 }
-                
+
                 if (!success)
                 {
                     return false;
                 }
-                
+
                 if (!ReferenceEquals(callbackInstance, null))
                 {
                     // Store callback instance to prevent GC
@@ -383,10 +336,10 @@ namespace GungeonTogether.Steam
                     {
                         steamCallbackHandle = callbackInstance;
                     }
-                    
+
                     return true;
                 }
-                
+
                 return false;
             }
             catch (Exception)
@@ -408,186 +361,20 @@ namespace GungeonTogether.Steam
             try
             {
                 Debug.Log("[SteamCallbackManager] OnGameLobbyJoinRequested called!");
-                string paramStr = param != null ? param.ToString() : "<null>";
-                Debug.Log($"[SteamCallbackManager] [DEBUG] param.ToString(): {paramStr}");
-                var type = param.GetType();
-                if (ReferenceEquals(type, null))
+
+                ulong lobbyId;
+                if (TryGetLobbyId(param, out lobbyId) && !ReferenceEquals(lobbyId, 0UL))
                 {
-                    Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequested: param.GetType() is null");
-                    return;
-                }
-                Debug.Log($"[SteamCallbackManager] [DEBUG] param.GetType().FullName: {type.FullName}");
-                Debug.Log($"[SteamCallbackManager] [DEBUG] Listing all fields and properties on param:");
-                foreach (var f in type.GetFields())
-                {
-                    object val = null;
-                    try { val = f.GetValue(param); } catch (Exception ex) { Debug.Log($"[SteamCallbackManager] [DEBUG] Exception reading field {f.Name}: {ex.Message}"); }
-                    Debug.Log($"[SteamCallbackManager] [DEBUG] Field: {f.Name} ({f.FieldType}) = {val}");
-                }
-                foreach (var p in type.GetProperties())
-                {
-                    object val = null;
-                    try { val = p.GetValue(param, null); } catch (Exception ex) { Debug.Log($"[SteamCallbackManager] [DEBUG] Exception reading property {p.Name}: {ex.Message}"); }
-                    Debug.Log($"[SteamCallbackManager] [DEBUG] Property: {p.Name} ({p.PropertyType}) = {val}");
-                }
-                // Defensive: check for IntPtr, ulong, long, string before any GetType()
-                if (param is IntPtr ptr)
-                {
-                    Debug.Log($"[SteamCallbackManager] [DEBUG] param is IntPtr: {ptr}");
-                    return;
-                }
-                if (param is ulong ul)
-                {
-                    Debug.Log($"[SteamCallbackManager] [DEBUG] param is ulong: {ul}");
-                    if (!ReferenceEquals(SteamNetworking, null))
+                    if (!ReferenceEquals(SteamNetworking, null) && !ReferenceEquals(SteamNetworking.JoinLobby, null))
                     {
-                        if (!ReferenceEquals(SteamNetworking.JoinLobby, null))
-                        {
-                            Debug.Log("[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby(ulong)");
-                            SteamNetworking.JoinLobby(ul);
-                        }
-                        else
-                        {
-                            Debug.LogError("[SteamCallbackManager] SteamNetworking.JoinLobby is null");
-                        }
-                    }
-                    else
-                    {
-                        Debug.Log("[SteamCallbackManager] [DEBUG] SteamNetworking is null, using SteamHostManager.JoinLobby(ulong)");
-                        SteamHostManager.JoinLobby(ul);
-                    }
-                    return;
-                }
-                if (param is long l)
-                {
-                    Debug.Log($"[SteamCallbackManager] [DEBUG] param is long: {l}");
-                    if (l > 0)
-                    {
-                        if (!ReferenceEquals(SteamNetworking, null))
-                        {
-                            if (!ReferenceEquals(SteamNetworking.JoinLobby, null))
-                            {
-                                Debug.Log("[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby((ulong)long)");
-                                SteamNetworking.JoinLobby((ulong)l);
-                            }
-                            else
-                            {
-                                Debug.LogError("[SteamCallbackManager] SteamNetworking.JoinLobby is null");
-                            }
-                        }
-                        else
-                        {
-                            Debug.Log("[SteamCallbackManager] [DEBUG] SteamNetworking is null, using SteamHostManager.JoinLobby((ulong)long)");
-                            SteamHostManager.JoinLobby((ulong)l);
-                        }
-                    }
-                    return;
-                }
-                if (param is string s)
-                {
-                    Debug.Log($"[SteamCallbackManager] [DEBUG] param is string: {s}");
-                    if (ulong.TryParse(s, out ulong parsed))
-                    {
-                        if (!ReferenceEquals(SteamNetworking, null))
-                        {
-                            if (!ReferenceEquals(SteamNetworking.JoinLobby, null))
-                            {
-                                Debug.Log("[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby(parsed string)");
-                                SteamNetworking.JoinLobby(parsed);
-                            }
-                            else
-                            {
-                                Debug.LogError("[SteamCallbackManager] SteamNetworking.JoinLobby is null");
-                            }
-                        }
-                        else
-                        {
-                            Debug.Log("[SteamCallbackManager] [DEBUG] SteamNetworking is null, using SteamHostManager.JoinLobby(parsed string)");
-                            SteamHostManager.JoinLobby(parsed);
-                        }
-                    }
-                    return;
-                }
-                // Try to get the lobby ID field robustly (all possible names)
-                FieldInfo lobbyIdField = type.GetField("steamIDLobby") ?? type.GetField("m_ulSteamIDLobby") ?? type.GetField("m_SteamIDLobby") ?? type.GetField("lobbyID");
-                Debug.Log($"[SteamCallbackManager] [DEBUG] lobbyIdField: {(lobbyIdField != null ? lobbyIdField.Name : "<null>")}");
-                if (ReferenceEquals(lobbyIdField, null))
-                {
-                    Debug.LogWarning($"[SteamCallbackManager] [DEBUG] No lobbyId field found on type {type.FullName}");
-                    // Fallback: try ToString()
-                    if (!string.IsNullOrEmpty(paramStr) && ulong.TryParse(paramStr, out ulong fallbackLobbyId))
-                    {
-                        if (!ReferenceEquals(SteamNetworking, null))
-                        {
-                            if (!ReferenceEquals(SteamNetworking.JoinLobby, null))
-                            {
-                                Debug.Log("[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby(fallbackLobbyId)");
-                                SteamNetworking.JoinLobby(fallbackLobbyId);
-                            }
-                            else
-                            {
-                                Debug.LogError("[SteamCallbackManager] SteamNetworking.JoinLobby is null");
-                            }
-                        }
-                        else
-                        {
-                            Debug.Log("[SteamCallbackManager] [DEBUG] SteamNetworking is null, using SteamHostManager.JoinLobby(fallbackLobbyId)");
-                            SteamHostManager.JoinLobby(fallbackLobbyId);
-                        }
+                        Debug.Log($"[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby(lobbyId={lobbyId})");
+                        SteamNetworking.JoinLobby(lobbyId);
                         return;
                     }
+                    Debug.LogWarning("[SteamCallbackManager] SteamNetworking or JoinLobby is null");
                     return;
                 }
-                var value = lobbyIdField.GetValue(param);
-                Debug.Log($"[SteamCallbackManager] [DEBUG] lobbyIdField value: {(value != null ? value.ToString() : "<null>")} ({(value != null ? value.GetType().ToString() : "<null>")})");
-                if (ReferenceEquals(value, null))
-                {
-                    Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequested: lobbyIdField value is null");
-                    return;
-                }
-                if (value is ulong vul)
-                {
-                    if (!ReferenceEquals(SteamNetworking, null))
-                    {
-                        if (!ReferenceEquals(SteamNetworking.JoinLobby, null))
-                        {
-                            Debug.Log("[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby(lobbyIdField ulong)");
-                            SteamNetworking.JoinLobby(vul);
-                        }
-                        else
-                        {
-                            Debug.LogError("[SteamCallbackManager] SteamNetworking.JoinLobby is null");
-                        }
-                    }
-                    else
-                    {
-                        Debug.Log("[SteamCallbackManager] [DEBUG] SteamNetworking is null, using SteamHostManager.JoinLobby(lobbyIdField ulong)");
-                        SteamHostManager.JoinLobby(vul);
-                    }
-                    return;
-                }
-                if (ulong.TryParse(value.ToString(), out ulong parsedValue))
-                {
-                    if (!ReferenceEquals(SteamNetworking, null))
-                    {
-                        if (!ReferenceEquals(SteamNetworking.JoinLobby, null))
-                        {
-                            Debug.Log("[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby(parsed lobbyIdField)");
-                            SteamNetworking.JoinLobby(parsedValue);
-                        }
-                        else
-                        {
-                            Debug.LogError("[SteamCallbackManager] SteamNetworking.JoinLobby is null");
-                        }
-                    }
-                    else
-                    {
-                        Debug.Log("[SteamCallbackManager] [DEBUG] SteamNetworking is null, using SteamHostManager.JoinLobby(parsed lobbyIdField)");
-                        SteamHostManager.JoinLobby(parsedValue);
-                    }
-                    return;
-                }
-                Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequested: Could not parse lobbyId from value");
+                Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequested: Could not parse lobbyId from value (expected ulong)");
             }
             catch (Exception ex)
             {
@@ -641,81 +428,36 @@ namespace GungeonTogether.Steam
         }
 
         /// <summary>
-        /// Steam callback handler for LobbyEnter_t. Handles lobby member connection logic for joiners only.
-        /// </summary>
-        private static void OnLobbyEnter(object param)
-        {
-            Debug.Log("[SteamCallbackManager] OnLobbyEnter called!");
-            // Early exit if host (host never connects to lobby members)
-            if (SteamHostManager.IsCurrentlyHosting)
-            {
-                Debug.Log("[SteamCallbackManager] OnLobbyEnter: Host detected, skipping member connection logic.");
-                return;
-            }
-            try
-            {
-                // Extract lobby ID from callback parameter (reflection)
-                if (!TryGetLobbyId(param, out ulong lobbyId))
-                {
-                    Debug.LogWarning("[SteamCallbackManager] OnLobbyEnter: Failed to extract lobby ID");
-                    return;
-                }
-                // Log the join event for analytics/debugging
-                ulong mySteamId = SteamReflectionHelper.GetSteamID();
-                SteamHostManager.LogPlayerJoinedViaInviteOrOverlay(mySteamId);
-                // Get Steam matchmaking reflection methods
-                if (!TryGetMatchmakingMethods(out var getNumMembersMethod, out var getMemberByIndexMethod))
-                {
-                    Debug.LogWarning("[SteamCallbackManager] OnLobbyEnter: Failed to get matchmaking methods");
-                    return;
-                }
-                // Convert lobbyId to CSteamID object
-                var csteamId = SteamReflectionHelper.ConvertToCSteamID(lobbyId);
-                if (csteamId == null)
-                {
-                    Debug.LogWarning("[SteamCallbackManager] OnLobbyEnter: Failed to convert lobby ID to CSteamID");
-                    return;
-                }
-                // Attempt to connect to all lobby members except self
-                ConnectToLobbyMembers(csteamId, getNumMembersMethod, getMemberByIndexMethod);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[SteamCallbackManager] Error in OnLobbyEnter: {ex.Message}");
-            }
-        }
-
-        /// <summary>
         /// Extracts the lobby ID from the callback parameter using reflection.
         /// </summary>
         private static bool TryGetLobbyId(object param, out ulong lobbyId)
         {
             lobbyId = 0;
-            
-            if (param == null)
+
+            if (ReferenceEquals(param, null))
             {
                 Debug.LogWarning("[SteamCallbackManager] OnLobbyEnter: param is null");
                 return false;
             }
 
             var type = param.GetType();
-            var lobbyIdField = type.GetField("m_ulSteamIDLobby") ?? 
-                            type.GetField("m_SteamIDLobby") ?? 
-                            type.GetField("lobbyID");
+            var lobbyIdField = type.GetField("m_ulSteamIDLobby") ??
+                                type.GetField("m_SteamIDLobby") ??
+                                type.GetField("lobbyID");
 
-            if (lobbyIdField == null)
+            if (ReferenceEquals(lobbyIdField, null))
             {
                 Debug.LogWarning("[SteamCallbackManager] OnLobbyEnter: Could not find lobbyId field via reflection");
                 return false;
             }
 
             var value = lobbyIdField.GetValue(param);
-            
+
             // Accept ulong or parse from string
             return value switch
             {
                 ulong ul => (lobbyId = ul) > 0,
-                _ when value != null && ulong.TryParse(value.ToString(), out lobbyId) => lobbyId > 0,
+                _ when !ReferenceEquals(value, null) && ulong.TryParse(value.ToString(), out lobbyId) => lobbyId > 0,
                 _ => false
             };
         }
@@ -730,7 +472,7 @@ namespace GungeonTogether.Steam
 
             var steamworksAssembly = SteamReflectionHelper.GetSteamworksAssembly();
             var matchmakingType = steamworksAssembly?.GetType("Steamworks.SteamMatchmaking", false);
-            
+
             if (matchmakingType == null)
             {
                 Debug.LogWarning("[SteamCallbackManager] Could not find SteamMatchmaking type");
@@ -757,7 +499,7 @@ namespace GungeonTogether.Steam
 
             var mySteamId = SteamReflectionHelper.GetSteamID();
             var networking = ETGSteamP2PNetworking.Instance;
-            
+
             if (networking == null)
             {
                 Debug.LogWarning("[SteamCallbackManager] ETGSteamP2PNetworking.Instance is null");
@@ -768,7 +510,7 @@ namespace GungeonTogether.Steam
             for (int i = 0; i < memberCount; i++)
             {
                 if (TryGetMemberSteamId(getMemberByIndexMethod, csteamId, i, out ulong memberSteamId) &&
-                    memberSteamId != 0 && 
+                    memberSteamId != 0 &&
                     memberSteamId != mySteamId)
                 {
                     // Removed legacy AcceptP2PSession call
@@ -803,7 +545,7 @@ namespace GungeonTogether.Steam
         private static bool TryExtractSteamIdFromObject(object steamIdObj, out ulong steamId)
         {
             steamId = 0;
-            
+
             // Try to get m_SteamID property
             var steamIdProp = steamIdObj.GetType().GetProperty("m_SteamID");
             if (steamIdProp != null)
@@ -822,7 +564,7 @@ namespace GungeonTogether.Steam
         private static bool TryInvokeMethod<T>(MethodInfo method, object[] parameters, out T result)
         {
             result = default(T);
-            
+
             try
             {
                 var returnValue = method.Invoke(null, parameters);
@@ -836,7 +578,7 @@ namespace GungeonTogether.Steam
             {
                 Debug.LogError($"[SteamCallbackManager] Exception calling {method.Name}: {ex.Message}");
             }
-            
+
             return false;
         }
 
@@ -851,13 +593,13 @@ namespace GungeonTogether.Steam
                 {
                     runCallbacksMethod.Invoke(null, null);
                 }
-                
+
                 if (pendingJoinRequests.Count > 0 || pendingOverlayJoinRequests.Count > 0)
                 {
                     Debug.Log("[ETGSteamP2P] Processing pending join requests...");
                     ProcessPendingJoinRequests();
                 }
-                
+
                 SteamFallbackDetection.ProcessFallbackDetection();
                 CheckForSteamJoinRequests();
             }
@@ -960,7 +702,7 @@ namespace GungeonTogether.Steam
                 Debug.Log("[ETGSteamP2P] Starting Steam command line monitoring for early join detection...");
                 string[] commandLineArgs = Environment.GetCommandLineArgs();
                 Debug.Log($"[ETGSteamP2P] Checking {commandLineArgs.Length} command line arguments for Steam join requests...");
-                
+
                 for (int i = 0; i < commandLineArgs.Length; i++)
                 {
                     if (commandLineArgs[i].StartsWith("+connect") && i + 1 < commandLineArgs.Length)
@@ -978,7 +720,7 @@ namespace GungeonTogether.Steam
                         if (ulong.TryParse(target, out ulong lobbyId))
                         {
                             Debug.Log($"[ETGSteamP2P] Found Steam lobby connect for lobby: {lobbyId}");
-                            
+
                             // CRITICAL: Get the actual host Steam ID from the lobby, not the lobby ID itself
                             ulong hostSteamId = SteamReflectionHelper.GetLobbyOwner(lobbyId);
                             if (hostSteamId != 0)
@@ -997,7 +739,7 @@ namespace GungeonTogether.Steam
                         TryExtractSteamIdFromUrl(commandLineArgs[i]);
                     }
                 }
-                
+
                 if (pendingJoinRequests.Count > 0)
                 {
                     Debug.Log($"[ETGSteamP2P] Found {pendingJoinRequests.Count} pending Steam join requests from command line");
@@ -1043,7 +785,7 @@ namespace GungeonTogether.Steam
                     Debug.Log($"[ETGSteamP2P] Processing pending join request for Steam ID: {steamId}");
                     OnJoinRequested?.Invoke(steamId);
                 }
-                
+
                 while (pendingOverlayJoinRequests.Count > 0)
                 {
                     string hostSteamId = pendingOverlayJoinRequests.Dequeue();
@@ -1098,13 +840,13 @@ namespace GungeonTogether.Steam
                 {
                     return false;
                 }
-                
+
                 Type steamNetworkingType = steamworksAssembly.GetType("Steamworks.SteamNetworking", false);
                 if (ReferenceEquals(steamNetworkingType, null))
                 {
                     return false;
                 }
-                
+
                 MethodInfo isP2PPacketAvailableMethod = steamNetworkingType.GetMethod("IsP2PPacketAvailable", BindingFlags.Public | BindingFlags.Static);
                 if (!ReferenceEquals(isP2PPacketAvailableMethod, null))
                 {
@@ -1112,7 +854,7 @@ namespace GungeonTogether.Steam
                     int channel = 0;
                     object[] args = new object[] { msgSize, channel };
                     object result = isP2PPacketAvailableMethod.Invoke(null, args);
-                    
+
                     bool hasPacket = result is bool && (bool)result;
                     if (hasPacket)
                     {
@@ -1127,15 +869,15 @@ namespace GungeonTogether.Steam
                                 uint msgSizeOut = 0;
                                 ulong remoteSteamId = 0;
                                 object[] readArgs = new object[] { buffer, msgSize, bytesRead, remoteSteamId, msgSizeOut };
-                                
+
                                 object readResult = readP2PPacketMethod.Invoke(null, readArgs);
                                 bool readSuccess = readResult is bool && (bool)readResult;
-                                
+
                                 if (readSuccess)
                                 {
                                     requestingSteamId = Convert.ToUInt64(readArgs[3]);
                                     Debug.Log($"[SteamCallbackManager] Detected packet from potential joiner: {requestingSteamId}");
-                                    
+
                                     if (!pendingJoinRequests.Contains(requestingSteamId))
                                     {
                                         pendingJoinRequests.Enqueue(requestingSteamId);
@@ -1146,7 +888,7 @@ namespace GungeonTogether.Steam
                         }
                     }
                 }
-                
+
                 return false;
             }
             catch (Exception ex)
@@ -1161,7 +903,7 @@ namespace GungeonTogether.Steam
             try
             {
                 string[] commandLineArgs = Environment.GetCommandLineArgs();
-                
+
                 for (int i = 0; i < commandLineArgs.Length; i++)
                 {
                     if (commandLineArgs[i].Contains("steam://joinlobby/"))
@@ -1172,7 +914,7 @@ namespace GungeonTogether.Steam
                             string lobbyIdStr = parts[4];
                             if (ulong.TryParse(lobbyIdStr, out ulong lobbyId) && lobbyId > 76561197960265728UL)
                             {
-                                
+
                                 // CRITICAL: Get the actual host Steam ID from the lobby, not the lobby ID itself
                                 ulong hostSteamId = SteamReflectionHelper.GetLobbyOwner(lobbyId);
                                 if (hostSteamId != 0)
@@ -1214,7 +956,7 @@ namespace GungeonTogether.Steam
                         }
                     }
                 }
-                
+
                 return 0;
             }
             catch (Exception ex)
@@ -1229,12 +971,12 @@ namespace GungeonTogether.Steam
             try
             {
                 Assembly steamworksAssembly = SteamReflectionHelper.GetSteamworksAssembly();
-                
+
                 if (ReferenceEquals(steamworksAssembly, null))
                 {
                     return 0;
                 }
-                
+
                 Type steamFriendsType = steamworksAssembly.GetType("Steamworks.SteamFriends", false);
                 if (!ReferenceEquals(steamFriendsType, null))
                 {
@@ -1243,7 +985,7 @@ namespace GungeonTogether.Steam
                     {
                         object[] args = new object[] { 4 }; // k_EFriendFlagImmediate
                         object result = getFriendCountMethod.Invoke(null, args);
-                        
+
                         if (result is int friendCount && friendCount > 0)
                         {
                             MethodInfo getFriendByIndexMethod = steamFriendsType.GetMethod("GetFriendByIndex", BindingFlags.Public | BindingFlags.Static);
@@ -1256,11 +998,11 @@ namespace GungeonTogether.Steam
                                     {
                                         object[] friendArgs = new object[] { i, 4 };
                                         object friendResult = getFriendByIndexMethod.Invoke(null, friendArgs);
-                                        
+
                                         if (!ReferenceEquals(friendResult, null))
                                         {
                                             ulong steamId = 0;
-                                            
+
                                             if (friendResult is ulong)
                                             {
                                                 steamId = (ulong)friendResult;
@@ -1279,7 +1021,7 @@ namespace GungeonTogether.Steam
                                                     }
                                                 }
                                             }
-                                            
+
                                             if (steamId != 0 && steamId > 76561197960265728UL)
                                             {
                                                 if (i == 0)
@@ -1298,7 +1040,7 @@ namespace GungeonTogether.Steam
                         }
                     }
                 }
-                
+
                 Debug.LogWarning("[SteamCallbackManager] Could not detect Steam ID from Steam API");
                 return 0;
             }
@@ -1363,6 +1105,326 @@ namespace GungeonTogether.Steam
             }
         }
 
+        /// <summary>
+        /// Steam callback handler for LobbyEnter_t. Handles lobby connection logic for both host and joiners.
+        /// </summary>
+        private static void OnLobbyEnter(object param)
+        {
+            Debug.Log($"[SteamCallbackManager] OnLobbyEnter called! param type: {(param == null ? "null" : param.GetType().FullName)}");
+
+            try
+            {
+                // Extract lobby ID from callback parameter (reflection)
+                if (!TryGetLobbyId(param, out ulong lobbyId))
+                {
+                    Debug.LogWarning("[SteamCallbackManager] OnLobbyEnter: Failed to extract lobby ID");
+                    return;
+                }
+
+                Debug.Log($"[SteamCallbackManager] OnLobbyEnter: Extracted Lobby ID: {lobbyId} (type: {lobbyId.GetType().FullName})");
+
+                // Get current user's Steam ID
+                ulong mySteamId = SteamReflectionHelper.GetSteamID();
+
+                // Get Steam matchmaking reflection methods
+                if (!TryGetMatchmakingMethods(out var getNumMembersMethod, out var getMemberByIndexMethod))
+                {
+                    Debug.LogWarning("[SteamCallbackManager] OnLobbyEnter: Failed to get matchmaking methods");
+                    return;
+                }
+
+                // Convert lobbyId to CSteamID object
+                var csteamId = SteamReflectionHelper.ConvertToCSteamID(lobbyId);
+                if (csteamId == null)
+                {
+                    Debug.LogWarning("[SteamCallbackManager] OnLobbyEnter: Failed to convert lobby ID to CSteamID");
+                    return;
+                }
+
+                // Handle logic for both host and joiners
+                if (SteamHostManager.IsCurrentlyHosting)
+                {
+                    HandleHostLobbyEnter(csteamId, getNumMembersMethod, getMemberByIndexMethod, mySteamId);
+                }
+                else
+                {
+                    HandleJoinerLobbyEnter(csteamId, getNumMembersMethod, getMemberByIndexMethod, mySteamId);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SteamCallbackManager] Error in OnLobbyEnter: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+        /// <summary>
+        /// Handles lobby enter logic for the host - notifies about new members
+        /// </summary>
+        private static void HandleHostLobbyEnter(object csteamId, MethodInfo getNumMembersMethod, MethodInfo getMemberByIndexMethod, ulong hostSteamId)
+        {
+            Debug.Log("[SteamCallbackManager] HandleHostLobbyEnter: Processing as host");
+
+            // Get current member count
+            if (!TryInvokeMethod(getNumMembersMethod, new[] { csteamId }, out int memberCount))
+            {
+                Debug.LogError("[SteamCallbackManager] Failed to get lobby member count");
+                return;
+            }
+
+            Debug.Log($"[SteamCallbackManager] Current lobby member count: {memberCount}");
+
+            // List all current members and identify new ones
+            var currentMembers = new List<ulong>();
+            for (int i = 0; i < memberCount; i++)
+            {
+                if (TryGetMemberSteamId(getMemberByIndexMethod, csteamId, i, out ulong memberSteamId) && memberSteamId != 0)
+                {
+                    currentMembers.Add(memberSteamId);
+
+                    // If this member is not the host, they're a joiner
+                    if (memberSteamId != hostSteamId)
+                    {
+                        Debug.Log($"[SteamCallbackManager] Player {memberSteamId} has joined the lobby!");
+
+                        // Notify the host UI/game logic about the new player
+                        NotifyHostOfNewPlayer(memberSteamId);
+
+                        // Accept P2P session with the new player
+                        AcceptP2PSessionWithPlayer(memberSteamId);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Handles lobby enter logic for joiners - connects to existing members
+        /// </summary>
+        private static void HandleJoinerLobbyEnter(object csteamId, MethodInfo getNumMembersMethod, MethodInfo getMemberByIndexMethod, ulong joinerSteamId)
+        {
+            Debug.Log("[SteamCallbackManager] HandleJoinerLobbyEnter: Processing as joiner");
+
+            // Log the join event for analytics/debugging
+            SteamHostManager.LogPlayerJoinedViaInviteOrOverlay(joinerSteamId);
+
+            // Connect to all existing lobby members
+            ConnectToLobbyMembers(csteamId, getNumMembersMethod, getMemberByIndexMethod, joinerSteamId);
+        }
+
+        /// <summary>
+        /// Connects to all lobby members except self using Steam P2P networking.
+        /// </summary>
+        private static void ConnectToLobbyMembers(object csteamId, MethodInfo getNumMembersMethod, MethodInfo getMemberByIndexMethod, ulong mySteamId)
+        {
+            // Get member count
+            if (!TryInvokeMethod(getNumMembersMethod, new[] { csteamId }, out int memberCount))
+            {
+                Debug.LogError("[SteamCallbackManager] Failed to get lobby member count");
+                return;
+            }
+
+            Debug.Log($"[SteamCallbackManager] Connecting to {memberCount} lobby members");
+
+            // Connect to each member except self
+            for (int i = 0; i < memberCount; i++)
+            {
+                if (TryGetMemberSteamId(getMemberByIndexMethod, csteamId, i, out ulong memberSteamId) &&
+                    memberSteamId != 0 &&
+                    memberSteamId != mySteamId)
+                {
+                    Debug.Log($"[SteamCallbackManager] Attempting to connect to member: {memberSteamId}");
+
+                    // Accept P2P session with this member
+                    AcceptP2PSessionWithPlayer(memberSteamId);
+
+                    // Optionally send a handshake packet
+                    SendHandshakePacket(memberSteamId);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Notifies the host's game logic that a new player has joined
+        /// </summary>
+        private static void NotifyHostOfNewPlayer(ulong newPlayerSteamId)
+        {
+            try
+            {
+                // Get player name if possible
+                string playerName = GetPlayerName(newPlayerSteamId);
+                Debug.Log($"[SteamCallbackManager] {playerName} has joined!");
+
+                // Notify your game's UI/logic about the new player
+                // Replace this with your actual notification method
+                if (SteamHostManager.OnPlayerJoined != null)
+                {
+                    SteamHostManager.OnPlayerJoined.Invoke(newPlayerSteamId, playerName);
+                }
+
+                // You might also want to update a player list UI here
+                // UpdatePlayerListUI();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SteamCallbackManager] Error notifying host of new player: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Accepts P2P session with a specific player
+        /// </summary>
+        private static void AcceptP2PSessionWithPlayer(ulong playerSteamId)
+        {
+            try
+            {
+                var networking = ETGSteamP2PNetworking.Instance;
+                if (networking == null)
+                {
+                    Debug.LogWarning("[SteamCallbackManager] ETGSteamP2PNetworking.Instance is null");
+                    return;
+                }
+
+                // Use reflection to call AcceptP2PSessionWithUser if it exists
+                var acceptMethod = networking.GetType().GetMethod("AcceptP2PSessionWithUser") ??
+                                networking.GetType().GetMethod("AcceptP2PSession");
+
+                if (acceptMethod != null)
+                {
+                    var playerCSteamId = SteamReflectionHelper.ConvertToCSteamID(playerSteamId);
+                    if (playerCSteamId != null)
+                    {
+                        acceptMethod.Invoke(networking, new[] { playerCSteamId });
+                        Debug.Log($"[SteamCallbackManager] Accepted P2P session with player: {playerSteamId}");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning("[SteamCallbackManager] Could not find AcceptP2PSession method");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SteamCallbackManager] Error accepting P2P session: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Sends a handshake packet to establish connection
+        /// </summary>
+        private static void SendHandshakePacket(ulong targetSteamId)
+        {
+            try
+            {
+                var networking = ETGSteamP2PNetworking.Instance;
+                if (networking == null) return;
+
+                // Send a simple handshake packet to establish the connection
+                // You'll need to implement this based on your networking setup
+                // This is just a placeholder for the concept
+
+                Debug.Log($"[SteamCallbackManager] Sending handshake to: {targetSteamId}");
+
+                // Example: networking.SendHandshake(targetSteamId);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SteamCallbackManager] Error sending handshake: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Gets a player's display name from Steam
+        /// </summary>
+        private static string GetPlayerName(ulong steamId)
+        {
+            try
+            {
+                // Use Steam Friends API to get the player name
+                var steamworksAssembly = SteamReflectionHelper.GetSteamworksAssembly();
+                var friendsType = steamworksAssembly?.GetType("Steamworks.SteamFriends", false);
+                var getNameMethod = friendsType?.GetMethod("GetFriendPersonaName");
+
+                if (getNameMethod != null)
+                {
+                    var playerCSteamId = SteamReflectionHelper.ConvertToCSteamID(steamId);
+                    if (playerCSteamId != null)
+                    {
+                        var name = getNameMethod.Invoke(null, new[] { playerCSteamId }) as string;
+                        return !string.IsNullOrEmpty(name) ? name : $"Player_{steamId}";
+                    }
+                }
+
+                return $"Player_{steamId}";
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SteamCallbackManager] Error getting player name: {ex.Message}");
+                return $"Player_{steamId}";
+            }
+        }
+
+        /// <summary>
+        /// Steam callback for LobbyDataUpdate_t - handles lobby membership changes
+        /// </summary>
+        private static void OnLobbyDataUpdate(object param)
+        {
+            Debug.Log("[SteamCallbackManager] OnLobbyDataUpdate called!");
+
+            try
+            {
+                if (!TryGetLobbyId(param, out ulong lobbyId))
+                {
+                    Debug.LogWarning("[SteamCallbackManager] OnLobbyDataUpdate: Failed to extract lobby ID");
+                    return;
+                }
+
+                // Check if this is our current lobby
+                if (SteamHostManager.CurrentLobbyId != lobbyId)
+                {
+                    Debug.Log("[SteamCallbackManager] OnLobbyDataUpdate: Not our current lobby, ignoring");
+                    return;
+                }
+
+                Debug.Log($"[SteamCallbackManager] Lobby data updated for lobby: {lobbyId}");
+
+                // Refresh member list and handle any changes
+                RefreshLobbyMemberList(lobbyId);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SteamCallbackManager] Error in OnLobbyDataUpdate: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Refreshes the lobby member list and handles changes
+        /// </summary>
+        private static void RefreshLobbyMemberList(ulong lobbyId)
+        {
+            try
+            {
+                if (!TryGetMatchmakingMethods(out var getNumMembersMethod, out var getMemberByIndexMethod))
+                {
+                    return;
+                }
+
+                var csteamId = SteamReflectionHelper.ConvertToCSteamID(lobbyId);
+                if (csteamId == null) return;
+
+                if (!TryInvokeMethod(getNumMembersMethod, new[] { csteamId }, out int memberCount))
+                {
+                    return;
+                }
+
+                Debug.Log($"[SteamCallbackManager] Lobby now has {memberCount} members");
+
+                // Update your game's member list UI here
+                // UpdateLobbyMemberListUI(memberCount);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SteamCallbackManager] Error refreshing lobby member list: {ex.Message}");
+            }
+        }
         // Reference to the ISteamNetworking implementation
         public static ISteamNetworking SteamNetworking { get; set; }
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace GungeonTogether.Steam
@@ -17,7 +18,7 @@ namespace GungeonTogether.Steam
         
         // Automatic host discovery system
         private static Dictionary<ulong, HostInfo> availableHosts = new Dictionary<ulong, HostInfo>();
-        
+
         // Current lobby state
         private static ulong currentLobbyId = 0;
         private static bool isLobbyHost = false;
@@ -25,6 +26,15 @@ namespace GungeonTogether.Steam
         // Add caching for host scanning too
         private static float lastHostScan = 0f;
         private static readonly float hostScanInterval = 3.0f; // Scan for hosts every 3 seconds max
+
+        public static System.Action<ulong, string> OnPlayerJoined;
+                // Property accessors
+        public static bool IsCurrentlyHosting => isCurrentlyHosting;
+        public static ulong CurrentHostSteamId => currentHostSteamId;
+        public static ulong CurrentLobbyId => currentLobbyId;
+        public static bool IsLobbyHost => isLobbyHost;
+        public static string LastInviteLobbyId => lastInviteLobbyId;
+        
         
         public struct HostInfo
         {
@@ -381,7 +391,14 @@ namespace GungeonTogether.Steam
                         if (!ReferenceEquals(lobbyId, 0))
                         {
                             currentLobbyId = lobbyId;
-                            Debug.Log($"[Host manager] Hosting lobby with ID: {currentLobbyId}");
+                            // Set lobby joinable and public
+                            var setLobbyJoinableMethod = SteamReflectionHelper.SetLobbyJoinableMethod;
+                            if (!ReferenceEquals(setLobbyJoinableMethod, null))
+                            {
+                                var csteamId = SteamReflectionHelper.ConvertToCSteamID(currentLobbyId);
+                                setLobbyJoinableMethod.Invoke(null, new object[] { csteamId, true });
+                            }
+                            Debug.Log($"[Host manager] Hosting joinable/public lobby with ID: {currentLobbyId}");
                             UpdateRichPresenceConnectToLobby();
                         }
                         else
@@ -414,8 +431,9 @@ namespace GungeonTogether.Steam
                     // Set status to show we're joining a game
                     setRichPresenceMethod.Invoke(null, new object[] { "status", "Joining Game" });
                     setRichPresenceMethod.Invoke(null, new object[] { "steam_display", "#Status_JoiningGame" });
-                    
-                    Debug.Log($"[ETGSteamP2P] Started joining session with host: {hostSteamId}");
+                    Debug.Log($"[ETGSteamP2P] Started joining session with host/lobby: {hostSteamId}");
+                    // Actually join the lobby
+                    JoinLobby(hostSteamId);
                 }
             }
             catch (Exception e)
@@ -527,7 +545,14 @@ namespace GungeonTogether.Steam
                         if (!ReferenceEquals(lobbyId, 0))
                         {
                             currentLobbyId = lobbyId;
-                            Debug.Log($"[ETGSteamP2P] Hosting lobby with ID: {currentLobbyId}");
+                            // Set lobby joinable and public
+                            var setLobbyJoinableMethod = SteamReflectionHelper.SetLobbyJoinableMethod;
+                            if (!ReferenceEquals(setLobbyJoinableMethod, null))
+                            {
+                                var csteamId = SteamReflectionHelper.ConvertToCSteamID(currentLobbyId);
+                                setLobbyJoinableMethod.Invoke(null, new object[] { csteamId, true });
+                            }
+                            Debug.Log($"[ETGSteamP2P] Hosting joinable/public lobby with ID: {currentLobbyId}");
                             UpdateRichPresenceConnectToLobby();
                         }
                         return true;
@@ -600,13 +625,6 @@ namespace GungeonTogether.Steam
                 return false;
             }
         }
-        
-        // Property accessors
-        public static bool IsCurrentlyHosting => isCurrentlyHosting;
-        public static ulong CurrentHostSteamId => currentHostSteamId;
-        public static ulong CurrentLobbyId => currentLobbyId;
-        public static bool IsLobbyHost => isLobbyHost;
-        public static string LastInviteLobbyId => lastInviteLobbyId;
         
         /// <summary>
         /// Scan Steam friends to find those playing ETG who might be hosting GungeonTogether
@@ -700,7 +718,7 @@ namespace GungeonTogether.Steam
                                 availableHosts[friend.steamId] = hostInfo;
                                 
 
-Debug.Log($"[ETGSteamP2P] 🔄 Updated existing host entry for {friend.name}");
+                                Debug.Log($"[ETGSteamP2P] 🔄 Updated existing host entry for {friend.name}");
                             }
                         }
                     }
@@ -749,42 +767,107 @@ Debug.Log($"[ETGSteamP2P] 🔄 Updated existing host entry for {friend.name}");
         /// Should be called periodically by the host.
         /// </summary>
         private static HashSet<ulong> _lastLobbyMembers = new HashSet<ulong>();
-        public static void PollAndLogLobbyJoins()
+
+        /// <summary>
+        /// Checks for new players joining the current lobby using Steamworks ISteamMatchmaking.
+        /// Should be called periodically while hosting.
+        /// </summary>
+        public static void CheckForLobbyJoins()
         {
-            if (!isCurrentlyHosting || ReferenceEquals(currentLobbyId, 0))
+            // Only poll when needed, not every frame
+            if (!isLobbyHost || ReferenceEquals(currentLobbyId, 0UL))
                 return;
-            var joinLobbyMethod = SteamReflectionHelper.JoinLobbyMethod;
-            var getNumMembersMethod = SteamReflectionHelper.GetLobbyDataMethod?.DeclaringType?.GetMethod("GetNumLobbyMembers");
-            var getMemberByIndexMethod = SteamReflectionHelper.GetLobbyDataMethod?.DeclaringType?.GetMethod("GetLobbyMemberByIndex");
+
+            var steamworksAssembly = SteamReflectionHelper.GetSteamworksAssembly();
+            if (ReferenceEquals(steamworksAssembly, null))
+            {
+                Debug.LogWarning("[SteamHostManager] Steamworks assembly is null");
+                return;
+            }
+
+            var matchmakingType = steamworksAssembly.GetType("Steamworks.SteamMatchmaking", false);
+            if (ReferenceEquals(matchmakingType, null))
+            {
+                Debug.LogWarning("[SteamHostManager] SteamMatchmaking type is null");
+                return;
+            }
+
+            var getNumMembersMethod = matchmakingType.GetMethod("GetNumLobbyMembers");
+            var getMemberByIndexMethod = matchmakingType.GetMethod("GetLobbyMemberByIndex");
             if (ReferenceEquals(getNumMembersMethod, null) || ReferenceEquals(getMemberByIndexMethod, null))
+            {
+                Debug.LogWarning("[SteamHostManager] Could not get GetNumLobbyMembers or GetLobbyMemberByIndex method");
                 return;
+            }
+
             var csteamId = SteamReflectionHelper.ConvertToCSteamID(currentLobbyId);
-            if (ReferenceEquals(csteamId, null))
-                return;
+            Debug.Log($"[SteamHostManager] Converted currentLobbyId to csteamId: {csteamId} (type: {(csteamId == null ? "null" : csteamId.GetType().FullName)})");
             int memberCount = 0;
             try
             {
-                memberCount = (int)getNumMembersMethod.Invoke(null, new object[] { csteamId });
+                var countObj = getNumMembersMethod.Invoke(null, new object[] { csteamId });
+                Debug.Log($"[SteamHostManager] GetNumLobbyMembers returned: {countObj} (csteamId: {csteamId}, currentLobbyId: {currentLobbyId})");
+                if (!ReferenceEquals(countObj, null))
+                    memberCount = Convert.ToInt32(countObj);
             }
-            catch { return; }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SteamHostManager] Error getting lobby member count: {ex.Message} (csteamId: {csteamId}, currentLobbyId: {currentLobbyId})");
+                return;
+            }
+
             var currentMembers = new HashSet<ulong>();
             for (int i = 0; i < memberCount; i++)
             {
-                object memberObj = getMemberByIndexMethod.Invoke(null, new object[] { csteamId, i });
-                ulong memberId = 0;
-                if (memberObj is ulong ul) memberId = ul;
-                else if (memberObj != null && ulong.TryParse(memberObj.ToString(), out ulong parsed)) memberId = parsed;
-                if (!ReferenceEquals(memberId, 0))
-                    currentMembers.Add(memberId);
-            }
-            foreach (var member in currentMembers)
-            {
-                if (!_lastLobbyMembers.Contains(member))
+                try
                 {
-                    Debug.Log($"[ETGSteamP2P] Host detected new player joined lobby: SteamID={member}");
+                    var memberObj = getMemberByIndexMethod.Invoke(null, new object[] { csteamId, i });
+                    Debug.Log($"[SteamHostManager] GetLobbyMemberByIndex({i}) returned: {memberObj}");
+                    ulong memberId = 0;
+                    if (memberObj is ulong ul)
+                    {
+                        memberId = ul;
+                    }
+                    else if (!ReferenceEquals(memberObj, null))
+                    {
+                        var mSteamIDProp = memberObj.GetType().GetProperty("m_SteamID");
+                        if (!ReferenceEquals(mSteamIDProp, null))
+                        {
+                            memberId = (ulong)mSteamIDProp.GetValue(memberObj, null);
+                        }
+                        else
+                        {
+                            ulong.TryParse(memberObj.ToString(), out memberId);
+                        }
+                    }
+                    if (!ReferenceEquals(memberId, 0UL))
+                        currentMembers.Add(memberId);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[SteamHostManager] Error getting lobby member at index {i}: {ex.Message}");
+                }
+            }
+            Debug.Log($"[SteamHostManager] Current lobby members: [{string.Join(", ", currentMembers.Select(x => x.ToString()).ToArray())}]");
+
+            // Detect new members
+            foreach (var memberId in currentMembers)
+            {
+                if (!_lastLobbyMembers.Contains(memberId))
+                {
+                    Debug.Log($"[SteamHostManager] Detected new player joined lobby: {memberId}");
+                    OnPlayerJoined?.Invoke(memberId, currentLobbyId.ToString());
                 }
             }
             _lastLobbyMembers = currentMembers;
+        }
+        
+        /// <summary>
+        /// Alias for CheckForLobbyJoins for compatibility with legacy code.
+        /// </summary>
+        public static void PollAndLogLobbyJoins()
+        {
+            CheckForLobbyJoins();
         }
     }
 }

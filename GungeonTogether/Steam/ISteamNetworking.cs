@@ -20,5 +20,10 @@ namespace GungeonTogether.Steam
         void StopSession();
         void Shutdown();
         void CheckForJoinRequests();
+
+        /// <summary>
+        /// Event triggered when a player joins the Steam lobby (host only)
+        /// </summary>
+        event Action<ulong, string> OnPlayerJoined;
     }
 }
