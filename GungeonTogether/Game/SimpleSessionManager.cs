@@ -257,60 +257,6 @@ namespace GungeonTogether.Game
             }
         }
         
-        private ulong ExtractSteamIdFromSession(string sessionId)
-        {
-            try
-            {
-                if (sessionId.StartsWith("steam_"))
-                {
-                    string steamIdStr = sessionId.Substring(6);
-                    if (ulong.TryParse(steamIdStr, out ulong steamId))
-                    {
-                        return steamId;
-                    }
-                }
-                else if (sessionId.StartsWith("friend_"))
-                {
-                    string[] parts = sessionId.Split('_');
-                    if (parts.Length >= 2 && ulong.TryParse(parts[1], out ulong steamId))
-                    {
-                        return steamId;
-                    }
-                }
-                else if (sessionId.StartsWith("steam_lobby_"))
-                {
-                    string lobbyPart = sessionId.Substring("steam_lobby_".Length);
-                    if (ulong.TryParse(lobbyPart, out ulong lobbyId))
-                    {
-                        Debug.Log($"[SimpleSessionManager] Extracted lobby ID: {lobbyId}, getting host Steam ID...");
-                        ulong hostSteamId = SteamReflectionHelper.GetLobbyOwner(lobbyId);
-                        if (hostSteamId != 0)
-                        {
-                            Debug.Log($"[SimpleSessionManager] ✅ Lobby {lobbyId} is owned by Steam ID: {hostSteamId}");
-                            return hostSteamId;
-                        }
-                        else
-                        {
-                            Debug.LogWarning($"[SimpleSessionManager] ❌ Could not get lobby owner for lobby {lobbyId} - lobby may not exist or Steam not ready");
-                            return 0;
-                        }
-                    }
-                    else
-                    {
-                        Debug.LogWarning($"[SimpleSessionManager] Failed to parse lobby ID from: {lobbyPart}");
-                        return 0;
-                    }
-                }
-                Debug.LogWarning($"[SimpleSessionManager] Could not extract Steam ID from session: {sessionId}");
-                return 0;
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[SimpleSessionManager] Error extracting Steam ID: {e.Message}");
-                return 0;
-            }
-        }
-        
         private string GenerateSessionId()
         {
             return $"gungeon_session_{DateTime.Now.Ticks % 1000000}";

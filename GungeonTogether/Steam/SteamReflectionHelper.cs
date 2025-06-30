@@ -21,6 +21,7 @@ namespace GungeonTogether.Steam
         private static Type gameJoinRequestedCallbackType;
         private static Type lobbyEnterCallbackType;
         private static Type lobbyCreatedCallbackType;
+        private static Type lobbyDataUpdateCallbackType;
         
         // Callback and event handling
         private static MethodInfo registerCallbackMethod;
@@ -112,6 +113,7 @@ namespace GungeonTogether.Steam
                 gameJoinRequestedCallbackType = steamworksAssembly.GetType("Steamworks.GameRichPresenceJoinRequested_t", false);
                 lobbyEnterCallbackType = steamworksAssembly.GetType("Steamworks.LobbyEnter_t", false);
                 lobbyCreatedCallbackType = steamworksAssembly.GetType("Steamworks.LobbyCreated_t", false);
+                lobbyDataUpdateCallbackType = steamworksAssembly.GetType("Steamworks.LobbyDataUpdate_t", false);
                 
                 Debug.Log($"[ETGSteamP2P] Found Steamworks types:");
                 Debug.Log($"  SteamUser: {steamUserType?.FullName ?? "NOT FOUND"}");
@@ -123,6 +125,7 @@ namespace GungeonTogether.Steam
                 Debug.Log($"  GameJoinRequestedCallback: {gameJoinRequestedCallbackType?.FullName ?? "NOT FOUND"}");
                 Debug.Log($"  LobbyEnterCallback: {lobbyEnterCallbackType?.FullName ?? "NOT FOUND"}");
                 Debug.Log($"  LobbyCreatedCallback: {lobbyCreatedCallbackType?.FullName ?? "NOT FOUND"}");
+                Debug.Log($"  LobbyDataUpdateCallback: {lobbyDataUpdateCallbackType?.FullName ?? "NOT FOUND"}");
                 
                 // Cache frequently used methods using proper Steamworks.NET method names
                 CacheSteamUserMethods();
@@ -711,66 +714,6 @@ namespace GungeonTogether.Steam
         {
             return ConvertToCSteamID(steamId);
         }
-        
-        /// <summary>
-        /// Extract ulong Steam ID from a CSteamID object or other Steam ID representation
-        /// </summary>
-        public static ulong ExtractSteamId(object steamIdObj)
-        {
-            if (ReferenceEquals(steamIdObj, null))
-                return 0;
-                
-            try
-            {
-                // If it's already a ulong, return it directly
-                if (steamIdObj is ulong directULong)
-                {
-                    return directULong;
-                }
-                
-                // Try direct conversion first
-                try
-                {
-                    return Convert.ToUInt64(steamIdObj);
-                }
-                catch (Exception)
-                {
-                    // Conversion failed, try reflection approach
-                }
-                
-                // If it's a CSteamID object, try to extract the value using reflection
-                var steamIdType = steamIdObj.GetType();
-                
-                // Look for common CSteamID value properties/fields
-                var valueProperty = steamIdType.GetProperty("m_SteamID", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (!ReferenceEquals(valueProperty, null))
-                {
-                    var value = valueProperty.GetValue(steamIdObj, null);
-                    return Convert.ToUInt64(value);
-                }
-                
-                var valueField = steamIdType.GetField("m_SteamID", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (!ReferenceEquals(valueField, null))
-                {
-                    var value = valueField.GetValue(steamIdObj);
-                    return Convert.ToUInt64(value);
-                }
-                
-                // Try ToString and parse
-                var stringValue = steamIdObj.ToString();
-                if (ulong.TryParse(stringValue, out ulong parsedId))
-                {
-                    return parsedId;
-                }
-                
-                return 0;
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"[ETGSteamP2P] Error extracting Steam ID from object: {e.Message}");
-                return 0;
-            }
-        }
 
         // Property accessors for the cached methods
         public static bool IsInitialized => initialized;
@@ -799,202 +742,5 @@ namespace GungeonTogether.Steam
         public static MethodInfo GetFriendGamePlayedMethod => getFriendGamePlayedMethod;
         public static MethodInfo GetFriendRichPresenceMethod => getFriendRichPresenceMethod;
         
-        /// <summary>
-        /// Get the Steam ID of the lobby owner/host
-        /// </summary>
-        public static ulong GetLobbyOwner(ulong lobbyId)
-        {
-            try
-            {
-                if (ReferenceEquals(getLobbyOwnerMethod, null))
-                {
-                    Debug.LogWarning("[ETGSteamP2P] GetLobbyOwner method not available");
-                    return 0;
-                }
-                
-                var lobbyIdParam = ConvertToCSteamID(lobbyId);
-                if (ReferenceEquals(lobbyIdParam, null))
-                {
-                    Debug.LogWarning($"[ETGSteamP2P] Could not convert lobby ID {lobbyId} to CSteamID");
-                    return 0;
-                }
-                
-                var result = getLobbyOwnerMethod.Invoke(null, new object[] { lobbyIdParam });
-                
-                if (!ReferenceEquals(result, null))
-                {
-                    var ownerSteamId = ExtractSteamId(result);
-                    // Debug.Log($"[ETGSteamP2P] GetLobbyOwner: Lobby {lobbyId} is owned by Steam ID {ownerSteamId}");
-                    return ownerSteamId;
-                }
-                
-                Debug.LogWarning($"[ETGSteamP2P] GetLobbyOwner returned null for lobby {lobbyId}");
-                return 0;
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[ETGSteamP2P] Error getting lobby owner for lobby {lobbyId}: {e.Message}");
-                return 0;
-            }
-        }
-
-        /// <summary>
-        /// Call IsP2PPacketAvailable using the correct parameter signature discovered at initialization
-        /// </summary>
-        public static bool CallIsP2PPacketAvailable(out uint packetSize, int channel = 0)
-        {
-            packetSize = 0;
-            try
-            {
-                // Check if Steamworks is initialized before calling any API
-                if (!IsSteamworksInitialized())
-                {
-                    Debug.LogWarning("[ETGSteamP2P] Steamworks is not initialized. Skipping IsP2PPacketAvailable call.");
-                    return false;
-                }
-                if (ReferenceEquals(isP2PPacketAvailableMethod, null))
-                {
-                    return false;
-                }
-                var parameters = isP2PPacketAvailableMethod.GetParameters();
-                for (int i = 0; i < parameters.Length; i++)
-                {
-                    var p = parameters[i];
-                }
-                if (parameters.Length == 2)
-                {
-                    // Pattern: (out uint packetSize, int channel) or (ref uint, int)
-                    var outType = parameters[0].ParameterType.GetElementType();
-                    object outVal = Activator.CreateInstance(outType);
-                    object[] args = new object[] { outVal, channel };
-                    object result = isP2PPacketAvailableMethod.Invoke(null, args);
-                    if (result is bool hasPacket)
-                    {
-                        try
-                        {
-                            packetSize = Convert.ToUInt32(args[0]);
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.LogWarning($"[ETGSteamP2P] Could not extract packetSize from out/ref param: {ex.Message}");
-                        }
-                        return hasPacket;
-                    }
-                }
-                else if (parameters.Length == 1)
-                {
-                    var firstParam = parameters[0];
-                    if (firstParam.IsOut && firstParam.ParameterType.GetElementType().Equals(typeof(uint)))
-                    {
-                        // Pattern: (out uint packetSize)
-                        var outType = firstParam.ParameterType.GetElementType();
-                        object outVal = Activator.CreateInstance(outType);
-                        object[] args = new object[] { outVal };
-                        object result = isP2PPacketAvailableMethod.Invoke(null, args);
-                        if (result is bool hasPacket)
-                        {
-                            try
-                            {
-                                packetSize = Convert.ToUInt32(args[0]);
-                            }
-                            catch (Exception ex)
-                            {
-                                Debug.LogWarning($"[ETGSteamP2P] Could not extract packetSize from out/ref param: {ex.Message}");
-                            }
-                            Debug.Log($"[ETGSteamP2P] 🔍 IsP2PPacketAvailable (out uint): {hasPacket}, Size: {packetSize}");
-                            return hasPacket;
-                        }
-                    }
-                    else
-                    {
-                        // Pattern: (int channel)
-                        object[] args = new object[] { channel };
-                        object result = isP2PPacketAvailableMethod.Invoke(null, args);
-                        if (result is bool hasPacket)
-                        {
-                            Debug.Log($"[ETGSteamP2P] 🔍 IsP2PPacketAvailable (int channel): {hasPacket}");
-                            return hasPacket;
-                        }
-                    }
-                }
-                else if (parameters.Length == 0)
-                {
-                    // Pattern: no parameters
-                    object result = isP2PPacketAvailableMethod.Invoke(null, new object[0]);
-                    if (result is bool hasPacket)
-                    {
-                        Debug.Log($"[ETGSteamP2P] 🔍 IsP2PPacketAvailable (no params): {hasPacket}");
-                        return hasPacket;
-                    }
-                }
-                Debug.LogWarning($"[ETGSteamP2P] ⚠️ Unsupported IsP2PPacketAvailable parameter count: {parameters.Length}");
-                return false;
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[ETGSteamP2P] ❌ Error calling IsP2PPacketAvailable: {e}");
-                if (e.InnerException != null)
-                {
-                    Debug.LogError($"[ETGSteamP2P] ❌ InnerException: {e.InnerException}");
-                }
-                return false;
-            }
-        }
-
-        private static bool IsSteamworksInitialized()
-        {
-            // Try to use SteamManager.Initialized if available
-            Type steamManagerType = null;
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                foreach (var type in assembly.GetTypes())
-                {
-                    if (type.Name.Equals("SteamManager"))
-                    {
-                        steamManagerType = type;
-                        break;
-                    }
-                }
-                if (!ReferenceEquals(steamManagerType, null))
-                    break;
-            }
-            if (!ReferenceEquals(steamManagerType, null))
-            {
-                var prop = steamManagerType.GetProperty("Initialized", BindingFlags.Public | BindingFlags.Static);
-                if (!ReferenceEquals(prop, null))
-                {
-                    var value = prop.GetValue(null, null);
-                    if (value is bool b)
-                        return b;
-                }
-            }
-            // Fallback: try SteamAPI.IsSteamRunning() if available
-            Type steamApiType = null;
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                foreach (var type in assembly.GetTypes())
-                {
-                    if (type.FullName != null && type.FullName.Equals("Steamworks.SteamAPI"))
-                    {
-                        steamApiType = type;
-                        break;
-                    }
-                }
-                if (!ReferenceEquals(steamApiType, null))
-                    break;
-            }
-            if (!ReferenceEquals(steamApiType, null))
-            {
-                var isSteamRunningMethod = steamApiType.GetMethod("IsSteamRunning", BindingFlags.Public | BindingFlags.Static);
-                if (!ReferenceEquals(isSteamRunningMethod, null))
-                {
-                    var value = isSteamRunningMethod.Invoke(null, null);
-                    if (value is bool b)
-                        return b;
-                }
-            }
-            // If all else fails, assume not initialized
-            return false;
-        }
     }
 }

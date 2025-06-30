@@ -163,7 +163,7 @@ namespace GungeonTogether.Steam
                         lastSeen = Time.time,
                         isActive = true
                     };
-                    // Debug.Log($"[ETGSteamP2P] Registered as host: {mySteamId}");
+                    InitializeLobbyCallbacks(); // Ensure callback is registered when hosting
                 }
             }
             catch (Exception e)
@@ -686,9 +686,9 @@ namespace GungeonTogether.Steam
                                 Debug.Log($"[ETGSteamP2P] ❌ {friend.name} is playing Enter the Gungeon but not GungeonTogether (no GT Rich Presence)");
                             }
                         }
-                        catch (Exception ex)
+                        catch (Exception exception)
                         {
-                            Debug.LogWarning($"[ETGSteamP2P] Could not check Rich Presence for {friend.name}: {ex.Message}");
+                            Debug.LogWarning($"[ETGSteamP2P] Could not check Rich Presence for {friend.name}: {exception.Message}");
                         }
                         
                         // Only add as host if they're actually hosting GungeonTogether
@@ -868,6 +868,80 @@ namespace GungeonTogether.Steam
         public static void PollAndLogLobbyJoins()
         {
             CheckForLobbyJoins();
+        }
+        
+        private static object lobbyDataUpdateCallbackInstance;
+
+        /// <summary>
+        /// Initialize Steam lobby callbacks for host join detection
+        /// </summary>
+        public static void InitializeLobbyCallbacks()
+        {
+            try
+            {
+                var callbackType = SteamReflectionHelper.LobbyDataUpdateCallbackType;
+                if (ReferenceEquals(callbackType, null))
+                {
+                    Debug.LogWarning("[SteamHostManager] LobbyDataUpdate_t callback type not found");
+                    return;
+                }
+                var registerCallbackMethod = typeof(GungeonTogether.Steam.SteamReflectionHelper).Assembly
+                    .GetType("Steamworks.CallbackDispatcher", false)?
+                    .GetMethod("Register", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                if (ReferenceEquals(registerCallbackMethod, null))
+                {
+                    // Fallback: try to get from SteamReflectionHelper
+                    var helperType = typeof(GungeonTogether.Steam.SteamReflectionHelper);
+                    registerCallbackMethod = helperType.GetMethod("RegisterCallback", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                }
+                if (ReferenceEquals(registerCallbackMethod, null))
+                {
+                    Debug.LogWarning("[SteamHostManager] Could not find RegisterCallback method for Steamworks");
+                    return;
+                }
+                // Create delegate for callback
+                var handler = new Action<object>(OnLobbyDataUpdate);
+                lobbyDataUpdateCallbackInstance = registerCallbackMethod.Invoke(null, new object[] { handler, callbackType });
+                Debug.Log("[SteamHostManager] Registered LobbyDataUpdate_t callback for join detection");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SteamHostManager] Failed to register LobbyDataUpdate_t callback: {e.Message}");
+            }
+        }
+
+        private static void OnLobbyDataUpdate(object callbackData)
+        {
+            try
+            {
+                if (ReferenceEquals(callbackData, null)) return;
+                var type = callbackData.GetType();
+                var lobbyIdProp = type.GetProperty("m_ulSteamIDLobby");
+                var memberIdProp = type.GetProperty("m_ulSteamIDMember");
+                var successProp = type.GetProperty("m_bSuccess");
+                if (ReferenceEquals(lobbyIdProp, null) || ReferenceEquals(memberIdProp, null)) return;
+                ulong lobbyId = Convert.ToUInt64(lobbyIdProp.GetValue(callbackData, null));
+                ulong memberId = Convert.ToUInt64(memberIdProp.GetValue(callbackData, null));
+                bool isSuccess = true;
+                if (!ReferenceEquals(successProp, null))
+                {
+                    var val = successProp.GetValue(callbackData, null);
+                    if (val is bool b) isSuccess = b;
+                    else if (val is byte by) isSuccess = by != 0;
+                }
+                if (!isSuccess) return;
+                if (!ReferenceEquals(lobbyId, currentLobbyId)) return;
+                ulong mySteamId = SteamReflectionHelper.GetSteamID();
+                if (!ReferenceEquals(memberId, lobbyId) && !ReferenceEquals(memberId, mySteamId))
+                {
+                    // New member joined (not the lobby itself, not the host)
+                    OnPlayerJoined?.Invoke(memberId, lobbyId.ToString());
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SteamHostManager] Error in OnLobbyDataUpdate: {e.Message}");
+            }
         }
     }
 }
