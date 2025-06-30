@@ -339,7 +339,7 @@ namespace GungeonTogether.Steam
         /// </summary>
         private static void OnGameLobbyJoinRequested(object param)
         {
-            if (ReferenceEquals(param, null))
+            if (param == null)
             {
                 Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequested: param is null");
                 return;
@@ -348,8 +348,18 @@ namespace GungeonTogether.Steam
             {
                 Debug.Log("[SteamCallbackManager] OnGameLobbyJoinRequested called!");
 
-                ulong lobbyId;
-                if (TryGetLobbyId(param, out lobbyId) && !lobbyId.Equals(0UL))
+                ulong lobbyId = 0;
+                var type = param.GetType();
+                var lobbyIdField = type.GetField("m_ulSteamIDLobby") ?? type.GetField("m_SteamIDLobby") ?? type.GetField("lobbyID");
+                if (lobbyIdField != null)
+                {
+                    var value = lobbyIdField.GetValue(param);
+                    if (value is ulong ul)
+                        lobbyId = ul;
+                    else if (value != null && ulong.TryParse(value.ToString(), out ulong parsed))
+                        lobbyId = parsed;
+                }
+                if (!lobbyId.Equals(0UL))
                 {
                     var networking = ETGSteamP2PNetworking.Instance;
                     if (!ReferenceEquals(networking, null))
@@ -377,12 +387,11 @@ namespace GungeonTogether.Steam
             Debug.Log("[SteamCallbackManager] OnGameRichPresenceJoinRequested called!");
             try
             {
-                if (ReferenceEquals(param, null))
+                if (param == null)
                 {
                     Debug.LogWarning("[SteamCallbackManager] OnGameRichPresenceJoinRequested: param is null");
                     return;
                 }
-                // Try to extract Steam ID from param
                 ulong steamId = 0;
                 var type = param.GetType();
                 var steamIdField = type.GetField("m_steamIDFriend") ?? type.GetField("steamIDFriend") ?? type.GetField("m_steamID") ?? type.GetField("steamID") ?? type.GetField("m_ulSteamIDFriend") ?? type.GetField("ulSteamIDFriend");
@@ -390,13 +399,9 @@ namespace GungeonTogether.Steam
                 {
                     var value = steamIdField.GetValue(param);
                     if (value is ulong ul)
-                    {
                         steamId = ul;
-                    }
                     else if (value != null && ulong.TryParse(value.ToString(), out ulong parsed))
-                    {
                         steamId = parsed;
-                    }
                 }
                 if (!steamId.Equals(0UL))
                 {
@@ -1115,30 +1120,36 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                if (ReferenceEquals(callbackData, null)) {
+                if (callbackData == null) {
                     Debug.LogError("[SteamCallbackManager] OnLobbyDataUpdate: callbackData is null");
                     return;
                 }
-                var type = callbackData.GetType();
-                var lobbyIdProp = type.GetProperty("m_ulSteamIDLobby");
-                var memberIdProp = type.GetProperty("m_ulSteamIDMember");
-                var successProp = type.GetProperty("m_bSuccess");
-                if (ReferenceEquals(lobbyIdProp, null) || ReferenceEquals(memberIdProp, null)) {
-                    Debug.LogError("[SteamCallbackManager] OnLobbyDataUpdate: lobbyIdProp or memberIdProp is null");
-                    return;
-                }
-                var lobbyIdObj = lobbyIdProp.GetValue(callbackData, null);
-                var memberIdObj = memberIdProp.GetValue(callbackData, null);
-                if (ReferenceEquals(lobbyIdObj, null) || ReferenceEquals(memberIdObj, null)) {
-                    Debug.LogError("[SteamCallbackManager] OnLobbyDataUpdate: lobbyIdObj or memberIdObj is null");
-                    return;
-                }
-                ulong lobbyId = Convert.ToUInt64(lobbyIdObj);
-                ulong memberId = Convert.ToUInt64(memberIdObj);
+                ulong lobbyId = 0;
+                ulong memberId = 0;
                 bool isSuccess = true;
-                if (!ReferenceEquals(successProp, null))
+                var type = callbackData.GetType();
+                var lobbyIdField = type.GetField("m_ulSteamIDLobby") ?? type.GetField("m_SteamIDLobby") ?? type.GetField("lobbyID");
+                var memberIdField = type.GetField("m_ulSteamIDMember") ?? type.GetField("m_SteamIDMember") ?? type.GetField("memberID");
+                var successField = type.GetField("m_bSuccess");
+                if (lobbyIdField != null)
                 {
-                    var val = successProp.GetValue(callbackData, null);
+                    var value = lobbyIdField.GetValue(callbackData);
+                    if (value is ulong ul)
+                        lobbyId = ul;
+                    else if (value != null && ulong.TryParse(value.ToString(), out ulong parsed))
+                        lobbyId = parsed;
+                }
+                if (memberIdField != null)
+                {
+                    var value = memberIdField.GetValue(callbackData);
+                    if (value is ulong ul)
+                        memberId = ul;
+                    else if (value != null && ulong.TryParse(value.ToString(), out ulong parsed))
+                        memberId = parsed;
+                }
+                if (successField != null)
+                {
+                    var val = successField.GetValue(callbackData);
                     if (val is bool b) isSuccess = b;
                     else if (val is byte by) isSuccess = by != 0;
                 }
