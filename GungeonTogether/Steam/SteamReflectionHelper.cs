@@ -23,9 +23,6 @@ namespace GungeonTogether.Steam
         private static Type lobbyCreatedCallbackType;
         private static Type lobbyDataUpdateCallbackType;
         
-        // Callback and event handling
-        private static MethodInfo registerCallbackMethod;
-        private static MethodInfo unregisterCallbackMethod;
         
         // Reflected methods
         private static MethodInfo getSteamIdMethod;
@@ -742,5 +739,10 @@ namespace GungeonTogether.Steam
         public static MethodInfo GetFriendGamePlayedMethod => getFriendGamePlayedMethod;
         public static MethodInfo GetFriendRichPresenceMethod => getFriendRichPresenceMethod;
         
+        // Additional public properties
+        public static Type GameJoinRequestedCallbackType => gameJoinRequestedCallbackType;
+        public static Type LobbyEnterCallbackType => lobbyEnterCallbackType;
+        public static Type LobbyCreatedCallbackType => lobbyCreatedCallbackType;
+        public static Type LobbyDataUpdateCallbackType => lobbyDataUpdateCallbackType;
     }
 }

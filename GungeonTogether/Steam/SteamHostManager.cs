@@ -126,9 +126,9 @@ namespace GungeonTogether.Steam
                 // }
                 return bestHost;
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                Debug.LogError($"[ETGSteamP2P] Error finding best host: {e.Message}");
+                Debug.LogError($"[ETGSteamP2P] Error finding best host");
                 return 0;
             }
         }
@@ -166,9 +166,9 @@ namespace GungeonTogether.Steam
                     InitializeLobbyCallbacks(); // Ensure callback is registered when hosting
                 }
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                Debug.LogError($"[ETGSteamP2P] Error registering as host: {e.Message}");
+                Debug.LogError($"[ETGSteamP2P] Error registering as host");
             }
         }
         
@@ -187,9 +187,9 @@ namespace GungeonTogether.Steam
                 currentHostSteamId = 0;
                 isCurrentlyHosting = false;
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                Debug.LogError($"[ETGSteamP2P] Error unregistering as host: {e.Message}");
+                Debug.LogError($"[ETGSteamP2P] Error unregistering as host");
             }
         }
         
@@ -885,24 +885,35 @@ namespace GungeonTogether.Steam
                     Debug.LogWarning("[SteamHostManager] LobbyDataUpdate_t callback type not found");
                     return;
                 }
-                var registerCallbackMethod = typeof(GungeonTogether.Steam.SteamReflectionHelper).Assembly
-                    .GetType("Steamworks.CallbackDispatcher", false)?
-                    .GetMethod("Register", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                if (ReferenceEquals(registerCallbackMethod, null))
+                var steamworksAssembly = SteamReflectionHelper.GetSteamworksAssembly();
+                if (ReferenceEquals(steamworksAssembly, null))
                 {
-                    // Fallback: try to get from SteamReflectionHelper
-                    var helperType = typeof(GungeonTogether.Steam.SteamReflectionHelper);
-                    registerCallbackMethod = helperType.GetMethod("RegisterCallback", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                }
-                if (ReferenceEquals(registerCallbackMethod, null))
-                {
-                    Debug.LogWarning("[SteamHostManager] Could not find RegisterCallback method for Steamworks");
+                    Debug.LogWarning("[SteamHostManager] Steamworks assembly not found");
                     return;
                 }
-                // Create delegate for callback
-                var handler = new Action<object>(OnLobbyDataUpdate);
-                lobbyDataUpdateCallbackInstance = registerCallbackMethod.Invoke(null, new object[] { handler, callbackType });
-                Debug.Log("[SteamHostManager] Registered LobbyDataUpdate_t callback for join detection");
+                // Find callback base type
+                var callbackBaseType = steamworksAssembly.GetType("Steamworks.Callback", false)
+                    ?? steamworksAssembly.GetType("Steamworks.Callback`1", false)
+                    ?? steamworksAssembly.GetType("Steamworks.CCallbackBase", false)
+                    ?? steamworksAssembly.GetType("Steamworks.CallResult", false)
+                    ?? steamworksAssembly.GetType("Steamworks.CallResult`1", false);
+                if (ReferenceEquals(callbackBaseType, null))
+                {
+                    Debug.LogWarning("[SteamHostManager] Steam callback base type not found");
+                    return;
+                }
+                // Use SteamCallbackManager.TryRegisterCallback
+                var tryRegisterCallback = typeof(SteamCallbackManager)
+                    .GetMethod("TryRegisterCallback", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+                bool registered = (bool)(tryRegisterCallback?.Invoke(null, new object[] { steamworksAssembly, callbackBaseType, callbackType, "OnLobbyDataUpdate" }) ?? false);
+                if (registered)
+                {
+                    Debug.Log("[SteamHostManager] Registered LobbyDataUpdate_t callback for join detection");
+                }
+                else
+                {
+                    Debug.LogWarning("[SteamHostManager] Failed to register LobbyDataUpdate_t callback using SteamCallbackManager.TryRegisterCallback");
+                }
             }
             catch (Exception e)
             {
@@ -910,38 +921,6 @@ namespace GungeonTogether.Steam
             }
         }
 
-        private static void OnLobbyDataUpdate(object callbackData)
-        {
-            try
-            {
-                if (ReferenceEquals(callbackData, null)) return;
-                var type = callbackData.GetType();
-                var lobbyIdProp = type.GetProperty("m_ulSteamIDLobby");
-                var memberIdProp = type.GetProperty("m_ulSteamIDMember");
-                var successProp = type.GetProperty("m_bSuccess");
-                if (ReferenceEquals(lobbyIdProp, null) || ReferenceEquals(memberIdProp, null)) return;
-                ulong lobbyId = Convert.ToUInt64(lobbyIdProp.GetValue(callbackData, null));
-                ulong memberId = Convert.ToUInt64(memberIdProp.GetValue(callbackData, null));
-                bool isSuccess = true;
-                if (!ReferenceEquals(successProp, null))
-                {
-                    var val = successProp.GetValue(callbackData, null);
-                    if (val is bool b) isSuccess = b;
-                    else if (val is byte by) isSuccess = by != 0;
-                }
-                if (!isSuccess) return;
-                if (!ReferenceEquals(lobbyId, currentLobbyId)) return;
-                ulong mySteamId = SteamReflectionHelper.GetSteamID();
-                if (!ReferenceEquals(memberId, lobbyId) && !ReferenceEquals(memberId, mySteamId))
-                {
-                    // New member joined (not the lobby itself, not the host)
-                    OnPlayerJoined?.Invoke(memberId, lobbyId.ToString());
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[SteamHostManager] Error in OnLobbyDataUpdate: {e.Message}");
-            }
-        }
+        
     }
 }

@@ -349,15 +349,16 @@ namespace GungeonTogether.Steam
                 Debug.Log("[SteamCallbackManager] OnGameLobbyJoinRequested called!");
 
                 ulong lobbyId;
-                if (TryGetLobbyId(param, out lobbyId) && !ReferenceEquals(lobbyId, 0UL))
+                if (TryGetLobbyId(param, out lobbyId) && !lobbyId.Equals(0UL))
                 {
-                    if (!ReferenceEquals(SteamNetworking, null) && !ReferenceEquals(SteamNetworking.JoinLobby, null))
+                    var networking = ETGSteamP2PNetworking.Instance;
+                    if (!ReferenceEquals(networking, null))
                     {
-                        Debug.Log($"[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby(lobbyId={lobbyId})");
-                        SteamNetworking.JoinLobby(lobbyId);
+                        Debug.Log($"[SteamCallbackManager] [DEBUG] Using ETGSteamP2PNetworking.Instance.JoinLobby(lobbyId={lobbyId})");
+                        networking.JoinLobby(lobbyId);
                         return;
                     }
-                    Debug.LogWarning("[SteamCallbackManager] SteamNetworking or JoinLobby is null");
+                    Debug.LogWarning("[SteamCallbackManager] ETGSteamP2PNetworking.Instance is null");
                     return;
                 }
                 Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequested: Could not parse lobbyId from value (expected ulong)");
@@ -397,7 +398,7 @@ namespace GungeonTogether.Steam
                         steamId = parsed;
                     }
                 }
-                if (!ReferenceEquals(steamId, 0))
+                if (!steamId.Equals(0UL))
                 {
                     Debug.Log($"[SteamCallbackManager] OnGameRichPresenceJoinRequested: Triggering overlay join for Steam ID {steamId}");
                     TriggerOverlayJoinEvent(steamId.ToString());
@@ -443,7 +444,7 @@ namespace GungeonTogether.Steam
             return value switch
             {
                 ulong ul => (lobbyId = ul) > 0,
-                _ when !ReferenceEquals(value, null) && ulong.TryParse(value.ToString(), out lobbyId) => lobbyId > 0,
+                _ when value != null && ulong.TryParse(value.ToString(), out lobbyId) => lobbyId > 0,
                 _ => false
             };
         }
@@ -1104,6 +1105,78 @@ namespace GungeonTogether.Steam
             {
                 Debug.LogError($"[SteamCallbackManager] Error getting player name: {ex.Message}");
                 return $"Player_{steamId}";
+            }
+        }
+
+        /// <summary>
+        /// Handles Steam LobbyDataUpdate_t callback for join detection (moved from SteamHostManager).
+        /// </summary>
+        private static void OnLobbyDataUpdate(object callbackData)
+        {
+            try
+            {
+                if (ReferenceEquals(callbackData, null)) {
+                    Debug.LogError("[SteamCallbackManager] OnLobbyDataUpdate: callbackData is null");
+                    return;
+                }
+                var type = callbackData.GetType();
+                var lobbyIdProp = type.GetProperty("m_ulSteamIDLobby");
+                var memberIdProp = type.GetProperty("m_ulSteamIDMember");
+                var successProp = type.GetProperty("m_bSuccess");
+                if (ReferenceEquals(lobbyIdProp, null) || ReferenceEquals(memberIdProp, null)) {
+                    Debug.LogError("[SteamCallbackManager] OnLobbyDataUpdate: lobbyIdProp or memberIdProp is null");
+                    return;
+                }
+                var lobbyIdObj = lobbyIdProp.GetValue(callbackData, null);
+                var memberIdObj = memberIdProp.GetValue(callbackData, null);
+                if (ReferenceEquals(lobbyIdObj, null) || ReferenceEquals(memberIdObj, null)) {
+                    Debug.LogError("[SteamCallbackManager] OnLobbyDataUpdate: lobbyIdObj or memberIdObj is null");
+                    return;
+                }
+                ulong lobbyId = Convert.ToUInt64(lobbyIdObj);
+                ulong memberId = Convert.ToUInt64(memberIdObj);
+                bool isSuccess = true;
+                if (!ReferenceEquals(successProp, null))
+                {
+                    var val = successProp.GetValue(callbackData, null);
+                    if (val is bool b) isSuccess = b;
+                    else if (val is byte by) isSuccess = by != 0;
+                }
+                Debug.Log($"[SteamCallbackManager] OnLobbyDataUpdate: lobbyId={lobbyId}, memberId={memberId}, isSuccess={isSuccess}, CurrentLobbyId={SteamHostManager.CurrentLobbyId}");
+                if (!isSuccess) {
+                    Debug.Log("[SteamCallbackManager] OnLobbyDataUpdate: isSuccess is false");
+                    return;
+                }
+                if (SteamHostManager.CurrentLobbyId == 0) {
+                    Debug.LogError("[SteamCallbackManager] OnLobbyDataUpdate: SteamHostManager.CurrentLobbyId is 0");
+                    return;
+                }
+                if (!lobbyId.Equals(SteamHostManager.CurrentLobbyId)) {
+                    Debug.Log($"[SteamCallbackManager] OnLobbyDataUpdate: lobbyId ({lobbyId}) does not match CurrentLobbyId ({SteamHostManager.CurrentLobbyId})");
+                    return;
+                }
+                ulong mySteamId = SteamReflectionHelper.GetSteamID();
+                Debug.Log($"[SteamCallbackManager] OnLobbyDataUpdate: mySteamId={mySteamId}");
+                if (mySteamId == 0) {
+                    Debug.LogError("[SteamCallbackManager] OnLobbyDataUpdate: mySteamId is 0");
+                    return;
+                }
+                if (!memberId.Equals(lobbyId) && !memberId.Equals(mySteamId))
+                {
+                    Debug.Log($"[SteamCallbackManager] OnLobbyDataUpdate: invoking OnPlayerJoined for memberId={memberId}, lobbyId={lobbyId}");
+                    if (SteamHostManager.OnPlayerJoined != null)
+                    {
+                        SteamHostManager.OnPlayerJoined.Invoke(memberId, lobbyId.ToString());
+                    }
+                    else
+                    {
+                        Debug.LogError("[SteamCallbackManager] OnLobbyDataUpdate: OnPlayerJoined is null");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SteamCallbackManager] Error in OnLobbyDataUpdate: {e.Message}\n{e.StackTrace}");
             }
         }
     }
