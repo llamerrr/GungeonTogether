@@ -660,6 +660,9 @@ namespace GungeonTogether.Steam
                     Debug.LogWarning("[SteamCallbackManager] OnLobbyEnter: Failed to extract lobby ID");
                     return;
                 }
+                // Log the join event for analytics/debugging
+                ulong mySteamId = SteamReflectionHelper.GetSteamID();
+                SteamHostManager.LogPlayerJoinedViaInviteOrOverlay(mySteamId);
                 // Get Steam matchmaking reflection methods
                 if (!TryGetMatchmakingMethods(out var getNumMembersMethod, out var getMemberByIndexMethod))
                 {

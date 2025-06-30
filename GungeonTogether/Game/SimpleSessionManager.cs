@@ -182,6 +182,11 @@ namespace GungeonTogether.Game
                 playerSync?.Update();
                 CheckConnections();
                 UpdateSteamNetworking();
+                // Log lobby joins if hosting
+                if (IsHost)
+                {
+                    SteamHostManager.PollAndLogLobbyJoins();
+                }
             }
             catch (Exception e)
             {
