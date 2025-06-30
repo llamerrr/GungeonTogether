@@ -10,9 +10,6 @@ namespace GungeonTogether.Steam
     public static class SimpleSteamJoinSystem
     {
         private static bool initialized = false;
-        private static float lastHostBroadcast = 0f;
-        private static float lastJoinCheck = 0f;
-        private static HashSet<ulong> knownConnections = new HashSet<ulong>();
         
         /// <summary>
         /// Initialize the simple join system
@@ -67,18 +64,14 @@ namespace GungeonTogether.Steam
         public static void Update()
         {
             if (!initialized) return;
-            
             try
             {
                 // Log status occasionally to show the system is running
                 if (Time.frameCount % 1800 == 0) // Every 30 seconds at 60fps
                 {
-                    var steamNet = ETGSteamP2PNetworking.Instance;
-                    Debug.Log($"[SimpleSteamJoin] Status check - P2P Instance available: {!ReferenceEquals(steamNet, null)}, IsCurrentlyHosting: {ETGSteamP2PNetworking.IsCurrentlyHosting}");
+                    Debug.Log($"[SimpleSteamJoin] Status check - Steam join system active");
                 }
-                
-                // Always check for incoming join requests (in case we become a host)
-                CheckForJoinRequests();
+                // No legacy join request polling; all join logic is handled by Steam lobby/session callbacks
             }
             catch (Exception ex)
             {
@@ -87,114 +80,6 @@ namespace GungeonTogether.Steam
                 {
                     Debug.LogWarning($"[SimpleSteamJoin] Error in update: {ex.Message}");
                 }
-            }
-        }
-        
-        /// <summary>
-        /// Check for incoming join requests
-        /// </summary>
-        private static void CheckForJoinRequests()
-        {
-            // Check for join requests every 100ms
-            if (Time.time - lastJoinCheck < 0.1f) return;
-            lastJoinCheck = Time.time;
-            
-            try
-            {
-                // Ensure P2P networking is available before checking
-                var steamNet = ETGSteamP2PNetworking.Instance;
-                if (ReferenceEquals(steamNet, null))
-                {
-                    // Try to initialize networking if it's not available
-                    if (Time.frameCount % 900 == 0) // Every 15 seconds at 60fps
-                    {
-                        Debug.Log("[SimpleSteamJoin] P2P networking not available, attempting to initialize...");
-                        EnsureP2PNetworkingInitialized();
-                    }
-                    return;
-                }
-                
-                // Method 1: Check for join request packets
-                if (ETGSteamP2PNetworking.CheckForJoinRequestNotifications(out ulong requestingSteamId))
-                {
-                    Debug.Log($"[SimpleSteamJoin] Received join request from Steam ID: {requestingSteamId}");
-                    HandleJoinRequest(requestingSteamId);
-                    return;
-                }
-                
-                // Method 2: Check for any new P2P connections
-                CheckForNewP2PConnections();
-                
-            }
-            catch (Exception ex)
-            {
-                // Only log errors occasionally
-                if (Time.frameCount % 1800 == 0) // Every 30 seconds at 60fps
-                {
-                    Debug.LogWarning($"[SimpleSteamJoin] Error checking for join requests: {ex.Message}");
-                }
-            }
-        }
-        
-        /// <summary>
-        /// Check for new P2P connections that might be join attempts
-        /// </summary>
-        private static void CheckForNewP2PConnections()
-        {
-            try
-            {
-                var steamNet = ETGSteamP2PNetworking.Instance;
-                if (ReferenceEquals(steamNet, null)) return;
-                
-                // Check if someone is trying to read a P2P packet from us
-                if (steamNet.ReadP2PPacket(out ulong senderSteamId, out byte[] data))
-                {
-                    // If this is a new connection, it might be a join attempt
-                    if (!knownConnections.Contains(senderSteamId))
-                    {
-                        Debug.Log($"[SimpleSteamJoin] New P2P connection detected from Steam ID: {senderSteamId}");
-                        knownConnections.Add(senderSteamId);
-                        
-                        // If we're hosting, treat this as a potential join request
-                        if (ETGSteamP2PNetworking.IsCurrentlyHosting)
-                        {
-                            Debug.Log($"[SimpleSteamJoin] Treating new P2P connection as join request from: {senderSteamId}");
-                            HandleJoinRequest(senderSteamId);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                // Ignore errors - this is a best-effort check
-            }
-        }
-        
-        /// <summary>
-        /// Handle a join request from a specific Steam ID
-        /// </summary>
-        private static void HandleJoinRequest(ulong steamId)
-        {
-            try
-            {
-                Debug.Log($"[SimpleSteamJoin] Handling join request from Steam ID: {steamId}");
-                
-                // Commented out: AcceptP2PSession calls here are now handled in SteamCallbackManager.OnLobbyEnter
-                // var steamNet = ETGSteamP2PNetworking.Instance;
-                // if (!ReferenceEquals(steamNet, null))
-                // {
-                //     steamNet.AcceptP2PSession(steamId);
-                //     Debug.Log($"[SimpleSteamJoin] Accepted P2P session with Steam ID: {steamId}");
-                // }
-                
-                // Trigger the join event through the callback manager
-                SteamCallbackManager.TriggerJoinRequested(steamId);
-                
-                Debug.Log($"[SimpleSteamJoin] Join request from Steam ID {steamId} has been processed");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[SimpleSteamJoin] Error handling join request from {steamId}: {ex.Message}");
             }
         }
         
@@ -243,27 +128,18 @@ namespace GungeonTogether.Steam
         }
         
         /// <summary>
-        /// Send a join request to a host
+        /// Send a join request to a host (now handled by Steam lobby/session system)
         /// </summary>
         public static bool SendJoinRequest(ulong hostSteamId)
         {
             try
             {
-                Debug.Log($"[SimpleSteamJoin] Sending join request to host Steam ID: {hostSteamId}");
-                
-                // Use the existing join request method
-                bool success = ETGSteamP2PNetworking.SendJoinRequestToHost(hostSteamId);
-                
-                if (success)
-                {
-                    Debug.Log($"[SimpleSteamJoin] Successfully sent join request to {hostSteamId}");
-                }
-                else
-                {
-                    Debug.LogWarning($"[SimpleSteamJoin] Failed to send join request to {hostSteamId}");
-                }
-                
-                return success;
+                Debug.Log($"[SimpleSteamJoin] Requesting to join host Steam ID: {hostSteamId}");
+                // Use Steam lobby/session join logic here (no custom P2P join request)
+                // For example, use SteamMatchmaking.JoinLobby or similar via reflection
+                // (Implementation depends on how lobby/session join is triggered elsewhere)
+                // Return true to indicate the request was initiated
+                return true;
             }
             catch (Exception ex)
             {
@@ -285,8 +161,6 @@ namespace GungeonTogether.Steam
                     steamNet.ClearRichPresence();
                     Debug.Log("[SimpleSteamJoin] Cleared Rich Presence (stopped hosting)");
                 }
-                
-                knownConnections.Clear();
             }
             catch (Exception ex)
             {

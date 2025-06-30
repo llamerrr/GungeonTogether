@@ -43,7 +43,6 @@ namespace GungeonTogether.UI
         private Button hostButton;
         private Button joinButton;
         private Button disconnectButton;
-        private Button pingTestButton;
         private Button friendsButton;
         private Button playerListButton;
         private Button settingsButton;
@@ -51,7 +50,6 @@ namespace GungeonTogether.UI
         // References
         private SimpleSessionManager sessionManager;
         private ETGSteamP2PNetworking steamNetworking;
-        private SteamP2PTestScript testScript;
         
         // Host selection
         private Transform hostListContent;
@@ -119,7 +117,6 @@ namespace GungeonTogether.UI
             // Get references to game systems
             sessionManager = GungeonTogetherMod.Instance?.SessionManager;
             steamNetworking = ETGSteamP2PNetworking.Instance;
-            testScript = FindObjectOfType<SteamP2PTestScript>();
             
             // Create canvas
             CreateMenuCanvas();
@@ -430,9 +427,6 @@ namespace GungeonTogether.UI
             
             // Player List button
             playerListButton = CreateButton("Player List", buttonContainer.transform, OnPlayerListClicked);
-            
-            // Ping Test button
-            pingTestButton = CreateButton("Ping Test", buttonContainer.transform, OnPingTestClicked);
             
             // Settings button
             settingsButton = CreateButton("Settings", buttonContainer.transform, OnSettingsClicked);
@@ -1478,19 +1472,6 @@ namespace GungeonTogether.UI
             }
         }
         
-        private void OnPingTestClicked()
-        {
-            Debug.Log("[ModernMultiplayerMenu] Ping test button clicked");
-            // Start ping test using F8 key functionality
-            if (!ReferenceEquals(testScript, null))
-            {
-                testScript.StartPingSession();
-            }
-            else
-            {
-                Debug.LogWarning("[ModernMultiplayerMenu] Test script not available for ping test");
-            }
-        }
         
         private void OnSettingsClicked()
         {

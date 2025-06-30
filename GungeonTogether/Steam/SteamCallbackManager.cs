@@ -18,9 +18,6 @@ namespace GungeonTogether.Steam
         private static object overlayCallbackHandle = null;
         private static object lobbyCallbackHandle = null;
         private static MethodInfo runCallbacksMethod = null;
-        private static Type callbackType = null;
-        private static Type overlayActivatedType = null;
-        private static Type lobbyJoinRequestedType = null;
         
         // Steam callback event handlers
         public static event Action<string> OnOverlayJoinRequested;
@@ -132,7 +129,32 @@ namespace GungeonTogether.Steam
                 if (callbackType == null) return;
                 var callbackBaseType = steamworksAssembly.GetType("Steamworks.CallbackBase", false);
                 if (callbackBaseType == null) return;
-                TryRegisterCallback(steamworksAssembly, callbackBaseType, callbackType, handler.Method.Name);
+
+                // Create a strongly-typed Action<T> delegate for the callback type
+                var method = typeof(SteamCallbackManager).GetMethod("InvokeObjectHandlerStatic", BindingFlags.NonPublic | BindingFlags.Static);
+                var genericMethod = method.MakeGenericMethod(callbackType);
+                var delegateType = typeof(Action<>).MakeGenericType(callbackType);
+                var delegateInstance = Delegate.CreateDelegate(delegateType, genericMethod);
+
+                // Register the callback using the correct type and delegate
+                var callbackGenericType = steamworksAssembly.GetType("Steamworks.Callback`1", false);
+                if (callbackGenericType == null) return;
+                var genericCallbackType = callbackGenericType.MakeGenericType(callbackType);
+                var callbackInstance = Activator.CreateInstance(genericCallbackType, delegateInstance);
+
+                // Store callback instance to prevent GC
+                if (callbackTypeName.Contains("Lobby"))
+                {
+                    lobbyCallbackHandle = callbackInstance;
+                }
+                else if (callbackTypeName.Contains("Overlay"))
+                {
+                    overlayCallbackHandle = callbackInstance;
+                }
+                else if (callbackTypeName.Contains("RichPresence") || callbackTypeName.Contains("Join"))
+                {
+                    steamCallbackHandle = callbackInstance;
+                }
             }
             catch (Exception ex)
             {
@@ -261,7 +283,7 @@ namespace GungeonTogether.Steam
                                 success = true;
                                 break;
                             }
-                            catch (Exception ex)
+                            catch (Exception)
                             {
                                 // Continue to next constructor
                             }
@@ -275,7 +297,7 @@ namespace GungeonTogether.Steam
                                 success = true;
                                 break;
                             }
-                            catch (Exception ex)
+                            catch (Exception)
                             {
                                 // Continue to next constructor
                             }
@@ -290,7 +312,6 @@ namespace GungeonTogether.Steam
                             
                             // Try to find and set delegate field
                             string[] fieldNames = { "m_Func", "Func", "m_pCallback", "m_Callback", "callback", "Callback" };
-                            bool fieldSet = false;
                             
                             foreach (string fieldName in fieldNames)
                             {
@@ -301,10 +322,9 @@ namespace GungeonTogether.Steam
                                     {
                                         field.SetValue(callbackInstance, delegateInstance);
                                         success = true;
-                                        fieldSet = true;
                                         break;
                                     }
-                                    catch (Exception ex)
+                                    catch (Exception)
                                     {
                                         // Continue trying other fields
                                     }
@@ -316,7 +336,7 @@ namespace GungeonTogether.Steam
                                 break;
                             }
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
                             // Continue to next constructor
                         }
@@ -336,7 +356,7 @@ namespace GungeonTogether.Steam
                             success = true;
                             break;
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
                             // Continue to next constructor
                         }
@@ -369,73 +389,9 @@ namespace GungeonTogether.Steam
                 
                 return false;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return false;
-            }
-        }
-
-        // Add a strongly-typed handler for lobby join requests
-        private static void OnGameLobbyJoinRequestedStronglyTyped(object param)
-        {
-            Debug.Log("[SteamCallbackManager] OnGameLobbyJoinRequestedStronglyTyped called!");
-            // Defensive: log and check for null
-            if (ReferenceEquals(param, null))
-            {
-                Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequestedStronglyTyped: param is null");
-                return;
-            }
-            try
-            {
-                // Try to cast to the actual Steamworks type by name
-                var type = param.GetType();
-                Debug.Log($"[SteamCallbackManager] [DEBUG] StronglyTyped param type: {type}");
-                // Try to get the lobby ID field robustly
-                var lobbyIdField = type.GetField("m_ulSteamIDLobby") ?? type.GetField("m_SteamIDLobby") ?? type.GetField("lobbyID");
-                if (ReferenceEquals(lobbyIdField, null))
-                {
-                    Debug.LogWarning($"[SteamCallbackManager] [DEBUG] No lobbyId field found on type {type}. Listing all fields and properties:");
-                    foreach (var f in type.GetFields())
-                    {
-                        Debug.Log($"[SteamCallbackManager] [DEBUG] Field: {f.Name} ({f.FieldType})");
-                    }
-                    foreach (var p in type.GetProperties())
-                    {
-                        Debug.Log($"[SteamCallbackManager] [DEBUG] Property: {p.Name} ({p.PropertyType})");
-                    }
-                    Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequestedStronglyTyped: Could not find a lobbyId field");
-                    // Fallback: try ToString()
-                    string paramStr = param.ToString();
-                    Debug.Log($"[SteamCallbackManager] [DEBUG] Fallback param.ToString(): {paramStr}");
-                    if (!string.IsNullOrEmpty(paramStr) && ulong.TryParse(paramStr, out ulong fallbackLobbyId))
-                    {
-                        SteamHostManager.JoinLobby(fallbackLobbyId);
-                        return;
-                    }
-                    return;
-                }
-                var value = lobbyIdField.GetValue(param);
-                if (ReferenceEquals(value, null))
-                {
-                    Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequestedStronglyTyped: lobbyIdField value is null");
-                    return;
-                }
-                Debug.Log($"[SteamCallbackManager] [DEBUG] lobbyIdField value: {value} ({value.GetType()})");
-                if (value is ulong vul)
-                {
-                    SteamHostManager.JoinLobby(vul);
-                    return;
-                }
-                if (ulong.TryParse(value.ToString(), out ulong parsed))
-                {
-                    SteamHostManager.JoinLobby(parsed);
-                    return;
-                }
-                Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequestedStronglyTyped: Could not parse lobbyId from value");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[SteamCallbackManager] OnGameLobbyJoinRequestedStronglyTyped: Exception: {ex.Message}\n{ex.StackTrace}");
             }
         }
 
@@ -454,6 +410,26 @@ namespace GungeonTogether.Steam
                 Debug.Log("[SteamCallbackManager] OnGameLobbyJoinRequested called!");
                 string paramStr = param != null ? param.ToString() : "<null>";
                 Debug.Log($"[SteamCallbackManager] [DEBUG] param.ToString(): {paramStr}");
+                var type = param.GetType();
+                if (ReferenceEquals(type, null))
+                {
+                    Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequested: param.GetType() is null");
+                    return;
+                }
+                Debug.Log($"[SteamCallbackManager] [DEBUG] param.GetType().FullName: {type.FullName}");
+                Debug.Log($"[SteamCallbackManager] [DEBUG] Listing all fields and properties on param:");
+                foreach (var f in type.GetFields())
+                {
+                    object val = null;
+                    try { val = f.GetValue(param); } catch (Exception ex) { Debug.Log($"[SteamCallbackManager] [DEBUG] Exception reading field {f.Name}: {ex.Message}"); }
+                    Debug.Log($"[SteamCallbackManager] [DEBUG] Field: {f.Name} ({f.FieldType}) = {val}");
+                }
+                foreach (var p in type.GetProperties())
+                {
+                    object val = null;
+                    try { val = p.GetValue(param, null); } catch (Exception ex) { Debug.Log($"[SteamCallbackManager] [DEBUG] Exception reading property {p.Name}: {ex.Message}"); }
+                    Debug.Log($"[SteamCallbackManager] [DEBUG] Property: {p.Name} ({p.PropertyType}) = {val}");
+                }
                 // Defensive: check for IntPtr, ulong, long, string before any GetType()
                 if (param is IntPtr ptr)
                 {
@@ -463,13 +439,48 @@ namespace GungeonTogether.Steam
                 if (param is ulong ul)
                 {
                     Debug.Log($"[SteamCallbackManager] [DEBUG] param is ulong: {ul}");
-                    SteamHostManager.JoinLobby(ul);
+                    if (!ReferenceEquals(SteamNetworking, null))
+                    {
+                        if (!ReferenceEquals(SteamNetworking.JoinLobby, null))
+                        {
+                            Debug.Log("[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby(ulong)");
+                            SteamNetworking.JoinLobby(ul);
+                        }
+                        else
+                        {
+                            Debug.LogError("[SteamCallbackManager] SteamNetworking.JoinLobby is null");
+                        }
+                    }
+                    else
+                    {
+                        Debug.Log("[SteamCallbackManager] [DEBUG] SteamNetworking is null, using SteamHostManager.JoinLobby(ulong)");
+                        SteamHostManager.JoinLobby(ul);
+                    }
                     return;
                 }
                 if (param is long l)
                 {
                     Debug.Log($"[SteamCallbackManager] [DEBUG] param is long: {l}");
-                    if (l > 0) SteamHostManager.JoinLobby((ulong)l);
+                    if (l > 0)
+                    {
+                        if (!ReferenceEquals(SteamNetworking, null))
+                        {
+                            if (!ReferenceEquals(SteamNetworking.JoinLobby, null))
+                            {
+                                Debug.Log("[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby((ulong)long)");
+                                SteamNetworking.JoinLobby((ulong)l);
+                            }
+                            else
+                            {
+                                Debug.LogError("[SteamCallbackManager] SteamNetworking.JoinLobby is null");
+                            }
+                        }
+                        else
+                        {
+                            Debug.Log("[SteamCallbackManager] [DEBUG] SteamNetworking is null, using SteamHostManager.JoinLobby((ulong)long)");
+                            SteamHostManager.JoinLobby((ulong)l);
+                        }
+                    }
                     return;
                 }
                 if (param is string s)
@@ -477,76 +488,110 @@ namespace GungeonTogether.Steam
                     Debug.Log($"[SteamCallbackManager] [DEBUG] param is string: {s}");
                     if (ulong.TryParse(s, out ulong parsed))
                     {
-                        SteamHostManager.JoinLobby(parsed);
-                    }
-                    return;
-                }
-                // Only now is it safe to call GetType()
-                var type = param.GetType();
-                if (ReferenceEquals(type, null))
-                {
-                    Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequested: param.GetType() is null");
-                    return;
-                }
-                string typeStr = type.ToString();
-                Debug.Log($"[SteamCallbackManager] [DEBUG] Type: {typeStr}");
-                Debug.Log($"[SteamCallbackManager] [DEBUG] param.ToString(): {paramStr}");
-                Debug.Log($"[SteamCallbackManager] [DEBUG] param type: {typeStr}");
-                // Try to get the lobby ID field robustly
-                FieldInfo lobbyIdField = null;
-                object value = null;
-                try {
-                    lobbyIdField = type.GetField("m_ulSteamIDLobby") ?? type.GetField("m_SteamIDLobby") ?? type.GetField("lobbyID");
-                } catch (Exception ex) {
-                    Debug.LogWarning($"[SteamCallbackManager] [DEBUG] Exception while getting lobbyIdField: {ex.Message}");
-                }
-                if (!ReferenceEquals(lobbyIdField, null))
-                {
-                    try {
-                        value = lobbyIdField.GetValue(param);
-                    } catch (Exception ex) {
-                        Debug.LogWarning($"[SteamCallbackManager] [DEBUG] Exception while getting value from lobbyIdField: {ex.Message}");
-                        value = null;
-                    }
-                    if (!ReferenceEquals(value, null))
-                    {
-                        string valueStr = value.ToString();
-                        string valueTypeStr = value.GetType().ToString();
-                        Debug.Log($"[SteamCallbackManager] [DEBUG] lobbyIdField value: {valueStr} ({valueTypeStr})");
-                        if (value is ulong vul)
+                        if (!ReferenceEquals(SteamNetworking, null))
                         {
-                            SteamHostManager.JoinLobby(vul);
-                            return;
+                            if (!ReferenceEquals(SteamNetworking.JoinLobby, null))
+                            {
+                                Debug.Log("[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby(parsed string)");
+                                SteamNetworking.JoinLobby(parsed);
+                            }
+                            else
+                            {
+                                Debug.LogError("[SteamCallbackManager] SteamNetworking.JoinLobby is null");
+                            }
                         }
-                        if (!string.IsNullOrEmpty(valueStr) && ulong.TryParse(valueStr, out ulong parsed))
+                        else
                         {
+                            Debug.Log("[SteamCallbackManager] [DEBUG] SteamNetworking is null, using SteamHostManager.JoinLobby(parsed string)");
                             SteamHostManager.JoinLobby(parsed);
-                            return;
+                        }
+                    }
+                    return;
+                }
+                // Try to get the lobby ID field robustly (all possible names)
+                FieldInfo lobbyIdField = type.GetField("steamIDLobby") ?? type.GetField("m_ulSteamIDLobby") ?? type.GetField("m_SteamIDLobby") ?? type.GetField("lobbyID");
+                Debug.Log($"[SteamCallbackManager] [DEBUG] lobbyIdField: {(lobbyIdField != null ? lobbyIdField.Name : "<null>")}");
+                if (ReferenceEquals(lobbyIdField, null))
+                {
+                    Debug.LogWarning($"[SteamCallbackManager] [DEBUG] No lobbyId field found on type {type.FullName}");
+                    // Fallback: try ToString()
+                    if (!string.IsNullOrEmpty(paramStr) && ulong.TryParse(paramStr, out ulong fallbackLobbyId))
+                    {
+                        if (!ReferenceEquals(SteamNetworking, null))
+                        {
+                            if (!ReferenceEquals(SteamNetworking.JoinLobby, null))
+                            {
+                                Debug.Log("[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby(fallbackLobbyId)");
+                                SteamNetworking.JoinLobby(fallbackLobbyId);
+                            }
+                            else
+                            {
+                                Debug.LogError("[SteamCallbackManager] SteamNetworking.JoinLobby is null");
+                            }
+                        }
+                        else
+                        {
+                            Debug.Log("[SteamCallbackManager] [DEBUG] SteamNetworking is null, using SteamHostManager.JoinLobby(fallbackLobbyId)");
+                            SteamHostManager.JoinLobby(fallbackLobbyId);
+                        }
+                        return;
+                    }
+                    return;
+                }
+                var value = lobbyIdField.GetValue(param);
+                Debug.Log($"[SteamCallbackManager] [DEBUG] lobbyIdField value: {(value != null ? value.ToString() : "<null>")} ({(value != null ? value.GetType().ToString() : "<null>")})");
+                if (ReferenceEquals(value, null))
+                {
+                    Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequested: lobbyIdField value is null");
+                    return;
+                }
+                if (value is ulong vul)
+                {
+                    if (!ReferenceEquals(SteamNetworking, null))
+                    {
+                        if (!ReferenceEquals(SteamNetworking.JoinLobby, null))
+                        {
+                            Debug.Log("[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby(lobbyIdField ulong)");
+                            SteamNetworking.JoinLobby(vul);
+                        }
+                        else
+                        {
+                            Debug.LogError("[SteamCallbackManager] SteamNetworking.JoinLobby is null");
                         }
                     }
                     else
                     {
-                        Debug.LogWarning("[SteamCallbackManager] [DEBUG] lobbyIdField value is null");
+                        Debug.Log("[SteamCallbackManager] [DEBUG] SteamNetworking is null, using SteamHostManager.JoinLobby(lobbyIdField ulong)");
+                        SteamHostManager.JoinLobby(vul);
                     }
-                }
-                else
-                {
-                    Debug.LogWarning("[SteamCallbackManager] [DEBUG] No lobbyId field found on type " + typeStr);
-                }
-                // Fallback: try ToString()
-                Debug.Log($"[SteamCallbackManager] [DEBUG] Fallback param.ToString(): {paramStr}");
-                if (!string.IsNullOrEmpty(paramStr) && ulong.TryParse(paramStr, out ulong fallbackLobbyId))
-                {
-                    SteamHostManager.JoinLobby(fallbackLobbyId);
                     return;
                 }
-                Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequested: Could not extract lobbyId from param");
+                if (ulong.TryParse(value.ToString(), out ulong parsedValue))
+                {
+                    if (!ReferenceEquals(SteamNetworking, null))
+                    {
+                        if (!ReferenceEquals(SteamNetworking.JoinLobby, null))
+                        {
+                            Debug.Log("[SteamCallbackManager] [DEBUG] Using SteamNetworking.JoinLobby(parsed lobbyIdField)");
+                            SteamNetworking.JoinLobby(parsedValue);
+                        }
+                        else
+                        {
+                            Debug.LogError("[SteamCallbackManager] SteamNetworking.JoinLobby is null");
+                        }
+                    }
+                    else
+                    {
+                        Debug.Log("[SteamCallbackManager] [DEBUG] SteamNetworking is null, using SteamHostManager.JoinLobby(parsed lobbyIdField)");
+                        SteamHostManager.JoinLobby(parsedValue);
+                    }
+                    return;
+                }
+                Debug.LogWarning("[SteamCallbackManager] OnGameLobbyJoinRequested: Could not parse lobbyId from value");
             }
             catch (Exception ex)
             {
-                string paramType = param != null ? param.GetType().ToString() : "<null>";
-                string paramVal = param != null ? param.ToString() : "<null>";
-                Debug.LogError($"[SteamCallbackManager] OnGameLobbyJoinRequested: Exception: {ex.Message}\n{ex.StackTrace}\n[DEBUG] param type: {paramType}, param value: {paramVal}");
+                Debug.LogError($"[SteamCallbackManager] Exception in OnGameLobbyJoinRequested: {ex.Message}\n{ex.StackTrace}");
             }
         }
 
@@ -723,7 +768,7 @@ namespace GungeonTogether.Steam
                     memberSteamId != 0 && 
                     memberSteamId != mySteamId)
                 {
-                    networking.AcceptP2PSession(memberSteamId);
+                    // Removed legacy AcceptP2PSession call
                 }
             }
         }
@@ -815,17 +860,9 @@ namespace GungeonTogether.Steam
             }
             catch (Exception ex)
             {
-                if (Time.frameCount % 300 == 0)
-                {
-                    Debug.LogWarning("[ETGSteamP2P] Error processing Steam callbacks: " + ex.Message);
-                }
             }
 
-            if (Time.frameCount % 300 == 0) // Every 5 seconds at 60fps
-            {
-                string asmName = runCallbacksMethod?.DeclaringType?.Assembly?.FullName ?? "<null>";
-                Debug.Log($"[ETGSteamP2P] RunCallbacks tick: Method present: {!ReferenceEquals(runCallbacksMethod, null)}, Assembly: {asmName}");
-            }
+
         }
 
         private static void CheckForSteamJoinRequests()
@@ -1322,5 +1359,8 @@ namespace GungeonTogether.Steam
                 UnityEngine.Debug.LogError("[ETGSteamP2P] Exception in LogSteamworksAssemblyInfo: " + ex.Message);
             }
         }
+
+        // Reference to the ISteamNetworking implementation
+        public static ISteamNetworking SteamNetworking { get; set; }
     }
 }

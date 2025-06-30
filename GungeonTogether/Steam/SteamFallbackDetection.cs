@@ -57,7 +57,6 @@ namespace GungeonTogether.Steam
                     // Check for P2P connection requests more frequently
                     if (Time.time - lastFallbackCheck > 0.1f) // Every 100ms
                     {
-                        CheckForIncomingP2PSessionRequests();
                         MonitorSteamOverlayState();
                         CheckEnvironmentVariablesForJoinRequests();
                         lastFallbackCheck = Time.time;
@@ -83,9 +82,6 @@ namespace GungeonTogether.Steam
             {
                 // Method 1: Monitor command line arguments for Steam join commands
                 CheckCommandLineForJoinRequests();
-                
-                // Method 2: Check if we received any P2P session requests
-                CheckForIncomingP2PSessionRequests();
                 
                 // Method 3: Monitor for Rich Presence changes (if we can access Steam Friends API)
                 CheckRichPresenceForJoinRequests();
@@ -180,32 +176,6 @@ namespace GungeonTogether.Steam
             catch (Exception)
             {
                 // Ignore errors
-            }
-        }
-        
-        /// <summary>
-        /// Check for incoming P2P session requests that might indicate join attempts
-        /// </summary>
-        private static void CheckForIncomingP2PSessionRequests()
-        {
-            try
-            {
-                // Check if we have any pending P2P packets from unknown connections
-                // This could indicate someone is trying to connect via Steam invite
-                if (ETGSteamP2PNetworking.CheckForJoinRequestNotifications(out ulong requestingSteamId))
-                {
-                    Debug.Log($"[SteamFallbackDetection] Found P2P join request from Steam ID: {requestingSteamId}");
-                    // Trigger the join event
-                    SteamCallbackManager.TriggerJoinRequested(requestingSteamId);
-                }
-            }
-            catch (Exception ex)
-            {
-                // Only log errors occasionally to avoid spam
-                if (Time.frameCount % 1800 == 0) // Every 30 seconds at 60fps
-                {
-                    Debug.LogWarning($"[SteamFallbackDetection] Error checking for P2P session requests: {ex.Message}");
-                }
             }
         }
         

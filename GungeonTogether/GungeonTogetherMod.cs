@@ -147,9 +147,6 @@ namespace GungeonTogether
                 Logger.LogInfo("Press Ctrl+P to open multiplayer menu");
                 Logger.LogInfo("All multiplayer actions are in the UI");
                 Logger.LogInfo("====================================");
-                
-                // Initialize Steam P2P test script for debugging
-                InitializeTestScript();
             }
             catch (Exception e)
             {
@@ -981,33 +978,6 @@ namespace GungeonTogether
         /// </summary>
         private void SetupDebugControls()
         {
-        }
-        
-        /// <summary>
-        /// Initialize Steam P2P test script for debugging and packet testing
-        /// </summary>
-        private void InitializeTestScript()
-        {
-            try
-            {
-                Logger.LogInfo("Initializing Steam P2P test script...");
-                
-                // Create a GameObject to hold the test script
-                var testObject = new GameObject("SteamP2PTestScript");
-                
-                // Don't destroy on load so it persists across scenes
-                DontDestroyOnLoad(testObject);
-                
-                // Add the test script component
-                var testScript = testObject.AddComponent<SteamP2PTestScript>();
-                
-                Logger.LogInfo("Steam P2P test script initialized successfully!");
-                Logger.LogInfo("Use F8-F12 keys for Steam P2P testing (see console for controls)");
-            }
-            catch (Exception e)
-            {
-                Logger.LogError($"Failed to initialize Steam P2P test script: {e.Message}");
-            }
         }
     }
     
