@@ -8,7 +8,7 @@ my paypal is llamerrr1@gmail.com if you actually want to (for some reason)
 
 ## What works so far
 - pretty much nothing
-- real connections and steam invites
+- real connections and steam invites/lobby system
 - singleplayer LOL!
   
 ## Features upon release 1.0
@@ -37,3 +37,5 @@ then hope for the best because honestly I have no idea if it will even build
 ## Technical Details
 Built with BepInEx framework using Steam P2P networking for a seamless multiplayer experience.
 Unfortunately if you play the game through epic or windows store this mod will not work, as it runs through steams p2p api only, which means you need a steamID for it to work. Sorry guys...
+
+# 1.0 release coming one day!
