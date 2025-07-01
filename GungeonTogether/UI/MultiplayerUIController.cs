@@ -627,7 +627,7 @@ namespace GungeonTogether.UI
             {
                 sessionManager = GungeonTogetherMod.Instance._sessionManager;
             }
-            
+
             if (ReferenceEquals(steamNetworking, null))
             {
                 steamNetworking = SteamNetworkingFactory.TryCreateSteamNetworking();
@@ -876,13 +876,10 @@ namespace GungeonTogether.UI
         // Event Handlers
         private void OnHostClicked()
         {
-            Debug.Log("[MultiplayerUI] Host button clicked");
-            
-            if (!ReferenceEquals(sessionManager, null))
-            {
-                GungeonTogetherMod.Instance?.StartHosting();
-                UpdateUIElements();
-            }
+            Debug.Log("!!! OnHostClicked CALLED !!!");
+            SteamCallbackManager.Instance.HostLobby();
+            Debug.Log("!!! After HostLobby call !!!");
+            UpdateUIElements();
         }
         
         private void OnJoinClicked()

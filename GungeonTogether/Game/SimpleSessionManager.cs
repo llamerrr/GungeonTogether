@@ -77,7 +77,7 @@ namespace GungeonTogether.Game
                 UpdateConnectionStatus();
             }
         }
-        
+
         public void StartSession()
         {
             if (!IsValidLocationForMultiplayer())
@@ -88,60 +88,19 @@ namespace GungeonTogether.Game
                 Debug.LogWarning("[SimpleSessionManager] Multiplayer can only be started from Main Menu or Gungeon Foyer");
                 return;
             }
-            IsActive = true;
-            IsHost = true;
-            Status = "Starting Steam session...";
-            connectedPlayers.Clear();
-            Debug.Log("[SimpleSessionManager] Location validated - starting multiplayer session");
-            EnsureSteamNetworkingInitialized();
-            SubscribeToSteamEvents();
-            if (!ReferenceEquals(steamNet, null) && steamNet.IsAvailable())
-            {
-                var steamId = steamNet.GetSteamID();
-                if (!ReferenceEquals(steamId, null) && (!ReferenceEquals(steamId, 0)))
-                {
-                    // Get the actual lobby ID from SteamHostManager
-                    ulong lobbyId = GungeonTogether.Steam.SteamHostManager.CurrentLobbyId;
-                    if (!ReferenceEquals(lobbyId, 0UL))
-                    {
-                        currentHostId = $"lobby_{lobbyId}";
-                        IsHost = true;
-                        Status = $"Hosting: {lobbyId} (Waiting for connections)";
-                    }
-                    else
-                    {
-                        currentHostId = $"steam_{steamId}";
-                        IsHost = true;
-                        Status = $"Hosting: {steamId} (Waiting for connections)";
-                    }
-                    UpdateSteamNetworking();
-                    ETGSteamP2PNetworking.RegisterAsHost();
-                    SteamSessionHelper.UpdateRichPresence(true, currentHostId);
-                    if (!ReferenceEquals(steamNet, null))
-                    {
-                        steamNet.StartHostingSession();
-                    }
-                }
-                else if (!ReferenceEquals(steamId, 0))
-                {
-                    currentHostId = $"steam_{steamId}";
-                    Status = $"Hosting: {steamId} (Waiting for connections)";
-                    ETGSteamP2PNetworking.RegisterAsHost();
-                    SteamSessionHelper.UpdateRichPresence(true, currentHostId);
-                }
-                else
-                {
-                    Status = "Failed to start Steam session";
-                    Debug.LogError("[SimpleSessionManager] Could not get Steam ID for hosting");
-                }
-            }
             else
             {
-                currentHostId = GenerateSessionId();
-                Status = $"Hosting offline: {currentHostId}";
-                Debug.LogWarning("[SimpleSessionManager] Steam not available - hosting offline session");
+                IsActive = true;
+                IsHost = true;
+                Status = "Starting Steam session...";
+                connectedPlayers.Clear();
+                Debug.Log("[SimpleSessionManager] Location validated - starting multiplayer session");
+                EnsureSteamNetworkingInitialized();
+                SubscribeToSteamEvents();
+                InitializePlayerSync();
+                SteamCallbackManager.Instance.HostLobby();
             }
-            InitializePlayerSync();
+
         }
         
         public void JoinSession(string sessionId)
@@ -220,7 +179,6 @@ namespace GungeonTogether.Game
                 if (!IsActive) return;
                 playerSync?.Update();
                 CheckConnections();
-                UpdateSteamNetworking();
                 // Poll for new lobby members every second if hosting
                 if (IsHost && Time.time - lastConnectionCheck >= CONNECTION_CHECK_INTERVAL)
                 {
@@ -233,17 +191,6 @@ namespace GungeonTogether.Game
             }
         }
         
-        private void UpdateSteamNetworking()
-        {
-            try
-            {
-                // Removed call to steamNet.Update() (legacy)
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[SimpleSessionManager] Error updating Steam networking: {e.Message}");
-            }
-        }
         
         private void InitializePlayerSync()
         {
