@@ -26,12 +26,12 @@ namespace GungeonTogether.Steam
                 // For now, mark as initialized for basic functionality
                 
                 steamInitialized = true;
-                Debug.Log("[SteamSessionHelper] Initialized with ETG's built-in Steamworks integration");
-                Debug.Log("[SteamSessionHelper] Steam overlay 'Join Game' functionality ready for implementation");
+                GungeonTogether.Logging.Debug.Log("[SteamSessionHelper] Initialized with ETG's built-in Steamworks integration");
+                GungeonTogether.Logging.Debug.Log("[SteamSessionHelper] Steam overlay 'Join Game' functionality ready for implementation");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SteamSessionHelper] Failed to initialize Steam callbacks: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SteamSessionHelper] Failed to initialize Steam callbacks: {e.Message}");
             }
         }
         
@@ -42,36 +42,36 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                Debug.Log($"[SteamSessionHelper] ⚡ Steam overlay JOIN GAME clicked for lobby: {steamLobbyId}");
+                GungeonTogether.Logging.Debug.Log($"[SteamSessionHelper] ⚡ Steam overlay JOIN GAME clicked for lobby: {steamLobbyId}");
                 
                 if (!steamInitialized || ReferenceEquals(sessionManager, null))
                 {
-                    Debug.LogError("[SteamSessionHelper] Steam integration not initialized!");
+                    GungeonTogether.Logging.Debug.LogError("[SteamSessionHelper] Steam integration not initialized!");
                     return;
                 }
                 
                 // Directly join the lobby using ETGSteamP2PNetworking
                 if (ulong.TryParse(steamLobbyId, out ulong lobbyId) && lobbyId > 0)
                 {
-                    Debug.Log($"[SteamSessionHelper] Attempting to join Steam lobby: {lobbyId}");
+                    GungeonTogether.Logging.Debug.Log($"[SteamSessionHelper] Attempting to join Steam lobby: {lobbyId}");
                     bool joinResult = ETGSteamP2PNetworking.Instance?.JoinLobby(lobbyId) ?? false;
                     if (joinResult)
                     {
-                        Debug.Log($"[SteamSessionHelper] Successfully joined lobby: {lobbyId}");
+                        GungeonTogether.Logging.Debug.Log($"[SteamSessionHelper] Successfully joined lobby: {lobbyId}");
                     }
                     else
                     {
-                        Debug.LogError($"[SteamSessionHelper] Failed to join lobby: {lobbyId}");
+                        GungeonTogether.Logging.Debug.LogError($"[SteamSessionHelper] Failed to join lobby: {lobbyId}");
                     }
                 }
                 else
                 {
-                    Debug.LogError($"[SteamSessionHelper] Invalid or missing lobby ID: {steamLobbyId}");
+                    GungeonTogether.Logging.Debug.LogError($"[SteamSessionHelper] Invalid or missing lobby ID: {steamLobbyId}");
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SteamSessionHelper] Exception in HandleJoinGameRequest: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SteamSessionHelper] Exception in HandleJoinGameRequest: {e.Message}");
             }
         }
           /// <summary>
@@ -81,11 +81,11 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                Debug.Log($"[SteamSessionHelper] 👥 Joining friend's session: {friendSteamId}");
+                GungeonTogether.Logging.Debug.Log($"[SteamSessionHelper] 👥 Joining friend's session: {friendSteamId}");
                 
                 if (!steamInitialized || ReferenceEquals(sessionManager, null))
                 {
-                    Debug.LogWarning("[SteamSessionHelper] Steam integration not ready");
+                    GungeonTogether.Logging.Debug.LogWarning("[SteamSessionHelper] Steam integration not ready");
                     return;
                 }
                 
@@ -94,16 +94,16 @@ namespace GungeonTogether.Steam
                 // 2. Request lobby join permission
                 // 3. Establish P2P connection
                   string sessionId = $"friend_{friendSteamId}_session";
-                Debug.Log($"[SteamSessionHelper] 🔗 Connecting to friend's lobby: {sessionId}");
+                GungeonTogether.Logging.Debug.Log($"[SteamSessionHelper] 🔗 Connecting to friend's lobby: {sessionId}");
                 
                 sessionManager.JoinSession(sessionId);
                 UpdateRichPresence(false, sessionId);
                 
-                Debug.Log("[SteamSessionHelper] ✅ Successfully joined friend's game!");
+                GungeonTogether.Logging.Debug.Log("[SteamSessionHelper] ✅ Successfully joined friend's game!");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SteamSessionHelper] ❌ Error joining friend session: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SteamSessionHelper] ❌ Error joining friend session: {e.Message}");
             }
         }
         
@@ -116,14 +116,14 @@ namespace GungeonTogether.Steam
             {
                 if (!steamInitialized)
                 {
-                    Debug.LogWarning("[SteamSessionHelper] Cannot update Rich Presence - Steam not initialized");
+                    GungeonTogether.Logging.Debug.LogWarning("[SteamSessionHelper] Cannot update Rich Presence - Steam not initialized");
                     return;
                 }
                 
                 var steamNet = ETGSteamP2PNetworking.Instance;
                 if (ReferenceEquals(steamNet, null) || !steamNet.IsAvailable())
                 {
-                    Debug.LogWarning("[SteamSessionHelper] Cannot update Rich Presence - Steam networking not available");
+                    GungeonTogether.Logging.Debug.LogWarning("[SteamSessionHelper] Cannot update Rich Presence - Steam networking not available");
                     return;
                 }
                 
@@ -135,11 +135,11 @@ namespace GungeonTogether.Steam
                     // steamNet.SetRichPresence("connect", connectValue); // REMOVED: Only set after lobby creation
                     steamNet.SetRichPresence("gungeon_together", "hosting");
                     steamNet.SetRichPresence("gt_version", GungeonTogether.GungeonTogetherMod.VERSION);
-                    // Debug.Log($"[SteamSessionHelper] Rich Presence 'connect' field set to: {connectValue}"); // REMOVED
+                    // GungeonTogether.Logging.Debug.Log($"[SteamSessionHelper] Rich Presence 'connect' field set to: {connectValue}"); // REMOVED
                 }
                 else if (!string.IsNullOrEmpty(sessionId))
                 {
-                    Debug.Log($"[SteamSessionHelper] 🎮 Rich Presence: Playing GungeonTogether ({sessionId})");
+                    GungeonTogether.Logging.Debug.Log($"[SteamSessionHelper] 🎮 Rich Presence: Playing GungeonTogether ({sessionId})");
                     
                     // Set Rich Presence to indicate playing GungeonTogether
                     steamNet.SetRichPresence("status", "In Gungeon Together");
@@ -151,7 +151,7 @@ namespace GungeonTogether.Steam
                 }
                 else
                 {
-                    Debug.Log("[SteamSessionHelper] 🧹 Rich Presence: Cleared");
+                    GungeonTogether.Logging.Debug.Log("[SteamSessionHelper] 🧹 Rich Presence: Cleared");
                     
                     // Clear Rich Presence
                     steamNet.ClearRichPresence();
@@ -159,7 +159,7 @@ namespace GungeonTogether.Steam
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SteamSessionHelper] ❌ Error updating Rich Presence: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SteamSessionHelper] ❌ Error updating Rich Presence: {e.Message}");
             }
         }
         
@@ -170,11 +170,11 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                Debug.Log("[SteamSessionHelper] 🔍 Scanning for friends playing GungeonTogether...");
+                GungeonTogether.Logging.Debug.Log("[SteamSessionHelper] 🔍 Scanning for friends playing GungeonTogether...");
                 
                 if (!steamInitialized)
                 {
-                    Debug.LogWarning("[SteamSessionHelper] Steam not initialized");
+                    GungeonTogether.Logging.Debug.LogWarning("[SteamSessionHelper] Steam not initialized");
                     return new string[0];
                 }
                 
@@ -182,7 +182,7 @@ namespace GungeonTogether.Steam
                 var steamNet = ETGSteamP2PNetworking.Instance;
                 if (ReferenceEquals(steamNet, null) || !steamNet.IsAvailable())
                 {
-                    Debug.LogWarning("[SteamSessionHelper] ETG Steam P2P networking not available");
+                    GungeonTogether.Logging.Debug.LogWarning("[SteamSessionHelper] ETG Steam P2P networking not available");
                     return new string[0];
                 }
                 
@@ -201,7 +201,7 @@ namespace GungeonTogether.Steam
                 
                 if (etgFriendsCount == 0)
                 {
-                    Debug.Log("[SteamSessionHelper] No friends currently playing Enter the Gungeon");
+                    GungeonTogether.Logging.Debug.Log("[SteamSessionHelper] No friends currently playing Enter the Gungeon");
                     return new string[0];
                 }
                 
@@ -229,30 +229,30 @@ namespace GungeonTogether.Steam
                     if (isHostingGungeonTogether)
                     {
                         gungeonTogetherFriends.Add($"{friend.name} (Hosting GungeonTogether)");
-                        Debug.Log($"[SteamSessionHelper] Found GungeonTogether host: {friend.name} (ID: {friend.steamId})");
+                        GungeonTogether.Logging.Debug.Log($"[SteamSessionHelper] Found GungeonTogether host: {friend.name} (ID: {friend.steamId})");
                     }
                     else
                     {
                         // Still show ETG friends, but indicate they're not hosting GungeonTogether
                         gungeonTogetherFriends.Add($"{friend.name} (Playing ETG)");
-                        Debug.Log($"[SteamSessionHelper] Found ETG friend (not hosting GT): {friend.name} (ID: {friend.steamId})");
+                        GungeonTogether.Logging.Debug.Log($"[SteamSessionHelper] Found ETG friend (not hosting GT): {friend.name} (ID: {friend.steamId})");
                     }
                 }
                 
                 if (gungeonTogetherFriends.Count > 0)
                 {
-                    Debug.Log($"[SteamSessionHelper] ✅ Found {gungeonTogetherFriends.Count} friends playing ETG ({availableHosts.Count} hosting GungeonTogether)");
+                    GungeonTogether.Logging.Debug.Log($"[SteamSessionHelper] ✅ Found {gungeonTogetherFriends.Count} friends playing ETG ({availableHosts.Count} hosting GungeonTogether)");
                 }
                 else
                 {
-                    Debug.Log("[SteamSessionHelper] No friends found playing Enter the Gungeon or GungeonTogether");
+                    GungeonTogether.Logging.Debug.Log("[SteamSessionHelper] No friends found playing Enter the Gungeon or GungeonTogether");
                 }
                 
                 return gungeonTogetherFriends.ToArray();
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SteamSessionHelper] ❌ Error getting friends list: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SteamSessionHelper] ❌ Error getting friends list: {e.Message}");
                 return new string[0];
             }
         }
@@ -266,28 +266,28 @@ namespace GungeonTogether.Steam
             {
                 if (!steamInitialized || ReferenceEquals(sessionManager, null))
                 {
-                    Debug.LogWarning("[SteamSessionHelper] Cannot show invite dialog - not initialized");
+                    GungeonTogether.Logging.Debug.LogWarning("[SteamSessionHelper] Cannot show invite dialog - not initialized");
                     return;
                 }
                 
                 if (!sessionManager.IsActive)
                 {
-                    Debug.LogWarning("[SteamSessionHelper] No active session to invite friends to");
+                    GungeonTogether.Logging.Debug.LogWarning("[SteamSessionHelper] No active session to invite friends to");
                     return;
                 }
                 
-                Debug.Log("[SteamSessionHelper] 💌 Opening Steam invite dialog...");
-                Debug.Log($"[SteamSessionHelper] 🎯 Current session: {sessionManager.currentHostId}");
+                GungeonTogether.Logging.Debug.Log("[SteamSessionHelper] 💌 Opening Steam invite dialog...");
+                GungeonTogether.Logging.Debug.Log($"[SteamSessionHelper] 🎯 Current session: {sessionManager.currentHostId}");
                 
                 // In real implementation:
                 // SteamFriends.ActivateGameOverlayInviteDialog(currentLobbyId);
                 
-                Debug.Log("[SteamSessionHelper] ✅ Steam invite overlay opened!");
-                Debug.Log("[SteamSessionHelper] 👥 Friends can now join via Steam overlay");
+                GungeonTogether.Logging.Debug.Log("[SteamSessionHelper] ✅ Steam invite overlay opened!");
+                GungeonTogether.Logging.Debug.Log("[SteamSessionHelper] 👥 Friends can now join via Steam overlay");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SteamSessionHelper] ❌ Error showing invite dialog: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SteamSessionHelper] ❌ Error showing invite dialog: {e.Message}");
             }
         }
         

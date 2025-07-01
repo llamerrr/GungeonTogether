@@ -7,10 +7,18 @@ param(
 $Configuration = if ($Release) { "Release" } else { "Debug" }
 $PluginsPath = "$GamePath\BepInEx\plugins"
 
+# Check if we are using the gale mod manager
+$HarmonyDLLPath = "$env:APPDATA\com.kesomannen.gale\enter-the-gungeon\profiles\Default\BepInEx\"
+$HarmonyDLL = "core\0Harmony.dll"
+if (Test-Path -Path (Join-Path $HarmonyDLLPath $HarmonyDLL)) {
+    Write-Host "Gale mod manager found, using new mod path: $HarmonyDLLPath$HarmonyDLL" -ForegroundColor Green
+    $PluginsPath = Join-Path $HarmonyDLLPath "plugins"
+}
+
 Write-Host "Building GungeonTogether ($Configuration)..." -ForegroundColor Green
 
 # Build the project
-dotnet build --configuration $Configuration
+dotnet build GungeonTogether.csproj --configuration $Configuration
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Build failed!" -ForegroundColor Red

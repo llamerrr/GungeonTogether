@@ -74,7 +74,7 @@ namespace GungeonTogether.UI
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ModernMultiplayerMenu] Failed to initialize: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ModernMultiplayerMenu] Failed to initialize: {e.Message}");
             }
         }
         
@@ -112,7 +112,7 @@ namespace GungeonTogether.UI
         /// </summary>
         private void InitializeModernMenu()
         {
-            Debug.Log("[ModernMultiplayerMenu] Initializing modern menu system...");
+            GungeonTogether.Logging.Debug.Log("[ModernMultiplayerMenu] Initializing modern menu system...");
             
             // Get references to game systems
             sessionManager = GungeonTogetherMod.Instance?.SessionManager;
@@ -136,24 +136,24 @@ namespace GungeonTogether.UI
             {
                 backgroundPanel.SetActive(false);
                 isMenuVisible = false;
-                Debug.Log($"[ModernMultiplayerMenu] Background panel created and hidden - size: {menuSize}");
+                GungeonTogether.Logging.Debug.Log($"[ModernMultiplayerMenu] Background panel created and hidden - size: {menuSize}");
             }
             else
             {
-                Debug.LogError("[ModernMultiplayerMenu] Background panel is null after creation!");
+                GungeonTogether.Logging.Debug.LogError("[ModernMultiplayerMenu] Background panel is null after creation!");
             }
             
             if (!ReferenceEquals(menuPanel, null))
             {
-                Debug.Log($"[ModernMultiplayerMenu] Menu panel created - size: {menuPanel.GetComponent<RectTransform>().sizeDelta}");
+                GungeonTogether.Logging.Debug.Log($"[ModernMultiplayerMenu] Menu panel created - size: {menuPanel.GetComponent<RectTransform>().sizeDelta}");
             }
             else
             {
-                Debug.LogError("[ModernMultiplayerMenu] Menu panel is null after creation!");
+                GungeonTogether.Logging.Debug.LogError("[ModernMultiplayerMenu] Menu panel is null after creation!");
             }
             
             isInitialized = true;
-            Debug.Log("[ModernMultiplayerMenu] Modern menu system initialized successfully");
+            GungeonTogether.Logging.Debug.Log("[ModernMultiplayerMenu] Modern menu system initialized successfully");
         }
         
         /// <summary>
@@ -632,7 +632,7 @@ namespace GungeonTogether.UI
         /// </summary>
         private void OnBackFromFriendsSelection()
         {
-            Debug.Log("[ModernMultiplayerMenu] Back from friends selection clicked");
+            GungeonTogether.Logging.Debug.Log("[ModernMultiplayerMenu] Back from friends selection clicked");
             SwitchToPanel(mainPanel);
         }
         
@@ -786,7 +786,7 @@ namespace GungeonTogether.UI
         {
             if (!isInitialized || ReferenceEquals(backgroundPanel, null)) 
             {
-                Debug.LogError("[ModernMultiplayerMenu] Cannot show menu - not initialized");
+                GungeonTogether.Logging.Debug.LogError("[ModernMultiplayerMenu] Cannot show menu - not initialized");
                 return;
             }
             
@@ -807,18 +807,18 @@ namespace GungeonTogether.UI
         /// </summary>
         public void HideMenu()
         {
-            Debug.Log($"[ModernMultiplayerMenu] HideMenu called - isInitialized: {isInitialized}, backgroundPanel null: {ReferenceEquals(backgroundPanel, null)}");
+            GungeonTogether.Logging.Debug.Log($"[ModernMultiplayerMenu] HideMenu called - isInitialized: {isInitialized}, backgroundPanel null: {ReferenceEquals(backgroundPanel, null)}");
             
             if (!isInitialized || ReferenceEquals(backgroundPanel, null)) 
             {
-                Debug.LogError("[ModernMultiplayerMenu] Cannot hide menu - not initialized or background panel is null");
+                GungeonTogether.Logging.Debug.LogError("[ModernMultiplayerMenu] Cannot hide menu - not initialized or background panel is null");
                 return;
             }
             
             backgroundPanel.SetActive(false);
             isMenuVisible = false;
             
-            Debug.Log("[ModernMultiplayerMenu] Menu hidden");
+            GungeonTogether.Logging.Debug.Log("[ModernMultiplayerMenu] Menu hidden");
         }
         
         /// <summary>
@@ -894,7 +894,7 @@ namespace GungeonTogether.UI
                         }
                         catch (Exception steamEx)
                         {
-                            Debug.LogWarning($"[ModernMultiplayerMenu] Failed to get Steam ID: {steamEx.Message}");
+                            GungeonTogether.Logging.Debug.LogWarning($"[ModernMultiplayerMenu] Failed to get Steam ID: {steamEx.Message}");
                             cachedSteamId = 0;
                             steamIdCached = false;
                         }
@@ -931,20 +931,20 @@ namespace GungeonTogether.UI
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ModernMultiplayerMenu] Error updating menu content: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ModernMultiplayerMenu] Error updating menu content: {e.Message}");
             }
         }
         
         // Button click handlers
         private void OnHostClicked()
         {
-            Debug.Log("[ModernMultiplayerMenu] Host button clicked");
+            GungeonTogether.Logging.Debug.Log("[ModernMultiplayerMenu] Host button clicked");
             GungeonTogetherMod.Instance?.StartHosting();
         }
         
         private void OnJoinFriendClicked()
         {
-            Debug.Log("[ModernMultiplayerMenu] Join Friend button clicked");
+            GungeonTogether.Logging.Debug.Log("[ModernMultiplayerMenu] Join Friend button clicked");
             
             try
             {
@@ -1002,7 +1002,7 @@ namespace GungeonTogether.UI
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ModernMultiplayerMenu] Error in OnJoinFriendClicked: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ModernMultiplayerMenu] Error in OnJoinFriendClicked: {e.Message}");
                 MultiplayerUIManager.ShowNotification($"Error getting friends: {e.Message}", 4f);
             }
         }
@@ -1029,11 +1029,11 @@ namespace GungeonTogether.UI
                 // Switch to host selection panel
                 SwitchToPanel(hostSelectionPanel);
                 
-                Debug.Log($"[ModernMultiplayerMenu] Showing {hosts.Length} hosts in selection panel");
+                GungeonTogether.Logging.Debug.Log($"[ModernMultiplayerMenu] Showing {hosts.Length} hosts in selection panel");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ModernMultiplayerMenu] Error showing host selection: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ModernMultiplayerMenu] Error showing host selection: {e.Message}");
                 MultiplayerUIManager.ShowNotification($"Error showing hosts: {e.Message}", 4f);
             }
         }
@@ -1057,11 +1057,11 @@ namespace GungeonTogether.UI
                 // Switch to friends panel
                 SwitchToPanel(friendsPanel);
                 
-                Debug.Log($"[ModernMultiplayerMenu] Showing {friends.Length} friends in selection panel");
+                GungeonTogether.Logging.Debug.Log($"[ModernMultiplayerMenu] Showing {friends.Length} friends in selection panel");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ModernMultiplayerMenu] Error showing friends selection: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ModernMultiplayerMenu] Error showing friends selection: {e.Message}");
                 MultiplayerUIManager.ShowNotification($"Error showing friends: {e.Message}", 4f);
             }
         }
@@ -1090,7 +1090,7 @@ namespace GungeonTogether.UI
             var friendsContent = friendsPanel?.transform.Find("ScrollArea/Viewport/Content");
             if (ReferenceEquals(friendsContent, null))
             {
-                Debug.LogError("[ModernMultiplayerMenu] Friends content container not found");
+                GungeonTogether.Logging.Debug.LogError("[ModernMultiplayerMenu] Friends content container not found");
                 return;
             }
 
@@ -1186,7 +1186,7 @@ namespace GungeonTogether.UI
         {
             try
             {
-                Debug.Log($"[ModernMultiplayerMenu] Attempting to join friend: {friend.personaName} (ID: {friend.steamId})");
+                GungeonTogether.Logging.Debug.Log($"[ModernMultiplayerMenu] Attempting to join friend: {friend.personaName} (ID: {friend.steamId})");
                 
                 // Check if we have a valid Steam ID
                 if (friend.steamId != 0)
@@ -1198,13 +1198,13 @@ namespace GungeonTogether.UI
                 }
                 else
                 {
-                    Debug.LogError($"[ModernMultiplayerMenu] Invalid Steam ID: {friend.steamId}");
+                    GungeonTogether.Logging.Debug.LogError($"[ModernMultiplayerMenu] Invalid Steam ID: {friend.steamId}");
                     MultiplayerUIManager.ShowNotification("Invalid friend Steam ID", 3f);
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ModernMultiplayerMenu] Error joining friend {friend.personaName}: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ModernMultiplayerMenu] Error joining friend {friend.personaName}: {e.Message}");
                 MultiplayerUIManager.ShowNotification($"Error joining {friend.personaName}: {e.Message}", 4f);
             }
         }
@@ -1273,7 +1273,7 @@ namespace GungeonTogether.UI
             // Add click handler
             button.onClick.AddListener(() => OnHostButtonClicked(host));
             
-            Debug.Log($"[ModernMultiplayerMenu] Created host button: {host.Name}");
+            GungeonTogether.Logging.Debug.Log($"[ModernMultiplayerMenu] Created host button: {host.Name}");
         }
         
         /// <summary>
@@ -1283,7 +1283,7 @@ namespace GungeonTogether.UI
         {
             try
             {
-                Debug.Log($"[ModernMultiplayerMenu] Host button clicked: {host.Name} ({host.SteamId})");
+                GungeonTogether.Logging.Debug.Log($"[ModernMultiplayerMenu] Host button clicked: {host.Name} ({host.SteamId})");
                 
                 // Join the selected host
                 GungeonTogetherMod.Instance?.JoinSpecificHost(host.SteamId);
@@ -1294,7 +1294,7 @@ namespace GungeonTogether.UI
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ModernMultiplayerMenu] Error joining host: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ModernMultiplayerMenu] Error joining host: {e.Message}");
                 MultiplayerUIManager.ShowNotification($"❌ Failed to join {host.Name}\n\nError: {e.Message}", 5f);
             }
         }
@@ -1324,19 +1324,19 @@ namespace GungeonTogether.UI
         /// </summary>
         private void OnBackFromHostSelection()
         {
-            Debug.Log("[ModernMultiplayerMenu] Back from host selection clicked");
+            GungeonTogether.Logging.Debug.Log("[ModernMultiplayerMenu] Back from host selection clicked");
             SwitchToPanel(mainPanel);
         }
         
         private void OnDisconnectClicked()
         {
-            Debug.Log("[ModernMultiplayerMenu] Disconnect button clicked");
+            GungeonTogether.Logging.Debug.Log("[ModernMultiplayerMenu] Disconnect button clicked");
             GungeonTogetherMod.Instance?.StopMultiplayer();
         }
         
         private void OnFriendsClicked()
         {
-            Debug.Log("[ModernMultiplayerMenu] Friends button clicked");
+            GungeonTogether.Logging.Debug.Log("[ModernMultiplayerMenu] Friends button clicked");
             
             try
             {
@@ -1452,14 +1452,14 @@ namespace GungeonTogether.UI
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[ModernMultiplayerMenu] Error getting friends list: {ex.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ModernMultiplayerMenu] Error getting friends list: {ex.Message}");
                 MultiplayerUIManager.ShowNotification($"Error getting friends: {ex.Message}", 5f);
             }
         }
         
         private void OnPlayerListClicked()
         {
-            Debug.Log("[ModernMultiplayerMenu] Player list button clicked");
+            GungeonTogether.Logging.Debug.Log("[ModernMultiplayerMenu] Player list button clicked");
             // Toggle player list UI
             var playerListUI = PlayerListUI.Instance;
             if (!ReferenceEquals(playerListUI, null))
@@ -1468,26 +1468,26 @@ namespace GungeonTogether.UI
             }
             else
             {
-                Debug.LogWarning("[ModernMultiplayerMenu] PlayerListUI instance not found");
+                GungeonTogether.Logging.Debug.LogWarning("[ModernMultiplayerMenu] PlayerListUI instance not found");
             }
         }
         
         
         private void OnSettingsClicked()
         {
-            Debug.Log("[ModernMultiplayerMenu] Settings button clicked");
+            GungeonTogether.Logging.Debug.Log("[ModernMultiplayerMenu] Settings button clicked");
             // Show settings (placeholder)
         }
         
         private void OnCloseClicked()
         {
-            Debug.Log("[ModernMultiplayerMenu] Close button clicked");
+            GungeonTogether.Logging.Debug.Log("[ModernMultiplayerMenu] Close button clicked");
             HideMenu();
         }
         
         void OnDestroy()
         {
-            Debug.Log("[ModernMultiplayerMenu] Menu destroyed");
+            GungeonTogether.Logging.Debug.Log("[ModernMultiplayerMenu] Menu destroyed");
         }
     }
 }

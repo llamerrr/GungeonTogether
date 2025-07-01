@@ -113,6 +113,9 @@ namespace GungeonTogether
                 Logger.LogInfo("Setting up debug controls...");
                 SetupDebugControls();
                 
+                Logger.LogInfo("Initializing debugging systems...");
+                InitializeDebuggingSystem();
+                
             Logger.LogInfo("GungeonTogether initialized successfully!!!!!!! YAY!!!!!!!!!!!!!!!!!!");
             }
             catch (Exception e)
@@ -344,8 +347,31 @@ namespace GungeonTogether
             
             try
             {
-                // Only keep essential debug commands for development
-                // All user functionality should be in the UI (Ctrl+P)
+                // F1: Toggle comprehensive debug UI
+                if (Input.GetKeyDown(KeyCode.F1))
+                {
+                    Logger.LogInfo("F1: Toggling comprehensive debug UI...");
+                    DebugUIManager.ToggleVisibility();
+                }
+                
+                // Dungeon debugging controls
+                if (Input.GetKeyDown(KeyCode.F5))
+                {
+                    Logger.LogInfo("F5: Loading saved dungeon...");
+                    GungeonTogether.Debug.DungeonSaveLoad.LoadDungeon();
+                }
+                
+                if (Input.GetKeyDown(KeyCode.F6))
+                {
+                    Logger.LogInfo("F6: Saving current dungeon...");
+                    GungeonTogether.Debug.DungeonSaveLoad.SaveCurrentDungeon();
+                }
+                
+                if (Input.GetKeyDown(KeyCode.F7))
+                {
+                    Logger.LogInfo("F7: Comparing current vs saved dungeon...");
+                    GungeonTogether.Debug.DungeonSaveLoad.CompareDungeonWithSaved();
+                }
                 
                 // Keep F8 for developer debugging only
                 if (Input.GetKeyDown(KeyCode.F8))
@@ -775,6 +801,17 @@ namespace GungeonTogether
                 ETGSteamP2PNetworking.OnOverlayJoinRequested -= OnSteamOverlayJoinRequested;
                 Logger.LogInfo("Unsubscribed from Steam events");
                 
+                // Remove dungeon generation hooks
+                DungeonGenerationHook.RemoveHooks();
+                Logger.LogInfo("Removed dungeon generation hooks");
+                
+                // Cleanup debug UI system
+                if (DebugUIManager.Instance != null)
+                {
+                    Destroy(DebugUIManager.Instance.gameObject);
+                    Logger.LogInfo("Cleaned up debug UI system");
+                }
+                
                 // Clean up session manager
                 _sessionManager?.StopSession();
                 
@@ -956,8 +993,41 @@ namespace GungeonTogether
         private void SetupDebugControls()
         {
         }
+        
+        /// <summary>
+        /// Initialize the debugging system with save/load functionality
+        /// </summary>
+        private void InitializeDebuggingSystem()
+        {
+            try
+            {
+                Logger.LogInfo("Setting up debugging system...");
+                
+                // Initialize the dungeon save/load system
+                GungeonTogether.Debug.DungeonSaveLoad.Initialize();
+                
+                // Install dungeon generation hooks for debugging
+                DungeonGenerationHook.InstallHooks();
+                
+                // Initialize the comprehensive debug UI system
+                DebugUIManager.Initialize();
+                
+                Logger.LogInfo("Debugging system initialized successfully!");
+                Logger.LogInfo("Debug controls:");
+                Logger.LogInfo("  F1: Toggle comprehensive debug UI (tabs for dungeon, enemies, variables, seeds, network)");
+                Logger.LogInfo("  F5: Load saved dungeon");
+                Logger.LogInfo("  F6: Save current dungeon");
+                Logger.LogInfo("  F7: Compare current vs saved dungeon");
+                Logger.LogInfo("  F8: Show friends playing game");
+                Logger.LogInfo("  F10: Steam diagnostics");
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"Failed to initialize debugging system: {e.Message}");
+            }
+        }
     }
-    
+
     /// <summary>
     /// Information about an available host for UI display
     /// </summary>

@@ -63,7 +63,7 @@ namespace GungeonTogether.UI
             {
                 _instance = this;
                 DontDestroyOnLoad(gameObject);
-                Debug.Log("[MultiplayerUI] UI Controller initialized");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] UI Controller initialized");
             }
             else
             {
@@ -85,11 +85,11 @@ namespace GungeonTogether.UI
             modernMenu = FindObjectOfType<ModernMultiplayerMenu>();
             if (!ReferenceEquals(modernMenu, null))
             {
-                Debug.Log("[MultiplayerUI] Found ModernMultiplayerMenu component");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Found ModernMultiplayerMenu component");
             }
             else
             {
-                Debug.LogWarning("[MultiplayerUI] ModernMultiplayerMenu component not found");
+                GungeonTogether.Logging.Debug.LogWarning("[MultiplayerUI] ModernMultiplayerMenu component not found");
                 // Try again in 1 second
                 Invoke(nameof(FindModernMenu), 1f);
             }
@@ -129,7 +129,7 @@ namespace GungeonTogether.UI
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"[MultiplayerUI] Error checking hosting status: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[MultiplayerUI] Error checking hosting status: {e.Message}");
                 return false;
             }
         }
@@ -146,7 +146,7 @@ namespace GungeonTogether.UI
                 if (!ReferenceEquals(Time.timeScale,1.0f))
                 {
                     Time.timeScale = 1.0f;
-                    Debug.Log("[MultiplayerUI] Prevented game pause - keeping server running");
+                    GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Prevented game pause - keeping server running");
                 }
                 
                 // Try to access ETG's GameManager if available to prevent pause
@@ -168,7 +168,7 @@ namespace GungeonTogether.UI
                             if (!ReferenceEquals(pausedField, null) && ReferenceEquals((bool)pausedField.GetValue(gameManager), true))
                             {
                                 pausedField.SetValue(gameManager, false);
-                                Debug.Log("[MultiplayerUI] Overrode GameManager pause state to keep server running");
+                                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Overrode GameManager pause state to keep server running");
                             }
                         }
                     }
@@ -177,7 +177,7 @@ namespace GungeonTogether.UI
             catch (System.Exception e)
             {
                 // Silently handle reflection errors - not all ETG versions may have the same structure
-                Debug.LogWarning($"[MultiplayerUI] Could not access pause system (game version difference): {e.Message}");
+                GungeonTogether.Logging.Debug.LogWarning($"[MultiplayerUI] Could not access pause system (game version difference): {e.Message}");
             }
         }
         
@@ -188,7 +188,7 @@ namespace GungeonTogether.UI
         {
             try
             {
-                Debug.Log("[MultiplayerUI] Initializing UI system...");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Initializing UI system...");
                 
                 CreateUICanvas();
                 CreateMainPanel();
@@ -199,11 +199,11 @@ namespace GungeonTogether.UI
                 if (mainPanel) mainPanel.SetActive(false);
                 
                 isInitialized = true;
-                Debug.Log("[MultiplayerUI] UI system initialized successfully");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] UI system initialized successfully");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[MultiplayerUI] Failed to initialize UI: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[MultiplayerUI] Failed to initialize UI: {e.Message}");
             }
         }
         
@@ -235,9 +235,9 @@ namespace GungeonTogether.UI
                 // CRITICAL: Create EventSystem for UI interactions to work
                 CreateEventSystemIfMissing();
                 
-                Debug.Log($"[MultiplayerUI] UI Canvas created with sortingOrder: {uiCanvas.sortingOrder}");
-                Debug.Log($"[MultiplayerUI] Canvas renderMode: {uiCanvas.renderMode}");
-                Debug.Log($"[MultiplayerUI] Canvas enabled: {uiCanvas.enabled}");
+                GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] UI Canvas created with sortingOrder: {uiCanvas.sortingOrder}");
+                GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Canvas renderMode: {uiCanvas.renderMode}");
+                GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Canvas enabled: {uiCanvas.enabled}");
             }
         }
         
@@ -250,7 +250,7 @@ namespace GungeonTogether.UI
             EventSystem existingEventSystem = FindObjectOfType<EventSystem>();
             if (ReferenceEquals(existingEventSystem, null))
             {
-                Debug.Log("[MultiplayerUI] Creating EventSystem for UI interactions...");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Creating EventSystem for UI interactions...");
                 
                 GameObject eventSystemObject = new GameObject("GungeonTogether_EventSystem");
                 DontDestroyOnLoad(eventSystemObject);
@@ -266,17 +266,17 @@ namespace GungeonTogether.UI
                 inputModule.inputActionsPerSecond = 10f;
                 inputModule.repeatDelay = 0.5f;
                 
-                Debug.Log("[MultiplayerUI] EventSystem created with enhanced settings - UI should now be fully clickable!");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] EventSystem created with enhanced settings - UI should now be fully clickable!");
             }
             else
             {
-                Debug.Log("[MultiplayerUI] EventSystem already exists - verifying UI clickability");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] EventSystem already exists - verifying UI clickability");
                 
                 // Verify the existing EventSystem is properly configured
                 var inputModule = existingEventSystem.GetComponent<StandaloneInputModule>();
                 if (ReferenceEquals(inputModule, null))
                 {
-                    Debug.LogWarning("[MultiplayerUI] EventSystem exists but lacks StandaloneInputModule - adding it");
+                    GungeonTogether.Logging.Debug.LogWarning("[MultiplayerUI] EventSystem exists but lacks StandaloneInputModule - adding it");
                     inputModule = existingEventSystem.gameObject.AddComponent<StandaloneInputModule>();
                 }
                 
@@ -284,10 +284,10 @@ namespace GungeonTogether.UI
                 if (!existingEventSystem.enabled)
                 {
                     existingEventSystem.enabled = true;
-                    Debug.Log("[MultiplayerUI] Re-enabled EventSystem for UI interactions");
+                    GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Re-enabled EventSystem for UI interactions");
                 }
                 
-                Debug.Log("[MultiplayerUI] EventSystem verified - UI should be clickable");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] EventSystem verified - UI should be clickable");
             }
         }
         
@@ -296,21 +296,21 @@ namespace GungeonTogether.UI
         /// </summary>
         private void CreateMainPanel()
         {
-            Debug.Log("[MultiplayerUI] CreateMainPanel called");
-            Debug.Log($"[MultiplayerUI] mainPanel is null: {ReferenceEquals(mainPanel, null)}");
-            Debug.Log($"[MultiplayerUI] uiCanvas is null: {ReferenceEquals(uiCanvas, null)}");
+            GungeonTogether.Logging.Debug.Log("[MultiplayerUI] CreateMainPanel called");
+            GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] mainPanel is null: {ReferenceEquals(mainPanel, null)}");
+            GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] uiCanvas is null: {ReferenceEquals(uiCanvas, null)}");
             
             if (ReferenceEquals(mainPanel, null) && !ReferenceEquals(uiCanvas, null))
             {
-                Debug.Log("[MultiplayerUI] Creating main panel...");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Creating main panel...");
                 
                 // Create main panel background
                 mainPanel = CreateUIPanel(uiCanvas.transform, "MainPanel", new Vector2(600, 400));
-                Debug.Log($"[MultiplayerUI] Main panel created: {!ReferenceEquals(mainPanel, null)}");
+                GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Main panel created: {!ReferenceEquals(mainPanel, null)}");
                 
                 if (ReferenceEquals(mainPanel, null))
                 {
-                    Debug.LogError("[MultiplayerUI] Failed to create main panel!");
+                    GungeonTogether.Logging.Debug.LogError("[MultiplayerUI] Failed to create main panel!");
                     return;
                 }
                 
@@ -368,7 +368,7 @@ namespace GungeonTogether.UI
                 var closeButton = CreateUIButton(mainPanel.transform, "CloseButton", "✕", 
                                                 new Vector2(280, 180), new Vector2(30, 30), () => HideUI());
                 
-                Debug.Log("[MultiplayerUI] Main panel created");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Main panel created");
             }
         }
         
@@ -418,7 +418,7 @@ namespace GungeonTogether.UI
             scrollRect.horizontal = false;
             scrollRect.vertical = true;
             
-            Debug.Log("[MultiplayerUI] Host list panel created");
+            GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Host list panel created");
         }
         
         /// <summary>
@@ -459,7 +459,7 @@ namespace GungeonTogether.UI
                 statusLabel = CreateUIText(statusIndicator.transform, "StatusLabel", "Disconnected", 
                                          new Vector2(40, 0), new Vector2(150, 40), 12, TextAnchor.MiddleLeft).GetComponent<UnityEngine.UI.Text>();
                 
-                Debug.Log("[MultiplayerUI] Status indicator created");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Status indicator created");
             }
         }
         
@@ -480,7 +480,7 @@ namespace GungeonTogether.UI
             if (!ReferenceEquals(modernMenu, null))
             {
                 modernMenu.ToggleMenu();
-                Debug.Log("[MultiplayerUI] Delegated toggle to ModernMultiplayerMenu");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Delegated toggle to ModernMultiplayerMenu");
                 return;
             }
             
@@ -489,26 +489,26 @@ namespace GungeonTogether.UI
             
             isUIVisible = !isUIVisible;
             
-            Debug.Log($"[MultiplayerUI] ToggleUI called - isUIVisible: {isUIVisible}");
-            Debug.Log($"[MultiplayerUI] mainPanel is null: {ReferenceEquals(mainPanel, null)}");
-            Debug.Log($"[MultiplayerUI] uiCanvas is null: {ReferenceEquals(uiCanvas, null)}");
+            GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] ToggleUI called - isUIVisible: {isUIVisible}");
+            GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] mainPanel is null: {ReferenceEquals(mainPanel, null)}");
+            GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] uiCanvas is null: {ReferenceEquals(uiCanvas, null)}");
             
             if (!ReferenceEquals(uiCanvas, null))
             {
-                Debug.Log($"[MultiplayerUI] Canvas enabled: {uiCanvas.enabled}");
-                Debug.Log($"[MultiplayerUI] Canvas sortingOrder: {uiCanvas.sortingOrder}");
-                Debug.Log($"[MultiplayerUI] Canvas renderMode: {uiCanvas.renderMode}");
-                Debug.Log($"[MultiplayerUI] Canvas children count: {uiCanvas.transform.childCount}");
+                GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Canvas enabled: {uiCanvas.enabled}");
+                GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Canvas sortingOrder: {uiCanvas.sortingOrder}");
+                GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Canvas renderMode: {uiCanvas.renderMode}");
+                GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Canvas children count: {uiCanvas.transform.childCount}");
             }
             
             if (mainPanel)
             {
-                Debug.Log($"[MultiplayerUI] Main panel exists, setting active to: {isUIVisible}");
+                GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Main panel exists, setting active to: {isUIVisible}");
                 mainPanel.SetActive(isUIVisible);
                 
                 if (isUIVisible)
                 {
-                    Debug.Log("[MultiplayerUI] UI panel activated - should be visible now!");
+                    GungeonTogether.Logging.Debug.Log("[MultiplayerUI] UI panel activated - should be visible now!");
                     
                     // Remove test panel for production - the main panel should be visible
                     // CreateTestPanel();
@@ -521,54 +521,54 @@ namespace GungeonTogether.UI
                     if (rectTransform)
                     {
                         rectTransform.anchoredPosition = Vector2.zero; // Center on screen
-                        Debug.Log($"[MultiplayerUI] Panel positioned at: {rectTransform.anchoredPosition}");
-                        Debug.Log($"[MultiplayerUI] Panel size: {rectTransform.sizeDelta}");
-                        Debug.Log($"[MultiplayerUI] Panel anchors: min={rectTransform.anchorMin}, max={rectTransform.anchorMax}");
+                        GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Panel positioned at: {rectTransform.anchoredPosition}");
+                        GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Panel size: {rectTransform.sizeDelta}");
+                        GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Panel anchors: min={rectTransform.anchorMin}, max={rectTransform.anchorMax}");
                     }
                     
                     // Check if panel has Image component
                     var image = mainPanel.GetComponent<UnityEngine.UI.Image>();
                     if (image)
                     {
-                        Debug.Log($"[MultiplayerUI] Panel image color: {image.color}");
-                        Debug.Log($"[MultiplayerUI] Panel image enabled: {image.enabled}");
+                        GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Panel image color: {image.color}");
+                        GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Panel image enabled: {image.enabled}");
                     }
                     else
                     {
-                        Debug.LogWarning("[MultiplayerUI] Main panel has no Image component!");
+                        GungeonTogether.Logging.Debug.LogWarning("[MultiplayerUI] Main panel has no Image component!");
                     }
                     
                     // Ensure canvas is active and rendering
                     if (uiCanvas)
                     {
                         uiCanvas.enabled = true;
-                        Debug.Log($"[MultiplayerUI] Canvas enabled, sortingOrder: {uiCanvas.sortingOrder}");
+                        GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Canvas enabled, sortingOrder: {uiCanvas.sortingOrder}");
                     }
                 }
                 else
                 {
-                    Debug.Log("[MultiplayerUI] UI panel deactivated - should be hidden now!");
+                    GungeonTogether.Logging.Debug.Log("[MultiplayerUI] UI panel deactivated - should be hidden now!");
                 }
             }
             else
             {
-                Debug.LogError("[MultiplayerUI] Main panel is null - UI not properly initialized!");
+                GungeonTogether.Logging.Debug.LogError("[MultiplayerUI] Main panel is null - UI not properly initialized!");
                 
                 // Try to recreate the panel if it's missing
                 if (!ReferenceEquals(uiCanvas, null))
                 {
-                    Debug.Log("[MultiplayerUI] Attempting to recreate main panel...");
+                    GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Attempting to recreate main panel...");
                     CreateMainPanel();
                     
                     if (!ReferenceEquals(mainPanel, null))
                     {
                         mainPanel.SetActive(isUIVisible);
-                        Debug.Log("[MultiplayerUI] Main panel recreated successfully");
+                        GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Main panel recreated successfully");
                     }
                 }
             }
             
-            Debug.Log($"[MultiplayerUI] UI toggled: {(isUIVisible ? "Visible" : "Hidden")}");
+            GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] UI toggled: {(isUIVisible ? "Visible" : "Hidden")}");
         }
         
         /// <summary>
@@ -579,7 +579,7 @@ namespace GungeonTogether.UI
             if (!ReferenceEquals(modernMenu, null))
             {
                 modernMenu.ShowMenu();
-                Debug.Log("[MultiplayerUI] Delegated show to ModernMultiplayerMenu");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Delegated show to ModernMultiplayerMenu");
                 return;
             }
             
@@ -592,7 +592,7 @@ namespace GungeonTogether.UI
             // Immediately handle pause prevention if hosting
             if (IsHostingSession())
             {
-                Debug.Log("[MultiplayerUI] Hosting session detected - preventing game pause");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Hosting session detected - preventing game pause");
                 PreventGamePause();
             }
         }
@@ -605,7 +605,7 @@ namespace GungeonTogether.UI
             if (!ReferenceEquals(modernMenu, null))
             {
                 modernMenu.HideMenu();
-                Debug.Log("[MultiplayerUI] Delegated hide to ModernMultiplayerMenu");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Delegated hide to ModernMultiplayerMenu");
                 return;
             }
             
@@ -614,7 +614,7 @@ namespace GungeonTogether.UI
             {
                 isUIVisible = false;
                 mainPanel.SetActive(false);
-                Debug.Log("[MultiplayerUI] UI hidden via HideUI()");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] UI hidden via HideUI()");
             }
         }
         
@@ -655,7 +655,7 @@ namespace GungeonTogether.UI
                 var eventSystem = FindObjectOfType<EventSystem>();
                 if (ReferenceEquals(eventSystem, null) || !eventSystem.enabled)
                 {
-                    Debug.LogWarning("[MultiplayerUI] EventSystem missing or disabled - recreating for UI clickability");
+                    GungeonTogether.Logging.Debug.LogWarning("[MultiplayerUI] EventSystem missing or disabled - recreating for UI clickability");
                     CreateEventSystemIfMissing();
                 }
                 
@@ -665,7 +665,7 @@ namespace GungeonTogether.UI
                     var raycaster = uiCanvas.GetComponent<UnityEngine.UI.GraphicRaycaster>();
                     if (ReferenceEquals(raycaster, null) || !raycaster.enabled)
                     {
-                        Debug.LogWarning("[MultiplayerUI] GraphicRaycaster missing or disabled - fixing for UI clickability");
+                        GungeonTogether.Logging.Debug.LogWarning("[MultiplayerUI] GraphicRaycaster missing or disabled - fixing for UI clickability");
                         if (ReferenceEquals(raycaster, null))
                         {
                             raycaster = uiCanvas.gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
@@ -678,7 +678,7 @@ namespace GungeonTogether.UI
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"[MultiplayerUI] Error verifying UI clickability: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[MultiplayerUI] Error verifying UI clickability: {e.Message}");
             }
         }
         
@@ -876,15 +876,15 @@ namespace GungeonTogether.UI
         // Event Handlers
         private void OnHostClicked()
         {
-            Debug.Log("!!! OnHostClicked CALLED !!!");
+            GungeonTogether.Logging.Debug.Log("!!! OnHostClicked CALLED !!!");
             SteamCallbackManager.Instance.HostLobby();
-            Debug.Log("!!! After HostLobby call !!!");
+            GungeonTogether.Logging.Debug.Log("!!! After HostLobby call !!!");
             UpdateUIElements();
         }
         
         private void OnJoinClicked()
         {
-            Debug.Log("[MultiplayerUI] Join button clicked");
+            GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Join button clicked");
             
             if (!ReferenceEquals(sessionManager, null))
             {
@@ -897,7 +897,7 @@ namespace GungeonTogether.UI
                 }
                 else
                 {
-                    Debug.Log("[MultiplayerUI] No hosts available to join");
+                    GungeonTogether.Logging.Debug.Log("[MultiplayerUI] No hosts available to join");
                 }
                 UpdateUIElements();
             }
@@ -905,7 +905,7 @@ namespace GungeonTogether.UI
         
         private void OnDisconnectClicked()
         {
-            Debug.Log("[MultiplayerUI] Disconnect button clicked");
+            GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Disconnect button clicked");
             
             if (!ReferenceEquals(sessionManager, null))
             {
@@ -918,13 +918,13 @@ namespace GungeonTogether.UI
         
         private void OnRefreshClicked()
         {
-            Debug.Log("[MultiplayerUI] Refresh button clicked");
+            GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Refresh button clicked");
             RefreshHostList();
         }
         
         private void OnJoinHostClicked(ulong hostSteamId)
         {
-            Debug.Log($"[MultiplayerUI] Join host clicked: {hostSteamId}");
+            GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Join host clicked: {hostSteamId}");
             
             if (!ReferenceEquals(sessionManager, null))
             {
@@ -942,11 +942,11 @@ namespace GungeonTogether.UI
         {
             try
             {
-                Debug.Log("[MultiplayerUI] Creating test panel for debugging...");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Creating test panel for debugging...");
                 
                 if (ReferenceEquals(uiCanvas, null))
                 {
-                    Debug.LogError("[MultiplayerUI] Canvas is null - cannot create test panel");
+                    GungeonTogether.Logging.Debug.LogError("[MultiplayerUI] Canvas is null - cannot create test panel");
                     return;
                 }
                 
@@ -980,14 +980,14 @@ namespace GungeonTogether.UI
                 text.color = Color.white;
                 text.alignment = TextAnchor.MiddleCenter;
                 
-                Debug.Log("[MultiplayerUI] Test panel created successfully");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Test panel created successfully");
                 
                 // Auto-destroy after 3 seconds
                 Destroy(testPanel, 3f);
             }
             catch (Exception e)
             {
-                Debug.LogError($"[MultiplayerUI] Failed to create test panel: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[MultiplayerUI] Failed to create test panel: {e.Message}");
             }
         }
 
@@ -998,7 +998,7 @@ namespace GungeonTogether.UI
         /// </summary>
         private GameObject CreateUIPanel(Transform parent, string name, Vector2 size)
         {
-            Debug.Log($"[MultiplayerUI] Creating UI panel: {name} with size: {size}");
+            GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Creating UI panel: {name} with size: {size}");
             
             var panel = new GameObject(name);
             panel.transform.SetParent(parent);
@@ -1010,7 +1010,7 @@ namespace GungeonTogether.UI
             var image = panel.AddComponent<UnityEngine.UI.Image>();
             image.color = new Color(0.1f, 0.1f, 0.2f, 0.95f); // Dark blue, mostly opaque
             
-            Debug.Log($"[MultiplayerUI] Panel created: {name}, parent: {parent?.name}, color: {image.color}");
+            GungeonTogether.Logging.Debug.Log($"[MultiplayerUI] Panel created: {name}, parent: {parent?.name}, color: {image.color}");
             
             return panel;
         }
@@ -1088,7 +1088,7 @@ namespace GungeonTogether.UI
         public void SetSessionManager(SimpleSessionManager manager)
         {
             sessionManager = manager;
-            Debug.Log("[MultiplayerUI] Session manager set");
+            GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Session manager set");
         }
         
         /// <summary>
@@ -1106,7 +1106,7 @@ namespace GungeonTogether.UI
                 // Safety check
                 if (ReferenceEquals(uiCanvas, null))
                 {
-                    Debug.LogWarning("[MultiplayerUI] Cannot show notification - canvas not initialized");
+                    GungeonTogether.Logging.Debug.LogWarning("[MultiplayerUI] Cannot show notification - canvas not initialized");
                     return;
                 }
                 
@@ -1115,7 +1115,7 @@ namespace GungeonTogether.UI
                 
                 if (ReferenceEquals(notification, null))
                 {
-                    Debug.LogWarning("[MultiplayerUI] Failed to create notification panel");
+                    GungeonTogether.Logging.Debug.LogWarning("[MultiplayerUI] Failed to create notification panel");
                     return;
                 }
                 
@@ -1136,7 +1136,7 @@ namespace GungeonTogether.UI
             }
             catch (System.Exception ex)
             {
-                Debug.LogError($"[MultiplayerUI] Error showing notification: {ex.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[MultiplayerUI] Error showing notification: {ex.Message}");
             }
         }
     }

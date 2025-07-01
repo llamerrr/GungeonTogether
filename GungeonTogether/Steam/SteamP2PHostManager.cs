@@ -23,7 +23,7 @@ namespace GungeonTogether.Steam
         private void StartListening()
         {
             _listenSocket = SteamNetworkingSocketsHelper.CreateListenSocketP2P(_virtualPort);
-            Debug.Log("[SteamP2PHostManager] Host is now listening for P2P connections");
+            GungeonTogether.Logging.Debug.Log("[SteamP2PHostManager] Host is now listening for P2P connections");
         }
 
         public void ConnectClientsInLobby()
@@ -44,7 +44,7 @@ namespace GungeonTogether.Steam
                 {
                     object hConn = SteamNetworkingSocketsHelper.ConnectP2P(memberSteamId, _virtualPort);
                     _clientConnections[memberSteamId] = hConn;
-                    Debug.Log($"[SteamP2PHostManager] Connected to client: {memberSteamId}");
+                    GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Connected to client: {memberSteamId}");
                 }
             }
         }
@@ -57,7 +57,7 @@ namespace GungeonTogether.Steam
             {
                 object hConn = kvp.Value;
                 int result = SteamNetworkingSocketsHelper.SendMessageToConnection(hConn, data, flags);
-                Debug.Log($"[SteamP2PHostManager] Sent test message to {kvp.Key}, result: {result}");
+                GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Sent test message to {kvp.Key}, result: {result}");
             }
         }
     }

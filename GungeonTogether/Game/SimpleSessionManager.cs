@@ -48,7 +48,7 @@ namespace GungeonTogether.Game
             IsHost = false;
             connectedPlayers = new Dictionary<ulong, PlayerConnection>();
             steamNet = null;
-            Debug.Log("[SimpleSessionManager] Steam-compatible session manager initialized");
+            GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Steam-compatible session manager initialized");
         }
 
         // Subscribe to player join events after Steam networking is initialized
@@ -73,7 +73,7 @@ namespace GungeonTogether.Game
                     lastActivity = Time.time,
                     connectionTime = Time.time
                 };
-                Debug.Log($"[SimpleSessionManager] Player joined lobby: {steamId} (lobby {lobbyId})");
+                GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Player joined lobby: {steamId} (lobby {lobbyId})");
                 UpdateConnectionStatus();
             }
         }
@@ -84,8 +84,8 @@ namespace GungeonTogether.Game
             {
                 string currentLocation = GetCurrentLocationName();
                 Status = $"Cannot start session from: {currentLocation}";
-                Debug.LogWarning($"[SimpleSessionManager] Cannot start multiplayer session from current location: {currentLocation}");
-                Debug.LogWarning("[SimpleSessionManager] Multiplayer can only be started from Main Menu or Gungeon Foyer");
+                GungeonTogether.Logging.Debug.LogWarning($"[SimpleSessionManager] Cannot start multiplayer session from current location: {currentLocation}");
+                GungeonTogether.Logging.Debug.LogWarning("[SimpleSessionManager] Multiplayer can only be started from Main Menu or Gungeon Foyer");
                 return;
             }
             else
@@ -94,7 +94,7 @@ namespace GungeonTogether.Game
                 IsHost = true;
                 Status = "Starting Steam session...";
                 connectedPlayers.Clear();
-                Debug.Log("[SimpleSessionManager] Location validated - starting multiplayer session");
+                GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Location validated - starting multiplayer session");
                 EnsureSteamNetworkingInitialized();
                 SubscribeToSteamEvents();
                 InitializePlayerSync();
@@ -109,8 +109,8 @@ namespace GungeonTogether.Game
             {
                 string currentLocation = GetCurrentLocationName();
                 Status = $"Cannot join session from: {currentLocation}";
-                Debug.LogWarning($"[SimpleSessionManager] Cannot join multiplayer session from current location: {currentLocation}");
-                Debug.LogWarning("[SimpleSessionManager] Multiplayer can only be joined from Main Menu or Gungeon Foyer");
+                GungeonTogether.Logging.Debug.LogWarning($"[SimpleSessionManager] Cannot join multiplayer session from current location: {currentLocation}");
+                GungeonTogether.Logging.Debug.LogWarning("[SimpleSessionManager] Multiplayer can only be joined from Main Menu or Gungeon Foyer");
                 return;
             }
             IsActive = true;
@@ -118,7 +118,7 @@ namespace GungeonTogether.Game
             Status = $"Connecting to Steam session: {sessionId}";
             currentHostId = sessionId;
             connectedPlayers.Clear();
-            Debug.Log("[SimpleSessionManager] Location validated - joining multiplayer session");
+            GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Location validated - joining multiplayer session");
             EnsureSteamNetworkingInitialized();
             if (!ReferenceEquals(steamNet, null) && steamNet.IsAvailable())
             {
@@ -126,21 +126,21 @@ namespace GungeonTogether.Game
                 ulong lobbyId = 0;
                 if (sessionId.StartsWith("lobby_") && ulong.TryParse(sessionId.Substring(6), out lobbyId) && !ReferenceEquals(lobbyId, 0UL))
                 {
-                    Debug.Log($"[SimpleSessionManager] Initiating connection to lobby: {lobbyId}");
+                    GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Initiating connection to lobby: {lobbyId}");
                     steamNet.JoinLobby(lobbyId);
                     Status = $"Connected to lobby: {lobbyId}";
                 }
                 else
                 {
                     Status = "Invalid session format (must be lobby ID)";
-                    Debug.LogError($"[SimpleSessionManager] Invalid session format: {sessionId}");
+                    GungeonTogether.Logging.Debug.LogError($"[SimpleSessionManager] Invalid session format: {sessionId}");
                     return;
                 }
             }
             else
             {
                 Status = $"Joined offline: {sessionId}";
-                Debug.LogWarning("[SimpleSessionManager] Steam not available - joining offline session");
+                GungeonTogether.Logging.Debug.LogWarning("[SimpleSessionManager] Steam not available - joining offline session");
             }
             InitializePlayerSync();
         }
@@ -158,17 +158,17 @@ namespace GungeonTogether.Game
             {
                 ETGSteamP2PNetworking.UnregisterAsHost();
                 SteamSessionHelper.UpdateRichPresence(false, null);
-                Debug.Log("[SimpleSessionManager] Unregistered from GungeonTogether host registry");
+                GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Unregistered from GungeonTogether host registry");
             }
             playerSync?.Cleanup();
             playerSync = null;
             if (wasHosting)
             {
-                Debug.Log($"[SimpleSessionManager] Stopped hosting session: {sessionId} ({connectedPlayers.Count} players disconnected)");
+                GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Stopped hosting session: {sessionId} ({connectedPlayers.Count} players disconnected)");
             }
             else
             {
-                Debug.Log($"[SimpleSessionManager] Left session: {sessionId}");
+                GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Left session: {sessionId}");
             }
         }
         
@@ -187,7 +187,7 @@ namespace GungeonTogether.Game
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SimpleSessionManager] Error in Update: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SimpleSessionManager] Error in Update: {e.Message}");
             }
         }
         
@@ -197,10 +197,10 @@ namespace GungeonTogether.Game
             try
             {
                 playerSync = new PlayerSynchronizer(this);
-                Debug.Log("[SimpleSessionManager] Player synchronization initialized (ready for networking integration)");
+                GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Player synchronization initialized (ready for networking integration)");
             } catch (Exception e)
             {
-                Debug.LogError($"[SimpleSessionManager] Failed to initialize player sync: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SimpleSessionManager] Failed to initialize player sync: {e.Message}");
             }
         }
         
@@ -214,22 +214,22 @@ namespace GungeonTogether.Game
             if (!ReferenceEquals(steamNet, null)) return;
             try
             {
-                Debug.Log("[SimpleSessionManager] Attempting to initialize ETG Steam P2P networking...");
+                GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Attempting to initialize ETG Steam P2P networking...");
                 steamNet = SteamNetworkingFactory.TryCreateSteamNetworking();
                 if (!ReferenceEquals(steamNet, null) && steamNet.IsAvailable())
                 {
-                    Debug.Log("[SimpleSessionManager] ETG Steam P2P networking initialized successfully");
+                    GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] ETG Steam P2P networking initialized successfully");
                 }
                 else
                 {
-                    Debug.LogWarning("[SimpleSessionManager] Steam not available - will run in offline mode");
+                    GungeonTogether.Logging.Debug.LogWarning("[SimpleSessionManager] Steam not available - will run in offline mode");
                     steamNet = null;
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SimpleSessionManager] Failed to initialize Steam P2P networking: {e.Message}");
-                Debug.LogError($"[SimpleSessionManager] Stack trace: {e.StackTrace}");
+                GungeonTogether.Logging.Debug.LogError($"[SimpleSessionManager] Failed to initialize Steam P2P networking: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SimpleSessionManager] Stack trace: {e.StackTrace}");
                 steamNet = null;
             }
         }
@@ -253,7 +253,7 @@ namespace GungeonTogether.Game
                     float timeSinceConnection = Time.time - connection.connectionTime;
                     if (!connection.isConnected)
                     {
-                        Debug.LogWarning($"[SimpleSessionManager] Player {steamId} is not connected (removing)");
+                        GungeonTogether.Logging.Debug.LogWarning($"[SimpleSessionManager] Player {steamId} is not connected (removing)");
                         playersToRemove.Add(steamId);
                     }
                 }
@@ -264,7 +264,7 @@ namespace GungeonTogether.Game
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SimpleSessionManager] Error in CheckConnections: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SimpleSessionManager] Error in CheckConnections: {e.Message}");
             }
         }
         
@@ -272,7 +272,7 @@ namespace GungeonTogether.Game
         {
             try
             {
-                Debug.Log($"[SimpleSessionManager] Player {steamId} disconnected");
+                GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Player {steamId} disconnected");
                 if (connectedPlayers.ContainsKey(steamId))
                 {
                     connectedPlayers.Remove(steamId);
@@ -286,7 +286,7 @@ namespace GungeonTogether.Game
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SimpleSessionManager] Error handling player disconnection: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SimpleSessionManager] Error handling player disconnection: {e.Message}");
             }
         }
         
@@ -297,7 +297,7 @@ namespace GungeonTogether.Game
         
         private void LogHostConnectionStatus(string context)
         {
-            Debug.Log($"[SimpleSessionManager] Host status: {context} | Players: {connectedPlayers.Count}");
+            GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Host status: {context} | Players: {connectedPlayers.Count}");
         }
         
         private bool IsValidLocationForMultiplayer()
