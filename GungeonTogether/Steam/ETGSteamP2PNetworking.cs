@@ -35,11 +35,11 @@ namespace GungeonTogether.Steam
                 isInitialized = false; // Will be set to true when/if initialization succeeds
                 // Wire up Steam callback events
                 SteamCallbackManager.OnOverlayJoinRequested += HandleOverlayJoinRequest;
-                // Debug.Log("[ETGSteamP2P] Created Steam P2P networking instance (lazy initialization)");
+                // GungeonTogether.Logging.Debug.Log("[ETGSteamP2P] Created Steam P2P networking instance (lazy initialization)");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error creating instance: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error creating instance: {e.Message}");
                 isInitialized = false;
             }
         }
@@ -64,17 +64,17 @@ namespace GungeonTogether.Steam
                     SteamCallbackManager.InitializeSteamCallbacks();
                     // if (SteamCallbackManager.AreCallbacksRegistered)
                     // {
-                    //     Debug.Log("[ETGSteamP2P] Steam join callbacks registered - invites should work");
+                    //     GungeonTogether.Logging.Debug.Log("[ETGSteamP2P] Steam join callbacks registered - invites should work");
                     // }
                     // else
                     // {
-                    //     Debug.LogWarning("[ETGSteamP2P] Steam join callbacks NOT registered - invites may not work");
+                    //     GungeonTogether.Logging.Debug.LogWarning("[ETGSteamP2P] Steam join callbacks NOT registered - invites may not work");
                     // }
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Failed to initialize Steam types: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Failed to initialize Steam types: {e.Message}");
             }
         }
 
@@ -90,7 +90,7 @@ namespace GungeonTogether.Steam
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error getting Steam ID: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error getting Steam ID: {e.Message}");
                 return 0;
             }
         }
@@ -102,33 +102,33 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                Debug.Log($"[ETGSteamP2P] [JoinLobby] Called with lobbyId: {lobbyId} (type: {lobbyId.GetType().FullName})");
+                GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] [JoinLobby] Called with lobbyId: {lobbyId} (type: {lobbyId.GetType().FullName})");
                 if (lobbyId.Equals(0))
                 {
-                    Debug.LogError("[ETGSteamP2P] Invalid lobby ID: 0");
+                    GungeonTogether.Logging.Debug.LogError("[ETGSteamP2P] Invalid lobby ID: 0");
                     return false;
                 }
                 // Use reflection helper to call Steam's JoinLobby
                 var joinLobbyMethod = SteamReflectionHelper.JoinLobbyMethod;
                 if (ReferenceEquals(joinLobbyMethod, null))
                 {
-                    Debug.LogError("[ETGSteamP2P] JoinLobbyMethod is null - cannot join lobby");
+                    GungeonTogether.Logging.Debug.LogError("[ETGSteamP2P] JoinLobbyMethod is null - cannot join lobby");
                     return false;
                 }
                 var csteamId = SteamReflectionHelper.ConvertToCSteamID(lobbyId);
-                Debug.Log($"[ETGSteamP2P] [JoinLobby] Converted lobbyId to csteamId: {csteamId} (type: {(csteamId == null ? "null" : csteamId.GetType().FullName)})");
+                GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] [JoinLobby] Converted lobbyId to csteamId: {csteamId} (type: {(csteamId == null ? "null" : csteamId.GetType().FullName)})");
                 if (ReferenceEquals(csteamId, null))
                 {
-                    Debug.LogError("[ETGSteamP2P] Failed to convert lobbyId to CSteamID");
+                    GungeonTogether.Logging.Debug.LogError("[ETGSteamP2P] Failed to convert lobbyId to CSteamID");
                     return false;
                 }
                 joinLobbyMethod.Invoke(null, new object[] { csteamId });
-                Debug.Log($"[ETGSteamP2P] JoinLobby invoked for lobby: {lobbyId}");
+                GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] JoinLobby invoked for lobby: {lobbyId}");
                 return true;
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[ETGSteamP2P] Exception while joining lobby: {ex.Message}\n{ex.StackTrace}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Exception while joining lobby: {ex.Message}\n{ex.StackTrace}");
                 return false;
             }
         }
@@ -145,7 +145,7 @@ namespace GungeonTogether.Steam
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error leaving lobby: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error leaving lobby: {e.Message}");
                 return false;
             }
         }
@@ -162,7 +162,7 @@ namespace GungeonTogether.Steam
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error setting lobby data: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error setting lobby data: {e.Message}");
                 return false;
             }
         }
@@ -180,7 +180,7 @@ namespace GungeonTogether.Steam
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error starting hosting session: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error starting hosting session: {e.Message}");
             }
         }
 
@@ -196,7 +196,7 @@ namespace GungeonTogether.Steam
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error starting joining session: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error starting joining session: {e.Message}");
             }
         }
 
@@ -212,7 +212,7 @@ namespace GungeonTogether.Steam
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error stopping session: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error stopping session: {e.Message}");
             }
         }
 
@@ -228,7 +228,7 @@ namespace GungeonTogether.Steam
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error checking availability: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error checking availability: {e.Message}");
                 return false;
             }
         }
@@ -240,7 +240,7 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                Debug.Log("[ETGSteamP2P] Shutting down Steam P2P networking");
+                GungeonTogether.Logging.Debug.Log("[ETGSteamP2P] Shutting down Steam P2P networking");
 
                 // Stop any active session
                 StopSession();
@@ -251,11 +251,11 @@ namespace GungeonTogether.Steam
                 isInitialized = false;
                 Instance = null;
 
-                Debug.Log("[ETGSteamP2P] Steam P2P networking shutdown complete");
+                GungeonTogether.Logging.Debug.Log("[ETGSteamP2P] Steam P2P networking shutdown complete");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error during shutdown: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error during shutdown: {e.Message}");
             }
         }
 
@@ -275,7 +275,7 @@ namespace GungeonTogether.Steam
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error checking for join requests: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error checking for join requests: {e.Message}");
             }
         }
 
@@ -286,24 +286,24 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                Debug.Log($"[ETGSteamP2P] Processing overlay join request: {connectString}");
+                GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] Processing overlay join request: {connectString}");
 
                 // Try to parse as lobby ID first
                 if (ulong.TryParse(connectString, out ulong lobbyId))
                 {
-                    Debug.Log($"[ETGSteamP2P] Attempting to join lobby with ID: {lobbyId}");
+                    GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] Attempting to join lobby with ID: {lobbyId}");
                     // Join the Steam lobby, not direct P2P to user
                     Instance?.JoinLobby(lobbyId);
                     // Optionally, fire an event or notification here if needed
                 }
                 else
                 {
-                    Debug.LogWarning($"[ETGSteamP2P] Could not parse lobby ID from connect string: {connectString}");
+                    GungeonTogether.Logging.Debug.LogWarning($"[ETGSteamP2P] Could not parse lobby ID from connect string: {connectString}");
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error handling overlay join request: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error handling overlay join request: {e.Message}");
             }
         }
 
@@ -318,7 +318,7 @@ namespace GungeonTogether.Steam
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error setting Rich Presence: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error setting Rich Presence: {e.Message}");
                 return false;
             }
         }
@@ -340,7 +340,7 @@ namespace GungeonTogether.Steam
                     {
                         if (success)
                         {
-                            Debug.Log("[ETGSteamP2P] Cleared Rich Presence");
+                            GungeonTogether.Logging.Debug.Log("[ETGSteamP2P] Cleared Rich Presence");
                             return true;
                         }
                     }
@@ -350,7 +350,7 @@ namespace GungeonTogether.Steam
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error clearing Rich Presence: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error clearing Rich Presence: {e.Message}");
                 return false;
             }
         }
@@ -367,17 +367,17 @@ namespace GungeonTogether.Steam
 
                 if (SteamReflectionHelper.IsInitialized)
                 {
-                    Debug.Log("[ETGSteamP2P] Steam types are initialized and method signatures have been discovered");
-                    Debug.Log("[ETGSteamP2P] Check the initialization logs for detailed method signature information");
+                    GungeonTogether.Logging.Debug.Log("[ETGSteamP2P] Steam types are initialized and method signatures have been discovered");
+                    GungeonTogether.Logging.Debug.Log("[ETGSteamP2P] Check the initialization logs for detailed method signature information");
                 }
                 else
                 {
-                    Debug.LogWarning("[ETGSteamP2P] Steam types not initialized - cannot discover method signatures");
+                    GungeonTogether.Logging.Debug.LogWarning("[ETGSteamP2P] Steam types not initialized - cannot discover method signatures");
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Error discovering method signatures: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error discovering method signatures: {e.Message}");
             }
         }
 
@@ -462,7 +462,7 @@ namespace GungeonTogether.Steam
                 // Don't spam errors in the update loop
                 if (ReferenceEquals(Time.frameCount % 600, 0)) // Log every 10 seconds at 60fps
                 {
-                    Debug.LogWarning($"[ETGSteamP2P] Error in Update(): {e.Message}");
+                    GungeonTogether.Logging.Debug.LogWarning($"[ETGSteamP2P] Error in Update(): {e.Message}");
                 }
             }
         }

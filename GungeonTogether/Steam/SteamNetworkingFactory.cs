@@ -17,7 +17,7 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                Debug.Log("[SteamFactory] Attempting to create Steam networking via reflection...");
+                GungeonTogether.Logging.Debug.Log("[SteamFactory] Attempting to create Steam networking via reflection...");
                 
                 // Get the current assembly
                 var assembly = Assembly.GetExecutingAssembly();
@@ -27,7 +27,7 @@ namespace GungeonTogether.Steam
                 
                 if (object.ReferenceEquals(steamNetType, null))
                 {
-                    Debug.LogWarning("[SteamFactory] ETGSteamP2PNetworking type not found");
+                    GungeonTogether.Logging.Debug.LogWarning("[SteamFactory] ETGSteamP2PNetworking type not found");
                     return null;
                 }
                 
@@ -36,35 +36,35 @@ namespace GungeonTogether.Steam
                 
                 if (object.ReferenceEquals(instance, null))
                 {
-                    Debug.LogWarning("[SteamFactory] Failed to create ETGSteamP2PNetworking instance");
+                    GungeonTogether.Logging.Debug.LogWarning("[SteamFactory] Failed to create ETGSteamP2PNetworking instance");
                     return null;
                 }
                 
                 // Check if it implements ISteamNetworking
                 if (instance is ISteamNetworking steamNet)
                 {
-                    Debug.Log("[SteamFactory] Successfully created Steam networking instance");
+                    GungeonTogether.Logging.Debug.Log("[SteamFactory] Successfully created Steam networking instance");
                     return steamNet;
                 }
                 else
                 {
-                    Debug.LogWarning("[SteamFactory] Created instance does not implement ISteamNetworking");
+                    GungeonTogether.Logging.Debug.LogWarning("[SteamFactory] Created instance does not implement ISteamNetworking");
                     return null;
                 }
             }
             catch (TypeLoadException e)
             {
-                Debug.LogWarning($"[SteamFactory] TypeLoadException when creating Steam networking: {e.Message}");
+                GungeonTogether.Logging.Debug.LogWarning($"[SteamFactory] TypeLoadException when creating Steam networking: {e.Message}");
                 return null;
             }
             catch (ReflectionTypeLoadException e)
             {
-                Debug.LogWarning($"[SteamFactory] ReflectionTypeLoadException when creating Steam networking: {e.Message}");
+                GungeonTogether.Logging.Debug.LogWarning($"[SteamFactory] ReflectionTypeLoadException when creating Steam networking: {e.Message}");
                 return null;
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"[SteamFactory] General exception when creating Steam networking: {e.Message}");
+                GungeonTogether.Logging.Debug.LogWarning($"[SteamFactory] General exception when creating Steam networking: {e.Message}");
                 return null;
             }
         }

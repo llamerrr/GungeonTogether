@@ -306,7 +306,7 @@ namespace GungeonTogether.UI
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SteamIntegrationUI] Error updating friends list: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SteamIntegrationUI] Error updating friends list: {e.Message}");
                 CreateErrorEntry();
             }
         }
@@ -359,7 +359,7 @@ namespace GungeonTogether.UI
         
         private void OnInviteFriendsClicked()
         {
-            Debug.Log("[SteamIntegrationUI] Invite friends button clicked");
+            GungeonTogether.Logging.Debug.Log("[SteamIntegrationUI] Invite friends button clicked");
             
             try
             {
@@ -368,20 +368,20 @@ namespace GungeonTogether.UI
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SteamIntegrationUI] Error showing invite dialog: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SteamIntegrationUI] Error showing invite dialog: {e.Message}");
                 MultiplayerUIManager.ShowNotification("❌ Failed to open invite dialog", 2f);
             }
         }
         
         private void OnOverlayClicked()
         {
-            Debug.Log("[SteamIntegrationUI] Steam overlay button clicked");
+            GungeonTogether.Logging.Debug.Log("[SteamIntegrationUI] Steam overlay button clicked");
             MultiplayerUIManager.ShowNotification("💬 Steam overlay features not implemented yet", 2f);
         }
         
         private void OnJoinFriendClicked(string friendId)
         {
-            Debug.Log($"[SteamIntegrationUI] Join friend clicked: {friendId}");
+            GungeonTogether.Logging.Debug.Log($"[SteamIntegrationUI] Join friend clicked: {friendId}");
             
             try
             {
@@ -390,7 +390,7 @@ namespace GungeonTogether.UI
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SteamIntegrationUI] Error joining friend: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SteamIntegrationUI] Error joining friend: {e.Message}");
                 MultiplayerUIManager.ShowNotification($"❌ Failed to join friend: {friendId}", 3f);
             }
         }
@@ -520,11 +520,11 @@ namespace GungeonTogether.UI
             try
             {
                 ETGSteamP2PNetworking.OnOverlayJoinRequested += OnSteamOverlayJoinRequested;
-                Debug.Log("[SteamIntegrationUI] Subscribed to Steam events");
+                GungeonTogether.Logging.Debug.Log("[SteamIntegrationUI] Subscribed to Steam events");
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"[SteamIntegrationUI] Could not subscribe to Steam events: {e.Message}");
+                GungeonTogether.Logging.Debug.LogWarning($"[SteamIntegrationUI] Could not subscribe to Steam events: {e.Message}");
             }
         }
         
@@ -542,7 +542,7 @@ namespace GungeonTogether.UI
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"[SteamIntegrationUI] Error unsubscribing from Steam events: {e.Message}");
+                GungeonTogether.Logging.Debug.LogWarning($"[SteamIntegrationUI] Error unsubscribing from Steam events: {e.Message}");
             }
         }
     }

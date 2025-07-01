@@ -1,9 +1,10 @@
 # References and dependencies (too large for version control)
 REFERENCES FOR PROJECT/
+Assembly-CSharp/
+Mod/
 
 # Build artifacts
 GungeonTogetherETG/bin/
-GungeonTogetherETG/obj/
 *.dll
 *.pdb
 *.md

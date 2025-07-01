@@ -46,7 +46,7 @@ namespace GungeonTogether.Game
             this.gameManager = gameManager;
             this.remotePlayers = new Dictionary<ulong, RemotePlayer>();
             
-            Debug.Log("[PlayerSync] PlayerSynchronizer initialized (ready for networking implementation)");
+            GungeonTogether.Logging.Debug.Log("[PlayerSync] PlayerSynchronizer initialized (ready for networking implementation)");
         }
         
         /// <summary>
@@ -77,7 +77,7 @@ namespace GungeonTogether.Game
                 // Don't log every frame to avoid spam - only log once per second
                 if (Time.time - lastSyncTime >= 1.0f)
                 {
-                    Debug.LogError($"[PlayerSync] Error in Update: {e.Message}");
+                    GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error in Update: {e.Message}");
                 }
             }
         }
@@ -96,13 +96,13 @@ namespace GungeonTogether.Game
                     
                     if (!ReferenceEquals(localPlayer, null))
                     {
-                        Debug.Log("[PlayerSync] Local player found and tracked");
+                        GungeonTogether.Logging.Debug.Log("[PlayerSync] Local player found and tracked");
                     }
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError($"[PlayerSync] Error updating local player: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error updating local player: {e.Message}");
             }
         }
         
@@ -131,7 +131,7 @@ namespace GungeonTogether.Game
             }
             catch (Exception e)
             {
-                Debug.LogError($"[PlayerSync] Error broadcasting player update: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error broadcasting player update: {e.Message}");
             }
         }
         
@@ -187,7 +187,7 @@ namespace GungeonTogether.Game
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"[PlayerSync] Could not get player facing: {e.Message}");
+                GungeonTogether.Logging.Debug.LogWarning($"[PlayerSync] Could not get player facing: {e.Message}");
                 // Fallback: use transform rotation
                 return player.transform.eulerAngles.z;
             }
@@ -228,11 +228,11 @@ namespace GungeonTogether.Game
                 // Update visual representation
                 UpdateRemotePlayerVisuals(remotePlayer);
                 
-                Debug.Log($"[PlayerSync] Updated remote player {steamId} at {state.position}");
+                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Updated remote player {steamId} at {state.position}");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[PlayerSync] Error handling player update: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error handling player update: {e.Message}");
             }
         }
         
@@ -254,11 +254,11 @@ namespace GungeonTogether.Game
                 };
                 
                 remotePlayers[steamId] = remotePlayer;
-                Debug.Log($"[PlayerSync] Created remote player tracking for {steamId}");
+                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Created remote player tracking for {steamId}");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[PlayerSync] Error creating remote player: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error creating remote player: {e.Message}");
             }
         }
         
@@ -274,7 +274,7 @@ namespace GungeonTogether.Game
             }
             catch (Exception e)
             {
-                Debug.LogError($"[PlayerSync] Error updating remote player visuals: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error updating remote player visuals: {e.Message}");
             }
         }
         
@@ -296,12 +296,12 @@ namespace GungeonTogether.Game
                     }
                     
                     remotePlayers.Remove(steamId);
-                    Debug.Log($"[PlayerSync] Removed disconnected player {steamId}");
+                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] Removed disconnected player {steamId}");
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError($"[PlayerSync] Error removing disconnected player: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error removing disconnected player: {e.Message}");
             }
         }
         
@@ -332,11 +332,11 @@ namespace GungeonTogether.Game
                 remotePlayers.Clear();
                 localPlayer = null;
                 
-                Debug.Log("[PlayerSync] PlayerSynchronizer cleaned up");
+                GungeonTogether.Logging.Debug.Log("[PlayerSync] PlayerSynchronizer cleaned up");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[PlayerSync] Error during cleanup: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error during cleanup: {e.Message}");
             }
         }
     }

@@ -52,7 +52,7 @@ namespace GungeonTogether.UI
                 _instance = this;
                 DontDestroyOnLoad(gameObject);
                 InitializeAudioManager();
-                Debug.Log("[UIAudio] UI Audio Manager initialized");
+                GungeonTogether.Logging.Debug.Log("[UIAudio] UI Audio Manager initialized");
             }
             else
             {
@@ -133,11 +133,11 @@ namespace GungeonTogether.UI
                 clipData["steam_overlay_open"] = new AudioClipData(GenerateSteamOverlaySound(), 0.5f, 1f);
                 clipData["steam_friend_online"] = new AudioClipData(GenerateFriendOnlineSound(), 0.4f, 1.2f);
                 
-                Debug.Log("[UIAudio] Generated procedural audio clips");
+                GungeonTogether.Logging.Debug.Log("[UIAudio] Generated procedural audio clips");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[UIAudio] Failed to generate audio clips: {ex.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[UIAudio] Failed to generate audio clips: {ex.Message}");
             }
         }
         
@@ -161,11 +161,11 @@ namespace GungeonTogether.UI
                 source.Play();
                 
                 // Only log in debug builds or for important sounds
-                // Debug.Log($"[UIAudio] Playing sound: {soundName}");
+                // GungeonTogether.Logging.Debug.Log($"[UIAudio] Playing sound: {soundName}");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[UIAudio] Failed to play sound {soundName}: {ex.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[UIAudio] Failed to play sound {soundName}: {ex.Message}");
             }
         }
         

@@ -23,20 +23,20 @@ namespace GungeonTogether.Steam
                 _steamNetworkingSocketsType = steamworksAssembly.GetType("Steamworks.SteamNetworkingSockets");
                 if (ReferenceEquals(_steamNetworkingSocketsType, null))
                 {
-                    Debug.LogError("[SteamNetworkingSocketsHelper] Could not find SteamNetworkingSockets type");
+                    GungeonTogether.Logging.Debug.LogError("[SteamNetworkingSocketsHelper] Could not find SteamNetworkingSockets type");
                     return false;
                 }
                 var getNetworkingSockets = _steamNetworkingSocketsType.GetProperty("Interface", BindingFlags.Static | BindingFlags.Public);
                 if (ReferenceEquals(getNetworkingSockets, null))
                 {
-                    Debug.LogError("[SteamNetworkingSocketsHelper] Could not find Interface property");
+                    GungeonTogether.Logging.Debug.LogError("[SteamNetworkingSocketsHelper] Could not find Interface property");
                     return false;
                 }
                 // Fix: Pass null for both instance and index parameters
                 _networkingSocketsInstance = getNetworkingSockets.GetValue(null, null);
                 if (ReferenceEquals(_networkingSocketsInstance, null))
                 {
-                    Debug.LogError("[SteamNetworkingSocketsHelper] Could not get ISteamNetworkingSockets instance");
+                    GungeonTogether.Logging.Debug.LogError("[SteamNetworkingSocketsHelper] Could not get ISteamNetworkingSockets instance");
                     return false;
                 }
                 _createListenSocketP2P = _networkingSocketsInstance.GetType().GetMethod("CreateListenSocketP2P");
@@ -44,12 +44,12 @@ namespace GungeonTogether.Steam
                 _sendMessageToConnection = _networkingSocketsInstance.GetType().GetMethod("SendMessageToConnection");
                 _receiveMessagesOnConnection = _networkingSocketsInstance.GetType().GetMethod("ReceiveMessagesOnConnection");
                 _initialized = true;
-                Debug.Log("[SteamNetworkingSocketsHelper] Successfully initialized");
+                GungeonTogether.Logging.Debug.Log("[SteamNetworkingSocketsHelper] Successfully initialized");
                 return true;
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SteamNetworkingSocketsHelper] Initialization failed: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SteamNetworkingSocketsHelper] Initialization failed: {e.Message}");
                 return false;
             }
         }

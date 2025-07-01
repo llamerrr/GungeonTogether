@@ -94,7 +94,7 @@ namespace GungeonTogether.UI
             {
                 _instance = this;
                 DontDestroyOnLoad(gameObject);
-                Debug.Log("[PlayerListUI] Player List UI initialized");
+                GungeonTogether.Logging.Debug.Log("[PlayerListUI] Player List UI initialized");
             }
             else
             {
@@ -116,8 +116,8 @@ namespace GungeonTogether.UI
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[PlayerListUI] Error in delayed initialization: {ex.Message}");
-                Debug.LogError($"[PlayerListUI] Stack trace: {ex.StackTrace}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerListUI] Error in delayed initialization: {ex.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerListUI] Stack trace: {ex.StackTrace}");
             }
         }
         
@@ -144,12 +144,12 @@ namespace GungeonTogether.UI
         {
             try
             {
-                Debug.Log("[PlayerListUI] Initializing player list UI...");
+                GungeonTogether.Logging.Debug.Log("[PlayerListUI] Initializing player list UI...");
                 
                 // Safety check for Unity context
                 if (ReferenceEquals(gameObject, null) || ReferenceEquals(transform, null))
                 {
-                    Debug.LogError("[PlayerListUI] GameObject or transform is null during initialization");
+                    GungeonTogether.Logging.Debug.LogError("[PlayerListUI] GameObject or transform is null during initialization");
                     return;
                 }
                 
@@ -166,12 +166,12 @@ namespace GungeonTogether.UI
                 }
                 
                 isInitialized = true;
-                Debug.Log("[PlayerListUI] Player list UI initialization complete");
+                GungeonTogether.Logging.Debug.Log("[PlayerListUI] Player list UI initialization complete");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[PlayerListUI] Failed to initialize player list UI: {ex.Message}");
-                Debug.LogError($"[PlayerListUI] Stack trace: {ex.StackTrace}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerListUI] Failed to initialize player list UI: {ex.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerListUI] Stack trace: {ex.StackTrace}");
             }
         }
         
@@ -465,7 +465,7 @@ namespace GungeonTogether.UI
             // Refresh player list immediately
             RefreshPlayerList();
             
-            Debug.Log("[PlayerListUI] Player list opened");
+            GungeonTogether.Logging.Debug.Log("[PlayerListUI] Player list opened");
         }
         
         /// <summary>
@@ -481,7 +481,7 @@ namespace GungeonTogether.UI
             // Animate out and then hide
             AnimatePanel(false);
             
-            Debug.Log("[PlayerListUI] Player list closed");
+            GungeonTogether.Logging.Debug.Log("[PlayerListUI] Player list closed");
         }
         
         /// <summary>
@@ -511,7 +511,7 @@ namespace GungeonTogether.UI
             UpdatePlayerCount();
             MultiplayerUIManager.PlayUISound("mp_player_joined");
             
-            Debug.Log($"[PlayerListUI] Added player: {playerName} (Host: {isHost})");
+            GungeonTogether.Logging.Debug.Log($"[PlayerListUI] Added player: {playerName} (Host: {isHost})");
         }
         
         /// <summary>
@@ -533,7 +533,7 @@ namespace GungeonTogether.UI
             UpdatePlayerCount();
             MultiplayerUIManager.PlayUISound("mp_player_left");
             
-            Debug.Log($"[PlayerListUI] Removed player: {playerData.playerName}");
+            GungeonTogether.Logging.Debug.Log($"[PlayerListUI] Removed player: {playerData.playerName}");
         }
         
         /// <summary>

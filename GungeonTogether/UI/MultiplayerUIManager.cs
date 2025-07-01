@@ -26,11 +26,11 @@ namespace GungeonTogether.UI
             {
                 if (isInitialized)
                 {
-                    Debug.LogWarning("[MultiplayerUIManager] UI already initialized");
+                    GungeonTogether.Logging.Debug.LogWarning("[MultiplayerUIManager] UI already initialized");
                     return;
                 }
                 
-                Debug.Log("[MultiplayerUIManager] Initializing UI system...");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUIManager] Initializing UI system...");
                 
                 // Create main UI manager GameObject
                 var uiManagerObject = new GameObject("GungeonTogether_UIManager");
@@ -42,12 +42,12 @@ namespace GungeonTogether.UI
                     var uiControllerObject = new GameObject("MultiplayerUIController");
                     uiControllerObject.transform.SetParent(uiManagerObject.transform);
                     uiController = uiControllerObject.AddComponent<MultiplayerUIController>();
-                    Debug.Log("[MultiplayerUIManager] Core UI controller initialized");
+                    GungeonTogether.Logging.Debug.Log("[MultiplayerUIManager] Core UI controller initialized");
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[MultiplayerUIManager] Failed to initialize core UI controller: {ex.Message}");
-                    Debug.LogError($"[MultiplayerUIManager] Stack trace: {ex.StackTrace}");
+                    GungeonTogether.Logging.Debug.LogError($"[MultiplayerUIManager] Failed to initialize core UI controller: {ex.Message}");
+                    GungeonTogether.Logging.Debug.LogError($"[MultiplayerUIManager] Stack trace: {ex.StackTrace}");
                     return; // Don't continue if core UI fails
                 }
                 
@@ -57,11 +57,11 @@ namespace GungeonTogether.UI
                     var audioManagerObject = new GameObject("UIAudioManager");
                     audioManagerObject.transform.SetParent(uiManagerObject.transform);
                     audioManager = audioManagerObject.AddComponent<UIAudioManager>();
-                    Debug.Log("[MultiplayerUIManager] Audio manager initialized");
+                    GungeonTogether.Logging.Debug.Log("[MultiplayerUIManager] Audio manager initialized");
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[MultiplayerUIManager] Failed to initialize audio manager: {ex.Message}");
+                    GungeonTogether.Logging.Debug.LogError($"[MultiplayerUIManager] Failed to initialize audio manager: {ex.Message}");
                     // Continue without audio - not critical
                 }
                 
@@ -75,15 +75,15 @@ namespace GungeonTogether.UI
                     var playerListUIObject = new GameObject("PlayerListUI");
                     playerListUIObject.transform.SetParent(uiManagerObject.transform);
                     playerListUI = playerListUIObject.AddComponent<PlayerListUI>();
-                    Debug.Log("[MultiplayerUIManager] Player list UI initialized");
+                    GungeonTogether.Logging.Debug.Log("[MultiplayerUIManager] Player list UI initialized");
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[MultiplayerUIManager] Failed to initialize player list UI: {ex.Message}");
+                    GungeonTogether.Logging.Debug.LogError($"[MultiplayerUIManager] Failed to initialize player list UI: {ex.Message}");
                     playerListUI = null; // Mark as failed but continue
                 }
                 
-                Debug.Log("[MultiplayerUIManager] UI system initialized successfully");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUIManager] UI system initialized successfully");
                 
                 // Play initialization sound and show welcome notification
                 try
@@ -93,13 +93,13 @@ namespace GungeonTogether.UI
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[MultiplayerUIManager] Failed to play initialization feedback: {ex.Message}");
+                    GungeonTogether.Logging.Debug.LogError($"[MultiplayerUIManager] Failed to play initialization feedback: {ex.Message}");
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError($"[MultiplayerUIManager] Failed to initialize UI: {e.Message}");
-                Debug.LogError($"[MultiplayerUIManager] Stack trace: {e.StackTrace}");
+                GungeonTogether.Logging.Debug.LogError($"[MultiplayerUIManager] Failed to initialize UI: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[MultiplayerUIManager] Stack trace: {e.StackTrace}");
                 isInitialized = false; // Make sure we mark as failed
             }
         }
@@ -112,7 +112,7 @@ namespace GungeonTogether.UI
             if (!ReferenceEquals(uiController, null))
             {
                 // Store session manager reference for UI access
-                Debug.Log("[MultiplayerUIManager] Session manager set for UI");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUIManager] Session manager set for UI");
             }
         }
         
@@ -123,7 +123,7 @@ namespace GungeonTogether.UI
         {
             if (!isInitialized)
             {
-                Debug.LogWarning("[MultiplayerUIManager] UI not initialized - trying to initialize now");
+                GungeonTogether.Logging.Debug.LogWarning("[MultiplayerUIManager] UI not initialized - trying to initialize now");
                 Initialize();
                 return;
             }
@@ -134,7 +134,7 @@ namespace GungeonTogether.UI
             }
             else
             {
-                Debug.LogError("[MultiplayerUIManager] UI controller is null after initialization");
+                GungeonTogether.Logging.Debug.LogError("[MultiplayerUIManager] UI controller is null after initialization");
             }
         }
         
@@ -156,7 +156,7 @@ namespace GungeonTogether.UI
         {
             if (!isInitialized)
             {
-                Debug.LogWarning("[MultiplayerUIManager] UI not initialized - trying to initialize now");
+                GungeonTogether.Logging.Debug.LogWarning("[MultiplayerUIManager] UI not initialized - trying to initialize now");
                 Initialize();
                 return;
             }
@@ -167,7 +167,7 @@ namespace GungeonTogether.UI
             }
             else
             {
-                Debug.LogError("[MultiplayerUIManager] UI controller is null after initialization");
+                GungeonTogether.Logging.Debug.LogError("[MultiplayerUIManager] UI controller is null after initialization");
             }
         }
         
@@ -182,7 +182,7 @@ namespace GungeonTogether.UI
             }
             else
             {
-                Debug.Log($"[MultiplayerUIManager] Notification: {message}");
+                GungeonTogether.Logging.Debug.Log($"[MultiplayerUIManager] Notification: {message}");
             }
         }
         
@@ -274,7 +274,7 @@ namespace GungeonTogether.UI
         {
             try
             {
-                Debug.Log("[MultiplayerUIManager] Cleaning up UI system...");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUIManager] Cleaning up UI system...");
                 
                 if (!ReferenceEquals(uiController, null))
                 {
@@ -295,11 +295,11 @@ namespace GungeonTogether.UI
                 }
                 
                 isInitialized = false;
-                Debug.Log("[MultiplayerUIManager] UI system cleanup completed");
+                GungeonTogether.Logging.Debug.Log("[MultiplayerUIManager] UI system cleanup completed");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[MultiplayerUIManager] Error during cleanup: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[MultiplayerUIManager] Error during cleanup: {e.Message}");
             }
         }
         
