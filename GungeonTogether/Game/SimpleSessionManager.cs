@@ -178,7 +178,6 @@ namespace GungeonTogether.Game
             {
                 if (!IsActive) return;
                 playerSync?.Update();
-                CheckConnections();
                 // Poll for new lobby members every second if hosting
                 if (IsHost && Time.time - lastConnectionCheck >= CONNECTION_CHECK_INTERVAL)
                 {
@@ -231,40 +230,6 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.LogError($"[SimpleSessionManager] Failed to initialize Steam P2P networking: {e.Message}");
                 GungeonTogether.Logging.Debug.LogError($"[SimpleSessionManager] Stack trace: {e.StackTrace}");
                 steamNet = null;
-            }
-        }
-        
-        private void CheckConnections()
-        {
-            try
-            {
-                if (Time.time - lastConnectionCheck < CONNECTION_CHECK_INTERVAL) return;
-                lastConnectionCheck = Time.time;
-                if (IsHost && Time.time - lastStatusLog >= STATUS_LOG_INTERVAL)
-                {
-                    lastStatusLog = Time.time;
-                    LogHostConnectionStatus("Periodic status report");
-                }
-                var playersToRemove = new List<ulong>();
-                foreach (var kvp in connectedPlayers)
-                {
-                    var steamId = kvp.Key;
-                    var connection = kvp.Value;
-                    float timeSinceConnection = Time.time - connection.connectionTime;
-                    if (!connection.isConnected)
-                    {
-                        GungeonTogether.Logging.Debug.LogWarning($"[SimpleSessionManager] Player {steamId} is not connected (removing)");
-                        playersToRemove.Add(steamId);
-                    }
-                }
-                foreach (var steamId in playersToRemove)
-                {
-                    OnPlayerDisconnected(steamId);
-                }
-            }
-            catch (Exception e)
-            {
-                GungeonTogether.Logging.Debug.LogError($"[SimpleSessionManager] Error in CheckConnections: {e.Message}");
             }
         }
         
