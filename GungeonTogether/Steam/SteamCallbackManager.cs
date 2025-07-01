@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Steamworks;
 using UnityEngine;
 
@@ -24,6 +25,9 @@ namespace GungeonTogether.Steam
 
         private static SteamCallbackManager _instance;
 
+        private HashSet<ulong> _previousLobbyMembers = new HashSet<ulong>();
+        private ulong _currentLobbyId = 0;
+
         public SteamCallbackManager()
         {
             Debug.Log("Initializing Steam Callback Manager");
@@ -44,11 +48,13 @@ namespace GungeonTogether.Steam
         private void OnLobbyEnterInternal(LobbyEnter_t param)
         {
             Debug.Log($"[steamcallbackmanager.lobbyenter] Lobby entered with ID: {param.m_ulSteamIDLobby}");
-            // Print all current members
+            _currentLobbyId = param.m_ulSteamIDLobby;
+            _previousLobbyMembers.Clear();
             int memberCount = SteamMatchmaking.GetNumLobbyMembers((CSteamID)param.m_ulSteamIDLobby);
             for (int i = 0; i < memberCount; i++)
             {
                 CSteamID memberId = SteamMatchmaking.GetLobbyMemberByIndex((CSteamID)param.m_ulSteamIDLobby, i);
+                _previousLobbyMembers.Add(memberId.m_SteamID);
                 string name = SteamFriends.GetFriendPersonaName(memberId);
                 Debug.Log($"[steamcallbackmanager] player {name} has joined the session");
             }
@@ -58,7 +64,38 @@ namespace GungeonTogether.Steam
         private void OnLobbyDataUpdateInternal(LobbyDataUpdate_t param)
         {
             Debug.Log($"[steamcallbackmanager.lobbydataupdate] Lobby data updated for lobby ID: {param.m_ulSteamIDLobby}");
-            // Detect leave events by comparing previous and current member lists if needed (not implemented here)
+            if (!param.m_ulSteamIDLobby.Equals(_currentLobbyId))
+            {
+                // Not our current lobby, ignore
+                OnLobbyDataUpdate?.Invoke(param);
+                return;
+            }
+            var currentMembers = new HashSet<ulong>();
+            int memberCount = SteamMatchmaking.GetNumLobbyMembers((CSteamID)param.m_ulSteamIDLobby);
+            for (int i = 0; i < memberCount; i++)
+            {
+                CSteamID memberId = SteamMatchmaking.GetLobbyMemberByIndex((CSteamID)param.m_ulSteamIDLobby, i);
+                currentMembers.Add(memberId.m_SteamID);
+            }
+            // Detect joins
+            foreach (var member in currentMembers)
+            {
+                if (!_previousLobbyMembers.Contains(member))
+                {
+                    string name = SteamFriends.GetFriendPersonaName(new CSteamID(member));
+                    Debug.Log($"[steamcallbackmanager] player {name} has joined the session");
+                }
+            }
+            // Detect leaves
+            foreach (var member in _previousLobbyMembers)
+            {
+                if (!currentMembers.Contains(member))
+                {
+                    string name = SteamFriends.GetFriendPersonaName(new CSteamID(member));
+                    Debug.Log($"[steamcallbackmanager] player {name} has left the session");
+                }
+            }
+            _previousLobbyMembers = currentMembers;
             OnLobbyDataUpdate?.Invoke(param);
         }
 
