@@ -27,6 +27,7 @@ namespace GungeonTogether.Steam
 
         private HashSet<ulong> _previousLobbyMembers = new HashSet<ulong>();
         private ulong _currentLobbyId = 0;
+        private SteamP2PHostManager _p2pHostManager;
 
         public SteamCallbackManager()
         {
@@ -42,6 +43,11 @@ namespace GungeonTogether.Steam
         private void OnLobbyCreatedInternal(LobbyCreated_t param)
         {
             Debug.Log($"[steamcallbackmanager.lobbycreated] Lobby created with result: {param.m_eResult}");
+            if (param.m_eResult.Equals((uint)1)) // 1 = k_EResultOK
+            {
+                ulong hostSteamId = SteamReflectionHelper.GetSteamID();
+                _p2pHostManager = new SteamP2PHostManager(param.m_ulSteamIDLobby, hostSteamId);
+            }
             OnLobbyCreated?.Invoke(param);
         }
 
@@ -96,6 +102,11 @@ namespace GungeonTogether.Steam
                 }
             }
             _previousLobbyMembers = currentMembers;
+            if (!ReferenceEquals(_p2pHostManager, null))
+            {
+                _p2pHostManager.ConnectClientsInLobby();
+                _p2pHostManager.SendTestMessageToAllClients("Test packet from host");
+            }
             OnLobbyDataUpdate?.Invoke(param);
         }
 
