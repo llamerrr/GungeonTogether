@@ -27,12 +27,6 @@ my paypal is llamerrr1@gmail.com if you actually want to (for some reason)
 2. Copy `GungeonTogether.dll` to `[ETG Install]/BepInEx/plugins/`
 3. Launch Enter the Gungeon
 
-## Debug Controls
-- **F3** - Start hosting a multiplayer session
-- **F4** - Stop multiplayer session
-- **F5** - Show connection status
-- **F6** - Join Steam friend (for testing)
-
 ## Building
 ```bash
 cd GungeonTogether
