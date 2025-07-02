@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using BepInEx;
 using UnityEngine;
 using GungeonTogether.Game;
@@ -9,7 +10,7 @@ namespace GungeonTogether
 {
     /// <summary>
     /// GungeonTogether mod for Enter the Gungeon using BepInEx
-    /// Now includes beautiful modern UI for multiplayer functionality
+    /// Full multiplayer mod with Steam P2P networking
     /// </summary>
     [BepInPlugin(GUID, NAME, VERSION)]
     [BepInDependency(ETGModMainBehaviour.GUID)]
@@ -18,7 +19,7 @@ namespace GungeonTogether
         // Mod metadata
         public const string GUID = "liamspc.etg.gungeontogether";
         public const string NAME = "GungeonTogether";
-        public const string VERSION = "0.0.2"; // Updated version for UI release
+        public const string VERSION = "0.1.0"; // Updated version for networking release
         public static GungeonTogetherMod Instance { get; private set; }
         public SimpleSessionManager _sessionManager; // Made public for UI access
         
@@ -27,6 +28,9 @@ namespace GungeonTogether
         
         // UI System
         private bool uiInitialized = false;
+        
+        // Networking and synchronization systems
+        private bool networkingInitialized = false;
         
         public void Awake()
         {
@@ -47,6 +51,16 @@ namespace GungeonTogether
                     
                     // Initialize the simple Steam join system
                     SimpleSteamJoinSystem.Initialize();
+                    
+                    // Initialize networking sockets helper
+                    if (SteamNetworkingSocketsHelper.Initialize())
+                    {
+                        Logger.LogInfo("Steam Networking Sockets initialized successfully");
+                    }
+                    else
+                    {
+                        Logger.LogWarning("Failed to initialize Steam Networking Sockets");
+                    }
                     
                     // Check command line arguments for Steam join requests
                     CheckSteamCommandLineArgs();
@@ -116,6 +130,9 @@ namespace GungeonTogether
                 Logger.LogInfo("Initializing debugging systems...");
                 InitializeDebuggingSystem();
                 
+                // Initialize networking and synchronization systems
+                InitializeNetworking();
+                
             Logger.LogInfo("GungeonTogether initialized successfully!!!!!!! YAY!!!!!!!!!!!!!!!!!!");
             }
             catch (Exception e)
@@ -170,6 +187,19 @@ namespace GungeonTogether
         {
             // Update the session manager each frame (includes P2P networking and player sync)
             _sessionManager?.Update();
+            
+            // Update networking systems
+            if (networkingInitialized)
+            {
+                NetworkManager.Instance.Update();
+                
+                if (_sessionManager is not null && _sessionManager.IsActive)
+                {
+                    PlayerSynchronizer.StaticUpdate();
+                    EnemySynchronizer.StaticUpdate();
+                    ProjectileSynchronizer.StaticUpdate();
+                }
+            }
             
             // CRITICAL: Process Steam callbacks every frame to catch join requests
             try
@@ -421,6 +451,15 @@ namespace GungeonTogether
                         Logger.LogInfo("Started hosting session with SimpleSessionManager!");
                         Logger.LogInfo($"Manager Active: {_sessionManager.IsActive}");
                         
+                        // Initialize NetworkManager as host
+                        if (networkingInitialized)
+                        {
+                            var hostSteamId = SteamReflectionHelper.GetLocalSteamId();
+                            NetworkManager.Instance.InitializeAsHost(hostSteamId);
+                            NetworkedDungeonManager.Instance.Initialize(true);
+                            Logger.LogInfo("NetworkManager initialized as HOST");
+                        }
+                        
                         // Notify UI and user about hosting status and pause prevention
                         if (uiInitialized)
                         {
@@ -495,6 +534,14 @@ namespace GungeonTogether
                     // Check if join actually started (could be blocked by location validation)
                     if (_sessionManager.IsActive)
                     {
+                        // Initialize NetworkManager as client
+                        if (networkingInitialized)
+                        {
+                            NetworkManager.Instance.InitializeAsClient(steamId);
+                            NetworkedDungeonManager.Instance.Initialize(false);
+                            Logger.LogInfo($"NetworkManager initialized as CLIENT connecting to {steamId}");
+                        }
+                        
                         // Notify UI
                         if (uiInitialized)
                         {
@@ -547,6 +594,13 @@ namespace GungeonTogether
                 {
                     _sessionManager.StopSession();
                     Logger.LogInfo("Stopped session with SimpleSessionManager!");
+                    
+                    // Shutdown networking systems
+                    if (networkingInitialized)
+                    {
+                        NetworkManager.Instance.Shutdown();
+                        Logger.LogInfo("NetworkManager shutdown complete");
+                    }
                     
                     // Notify UI and user that hosting has stopped
                     if (uiInitialized)
@@ -756,19 +810,12 @@ namespace GungeonTogether
                     }
                     else
                     {
-
-                        // Create a fake host for testing the overlay join system
-                        ulong fakeHostId = mySteamId + 1;
-                        Logger.LogInfo($"Testing with fake host: {fakeHostId}");
-                        Logger.LogInfo("(This tests the overlay join flow, but P2P connection will fail as expected)");
-                        
-                        ETGSteamP2PNetworking.SetInviteInfo(fakeHostId, steamLobbyId);
-                        ETGSteamP2PNetworking.TriggerOverlayJoinEvent(fakeHostId.ToString());
+                        Logger.LogWarning("No available hosts found for simulation");
                     }
                 }
                 else
                 {
-                    Logger.LogError("Steam networking not available for overlay join simulation");
+                    Logger.LogWarning("Steam networking not available for simulation");
                 }
             }
             catch (Exception e)
@@ -778,263 +825,163 @@ namespace GungeonTogether
         }
         
         /// <summary>
-        /// Run Steam diagnostics to explore ETG's available Steam types
+        /// Initialize networking and synchronization systems
         /// </summary>
-        private void RunSteamDiagnostics()
+        private void InitializeNetworking()
         {
             try
             {
-                Logger.LogInfo("Starting ETG Steam diagnostics...");
-                // ETGSteamDiagnostics.DiagnoseETGSteamTypes(); // Removed: file and class deleted
-                Logger.LogInfo("Steam diagnostics completed - check Unity console for details");
+                Logger.LogInfo("Initializing networking systems...");
+                
+                // Initialize packet serializer
+                PacketSerializer.Initialize();
+                
+                // Initialize game synchronizers
+                PlayerSynchronizer.StaticInitialize();
+                EnemySynchronizer.StaticInitialize();
+                ProjectileSynchronizer.StaticInitialize();
+                
+                // Initialize dungeon hooks
+                DungeonGenerationHook.InstallHooks();
+                
+                // Initialize networked dungeon manager
+                NetworkedDungeonManager.Instance.Initialize(false); // Will be set to true when hosting
+                
+                networkingInitialized = true;
+                Logger.LogInfo("Networking systems initialized successfully!");
             }
             catch (Exception e)
             {
-                Logger.LogError($"Failed to run Steam diagnostics: {e.Message}");
-            }
-        }
-          void OnDestroy()
-        {
-            try
-            {
-                // Unsubscribe from Steam events
-                ETGSteamP2PNetworking.OnOverlayJoinRequested -= OnSteamOverlayJoinRequested;
-                Logger.LogInfo("Unsubscribed from Steam events");
-                
-                // Remove dungeon generation hooks
-                DungeonGenerationHook.RemoveHooks();
-                Logger.LogInfo("Removed dungeon generation hooks");
-                
-                // Cleanup debug UI system
-                if (DebugUIManager.Instance != null)
-                {
-                    Destroy(DebugUIManager.Instance.gameObject);
-                    Logger.LogInfo("Cleaned up debug UI system");
-                }
-                
-                // Clean up session manager
-                _sessionManager?.StopSession();
-                
-                // Clean up UI system
-                if (uiInitialized)
-                {
-                    MultiplayerUIManager.Cleanup();
-                }
-                
-                Logger.LogInfo("GungeonTogether mod cleanup completed");
-            }
-            catch (Exception e)
-            {
-                Logger.LogError($"Error during cleanup: {e.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Get available hosts for the UI to display
-        /// </summary>
-        public HostInfo[] GetAvailableHosts()
-        {
-            try
-            {
-                if (_sessionManager is null)
-                {
-                    Logger.LogWarning("No session manager available for getting hosts");
-                    return new HostInfo[0];
-                }
-                
-                var steamNet = SteamNetworkingFactory.TryCreateSteamNetworking();
-                if (steamNet is null || !steamNet.IsAvailable())
-                {
-                    Logger.LogWarning("Steam networking not available for getting hosts");
-                    return new HostInfo[0];
-                }
-                
-                // Get available hosts
-                ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
-                var hostDict = SteamHostManager.GetAvailableHostsDict();
-                
-                var hostInfoList = new HostInfo[availableHosts.Length];
-                for (int i = 0; i < availableHosts.Length; i++)
-                {
-                    ulong hostSteamId = availableHosts[i];
-                    string hostName = $"Host {hostSteamId}";
-                    
-                    if (hostDict.ContainsKey(hostSteamId))
-                    {
-                        var host = hostDict[hostSteamId];
-                        hostName = host.sessionName ?? $"Host {hostSteamId}";
-                    }
-                    
-                    hostInfoList[i] = new HostInfo
-                    {
-                        SteamId = hostSteamId,
-                        Name = hostName,
-                        IsOnline = true
-                    };
-                }
-                
-                Logger.LogInfo($"Found {hostInfoList.Length} available hosts for UI");
-                return hostInfoList;
-            }
-            catch (Exception e)
-            {
-                Logger.LogError($"Failed to get available hosts: {e.Message}");
-                return new HostInfo[0];
+                Logger.LogError($"Failed to initialize networking: {e.Message}");
+                Logger.LogError($"Stack trace: {e.StackTrace}");
+                networkingInitialized = false;
             }
         }
         
         /// <summary>
-        /// Join a specific host by Steam ID (called from UI)
-        /// </summary>
-        public void JoinSpecificHost(ulong hostSteamId)
-        {
-            try
-            {
-                Logger.LogInfo($"UI requested join to host: {hostSteamId}");
-                JoinSession(hostSteamId.ToString());
-            }
-            catch (Exception e)
-            {
-                Logger.LogError($"Failed to join specific host {hostSteamId}: {e.Message}");
-                if (uiInitialized)
-                {
-                    MultiplayerUIManager.ShowNotification($"Failed to join host: {e.Message}", 4f);
-                }
-            }
-        }
-        
-        /// <summary>
-        /// Check for Steam command line arguments that indicate a join request
-        /// Steam passes arguments like "+connect_lobby [lobbyid]" or "+connect [steamid]"
+        /// Check Steam command line arguments for join requests
         /// </summary>
         private void CheckSteamCommandLineArgs()
         {
             try
             {
+                // Check for Steam join commands in command line arguments
                 string[] args = System.Environment.GetCommandLineArgs();
-                Logger.LogInfo($"[Steam Args] Checking {args.Length} command line arguments...");
-                for (int i = 0; i < args.Length; i++)
+                foreach (string arg in args)
                 {
-                    Logger.LogInfo($"[Steam Args] Arg {i}: {args[i]}");
-                    // Check for Steam connect commands
-                    if (args[i].StartsWith("+connect") && i + 1 < args.Length)
+                    if (arg.StartsWith("+connect_lobby"))
                     {
-                        string connectTarget = args[i + 1];
-                        Logger.LogInfo($"[Steam Args] Found Steam connect command: {args[i]} {connectTarget}");
-                        if (ulong.TryParse(connectTarget, out ulong steamId) && steamId > 0)
-                        {
-                            Logger.LogInfo($"[Steam Args] Detected Steam overlay join request for Steam ID: {steamId}");
-                            ETGSteamP2PNetworking.SetInviteInfo(steamId);
-                            ScheduleAutoJoin($"steam_{steamId}");
-                        }
-                    }
-                    // Check for lobby connect commands
-                    if (args[i].StartsWith("+connect_lobby") && i + 1 < args.Length)
-                    {
-                        string lobbyId = args[i + 1];
-                        Logger.LogInfo($"[Steam Args] Found Steam lobby connect command: {args[i]} {lobbyId}");
-                        if (ulong.TryParse(lobbyId, out ulong parsedLobbyId) && parsedLobbyId > 0)
-                        {
-                            Logger.LogInfo($"[Steam Args] Detected Steam lobby join request for lobby: {parsedLobbyId}");
-                            ETGSteamP2PNetworking.SetInviteInfo(parsedLobbyId, lobbyId);
-                            ScheduleAutoJoin($"lobby_{parsedLobbyId}");
-                        }
+                        Logger.LogInfo($"Steam lobby join request detected: {arg}");
+                        // TODO: Parse and handle lobby join request
                     }
                 }
-                Logger.LogInfo("[Steam Args] Command line argument check complete");
             }
             catch (Exception e)
             {
-                Logger.LogError($"[Steam Args] Error checking command line arguments: {e.Message}");
+                Logger.LogError($"Error checking Steam command line args: {e.Message}");
             }
         }
-        
+
         /// <summary>
-        /// Schedule an automatic join after the session manager is initialized
-        /// </summary>
-        private void ScheduleAutoJoin(string sessionId)
-        {
-            try
-            {
-                Logger.LogInfo($"[Steam Args] Scheduling auto-join for session: {sessionId}");
-                scheduledJoinTarget = sessionId;
-                Invoke(nameof(ExecuteScheduledJoin), 2.0f);
-            }
-            catch (Exception e)
-            {
-                Logger.LogError($"[Steam Args] Error scheduling auto-join: {e.Message}");
-            }
-        }
-        
-        private string scheduledJoinTarget = null;
-        /// <summary>
-        /// Execute the scheduled join operation
-        /// </summary>
-        private void ExecuteScheduledJoin()
-        {
-            try
-            {
-                if (!string.IsNullOrEmpty(scheduledJoinTarget) && _sessionManager is not null)
-                {
-                    Logger.LogInfo($"[Steam Args] Executing scheduled join for session: {scheduledJoinTarget}");
-                    _sessionManager.JoinSession(scheduledJoinTarget);
-                    scheduledJoinTarget = null;
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.LogError($"[Steam Args] Error executing scheduled join: {e.Message}");
-            }
-        }
-        
-        /// <summary>
-        /// Setup debug controls and display help information
+        /// Setup debug controls for the mod
         /// </summary>
         private void SetupDebugControls()
         {
+            try
+            {
+                // Initialize debug UI manager
+                if (DebugUIManager.Instance == null)
+                {
+                    var debugUIObj = new GameObject("GungeonTogether_DebugUI");
+                    debugUIObj.AddComponent<DebugUIManager>();
+                    DontDestroyOnLoad(debugUIObj);
+                }
+                
+                Logger.LogInfo("Debug controls setup complete");
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"Error setting up debug controls: {e.Message}");
+            }
         }
-        
+
         /// <summary>
-        /// Initialize the debugging system with save/load functionality
+        /// Initialize debugging system
         /// </summary>
         private void InitializeDebuggingSystem()
         {
             try
             {
-                Logger.LogInfo("Setting up debugging system...");
-                
-                // Initialize the dungeon save/load system
-                GungeonTogether.Debug.DungeonSaveLoad.Initialize();
-                
-                // Install dungeon generation hooks for debugging
-                DungeonGenerationHook.InstallHooks();
-                
-                // Initialize the comprehensive debug UI system
-                DebugUIManager.Initialize();
-                
-                Logger.LogInfo("Debugging system initialized successfully!");
-                Logger.LogInfo("Debug controls:");
-                Logger.LogInfo("  F1: Toggle comprehensive debug UI (tabs for dungeon, enemies, variables, seeds, network)");
-                Logger.LogInfo("  F5: Load saved dungeon");
-                Logger.LogInfo("  F6: Save current dungeon");
-                Logger.LogInfo("  F7: Compare current vs saved dungeon");
-                Logger.LogInfo("  F8: Show friends playing game");
-                Logger.LogInfo("  F10: Steam diagnostics");
+                // Setup debug logging
+                GungeonTogether.Logging.Debug.Initialize();
+                Logger.LogInfo("Debugging system initialized");
             }
             catch (Exception e)
             {
-                Logger.LogError($"Failed to initialize debugging system: {e.Message}");
+                Logger.LogError($"Error initializing debugging system: {e.Message}");
             }
         }
-    }
 
-    /// <summary>
-    /// Information about an available host for UI display
-    /// </summary>
-    public class HostInfo
-    {
-        public ulong SteamId { get; set; }
-        public string Name { get; set; }
-        public bool IsOnline { get; set; }
+        /// <summary>
+        /// Run Steam diagnostics
+        /// </summary>
+        private void RunSteamDiagnostics()
+        {
+            try
+            {
+                Logger.LogInfo("Running Steam diagnostics...");
+                
+                if (SteamManager.Initialized)
+                {
+                    Logger.LogInfo("✓ Steam is initialized");
+                    
+                    var steamId = SteamReflectionHelper.GetLocalSteamId();
+                    Logger.LogInfo($"✓ Steam ID: {steamId}");
+                    
+                    // Check networking capabilities
+                    if (SteamNetworkingSocketsHelper.IsInitialized)
+                    {
+                        Logger.LogInfo("✓ Steam Networking Sockets initialized");
+                    }
+                    else
+                    {
+                        Logger.LogWarning("✗ Steam Networking Sockets not initialized");
+                    }
+                }
+                else
+                {
+                    Logger.LogWarning("✗ Steam is not initialized");
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"Error running Steam diagnostics: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Get available hosts for joining
+        /// </summary>
+        public List<SteamHostManager.HostInfo> GetAvailableHosts()
+        {
+            return SteamHostManager.Instance?.GetAvailableHostsList() ?? new List<SteamHostManager.HostInfo>();
+        }
+
+        /// <summary>
+        /// Join a specific host
+        /// </summary>
+        public void JoinSpecificHost(ulong hostSteamId)
+        {
+            try
+            {
+                SteamHostManager.Instance?.JoinHost(hostSteamId);
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"Error joining host {hostSteamId}: {e.Message}");
+            }
+        }
+
+        // ...existing code...
     }
 }

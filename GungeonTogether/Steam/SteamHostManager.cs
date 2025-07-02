@@ -9,8 +9,21 @@ namespace GungeonTogether.Steam
     /// <summary>
     /// Manages host discovery and multiplayer session management
     /// </summary>
-    public static class SteamHostManager
+    public class SteamHostManager
     {
+        private static SteamHostManager instance;
+        public static SteamHostManager Instance
+        {
+            get
+            {
+                if (instance == null)
+                {
+                    instance = new SteamHostManager();
+                }
+                return instance;
+            }
+        }
+
         // Steam invite handling
         private static ulong lastInvitedBySteamId = 0;
         private static string lastInviteLobbyId = "";
@@ -92,7 +105,7 @@ namespace GungeonTogether.Steam
                 {
                     mySteamId = SteamReflectionHelper.GetSteamID();
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // GungeonTogether.Logging.Debug.LogWarning($"[ETGSteamP2P] Could not get own Steam ID for host filtering: {ex.Message}");
                 }
@@ -234,7 +247,7 @@ namespace GungeonTogether.Steam
                 try
                 {
                     mySteamId = SteamReflectionHelper.GetSteamID();
-                } catch (Exception ex)
+                } catch (Exception)
                 {
                     // GungeonTogether.Logging.Debug.LogWarning($"[ETGSteamP2P] Could not get own Steam ID for host filtering: {ex.Message}");
                 }
@@ -256,7 +269,7 @@ namespace GungeonTogether.Steam
                 {
                     ScanFriendsForHosts();
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // GungeonTogether.Logging.Debug.LogWarning($"[ETGSteamP2P] Error scanning friends for hosts: {ex.Message}");
                 }
@@ -919,6 +932,39 @@ namespace GungeonTogether.Steam
             catch (Exception e)
             {
                 GungeonTogether.Logging.Debug.LogError($"[SteamHostManager] Failed to register LobbyDataUpdate_t callback: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Get available hosts for joining as a List
+        /// </summary>
+        public List<HostInfo> GetAvailableHostsList()
+        {
+            var hostList = new List<HostInfo>();
+            foreach (var kvp in availableHosts)
+            {
+                if (kvp.Value.isActive && Time.time - kvp.Value.lastSeen < 30f) // Only include recently seen hosts
+                {
+                    hostList.Add(kvp.Value);
+                }
+            }
+            return hostList;
+        }
+
+        /// <summary>
+        /// Join a specific host
+        /// </summary>
+        public void JoinHost(ulong hostSteamId)
+        {
+            try
+            {
+                // TODO: Implement actual host joining logic
+                GungeonTogether.Logging.Debug.Log($"[SteamHostManager] Attempting to join host {hostSteamId}");
+                currentHostSteamId = hostSteamId;
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[SteamHostManager] Error joining host: {e.Message}");
             }
         }
 

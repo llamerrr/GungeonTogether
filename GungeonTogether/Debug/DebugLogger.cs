@@ -9,6 +9,17 @@ namespace GungeonTogether.Logging
     /// </summary>
     public static class Debug
     {
+        private static bool isInitialized = false;
+
+        public static void Initialize()
+        {
+            if (!isInitialized)
+            {
+                Log("Debug logging system initialized");
+                isInitialized = true;
+            }
+        }
+
         public static void Log(object message)
         {
             UnityEngine.Debug.Log($"[GungeonTogether] {message}");

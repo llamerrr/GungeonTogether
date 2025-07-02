@@ -195,7 +195,7 @@ namespace GungeonTogether.Game
         {
             try
             {
-                playerSync = new PlayerSynchronizer(this);
+                playerSync = PlayerSynchronizer.Instance;
                 GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Player synchronization initialized (ready for networking integration)");
             } catch (Exception e)
             {
@@ -245,7 +245,8 @@ namespace GungeonTogether.Game
                     {
                         LogHostConnectionStatus($"Player {steamId} disconnected");
                     }
-                    playerSync?.OnPlayerDisconnected(steamId);
+                    // TODO: Add OnPlayerDisconnected method to PlayerSynchronizer
+                    // playerSync?.OnPlayerDisconnected(steamId);
                 }
                 UpdateConnectionStatus();
             }

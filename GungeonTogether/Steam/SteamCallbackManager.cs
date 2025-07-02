@@ -12,6 +12,7 @@ namespace GungeonTogether.Steam
         private Callback<LobbyDataUpdate_t> _lobbyDataUpdate;
         private Callback<GameRichPresenceJoinRequested_t> _richPresenceJoinRequested;
         private Callback<GameLobbyJoinRequested_t> _gameLobbyJoinRequested;
+        private Callback<LobbyChatUpdate_t> _lobbyChatUpdate;
 
         public event Action<LobbyCreated_t> OnLobbyCreated;
         public event Action<LobbyEnter_t> OnLobbyEnter;
@@ -28,6 +29,7 @@ namespace GungeonTogether.Steam
         private HashSet<ulong> _previousLobbyMembers = new HashSet<ulong>();
         private ulong _currentLobbyId = 0;
         private SteamP2PHostManager _p2pHostManager;
+        private SteamP2PClientManager _p2pClientManager;
 
         public SteamCallbackManager()
         {
@@ -37,7 +39,7 @@ namespace GungeonTogether.Steam
             _lobbyDataUpdate = Callback<LobbyDataUpdate_t>.Create(OnLobbyDataUpdateInternal);
             _richPresenceJoinRequested = Callback<GameRichPresenceJoinRequested_t>.Create(OnRichPresenceJoinRequestedInternal);
             _gameLobbyJoinRequested = Callback<GameLobbyJoinRequested_t>.Create(OnGameLobbyJoinRequestedInternal);
-
+            _lobbyChatUpdate = Callback<LobbyChatUpdate_t>.Create(OnLobbyChatUpdateInternal);
         }
 
         private void OnLobbyCreatedInternal(LobbyCreated_t param)
@@ -57,12 +59,25 @@ namespace GungeonTogether.Steam
             _currentLobbyId = param.m_ulSteamIDLobby;
             _previousLobbyMembers.Clear();
             int memberCount = SteamMatchmaking.GetNumLobbyMembers((CSteamID)param.m_ulSteamIDLobby);
+            ulong localSteamId = SteamReflectionHelper.GetSteamID();
+            ulong hostSteamId = 0UL;
             for (int i = 0; i < memberCount; i++)
             {
                 CSteamID memberId = SteamMatchmaking.GetLobbyMemberByIndex((CSteamID)param.m_ulSteamIDLobby, i);
                 _previousLobbyMembers.Add(memberId.m_SteamID);
                 string name = SteamFriends.GetFriendPersonaName(memberId);
                 GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] player {name} has joined the session");
+                if (i == 0)
+                {
+                    hostSteamId = memberId.m_SteamID;
+                }
+            }
+            GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] OnLobbyEnterInternal complete for lobby: {param.m_ulSteamIDLobby}");
+            // If not host, start P2P client manager
+            if (!localSteamId.Equals(hostSteamId))
+            {
+                GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] Initializing SteamP2PClientManager: host={hostSteamId}, local={localSteamId}");
+                _p2pClientManager = new SteamP2PClientManager(hostSteamId, localSteamId);
             }
             OnLobbyEnter?.Invoke(param);
         }
@@ -119,7 +134,46 @@ namespace GungeonTogether.Steam
         private void OnGameLobbyJoinRequestedInternal(GameLobbyJoinRequested_t param)
         {
             GungeonTogether.Logging.Debug.Log("[steamcallbackmanager.gamelobbyjoinrequested] Game lobby join requested");
+            // Leave current lobby if already in one
+            if (!_currentLobbyId.Equals(0UL))
+            {
+                GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] Leaving current lobby: {_currentLobbyId} before joining new lobby: {param.m_steamIDLobby}");
+                SteamMatchmaking.LeaveLobby(new CSteamID(_currentLobbyId));
+            }
+            GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] Calling JoinLobby for lobby: {param.m_steamIDLobby}");
+            SteamMatchmaking.JoinLobby(param.m_steamIDLobby);
             OnGameLobbyJoinRequested?.Invoke(param);
+        }
+
+        private void OnLobbyChatUpdateInternal(LobbyChatUpdate_t param)
+        {
+            GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager.lobbychatupdate] Lobby chat update for lobby ID: {param.m_ulSteamIDLobby} (member: {param.m_ulSteamIDUserChanged}, state: {param.m_rgfChatMemberStateChange})");
+            // Refresh member list and log join/leave
+            var currentMembers = new HashSet<ulong>();
+            int memberCount = SteamMatchmaking.GetNumLobbyMembers((CSteamID)param.m_ulSteamIDLobby);
+            for (int i = 0; i < memberCount; i++)
+            {
+                CSteamID memberId = SteamMatchmaking.GetLobbyMemberByIndex((CSteamID)param.m_ulSteamIDLobby, i);
+                currentMembers.Add(memberId.m_SteamID);
+            }
+            foreach (var member in currentMembers)
+            {
+                if (!_previousLobbyMembers.Contains(member))
+                {
+                    string name = SteamFriends.GetFriendPersonaName(new CSteamID(member));
+                    GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] player {name} has joined the session (LobbyChatUpdate)");
+                }
+            }
+            foreach (var member in _previousLobbyMembers)
+            {
+                if (!currentMembers.Contains(member))
+                {
+                    string name = SteamFriends.GetFriendPersonaName(new CSteamID(member));
+                    GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] player {name} has left the session (LobbyChatUpdate)");
+                }
+            }
+            _previousLobbyMembers = currentMembers;
+            // Optionally, trigger networking update here if needed
         }
 
         public void HostLobby()
@@ -177,6 +231,7 @@ namespace GungeonTogether.Steam
             _lobbyDataUpdate = null;
             _richPresenceJoinRequested = null;
             _gameLobbyJoinRequested = null;
+            _lobbyChatUpdate = null;
         }
 
         public static SteamCallbackManager Instance

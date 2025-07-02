@@ -712,6 +712,94 @@ namespace GungeonTogether.Steam
             return ConvertToCSteamID(steamId);
         }
 
+        /// <summary>
+        /// Get the local Steam ID
+        /// </summary>
+        public static ulong GetLocalSteamId()
+        {
+            return GetCurrentUserSteamId();
+        }
+
+        /// <summary>
+        /// Get current user Steam ID using reflection
+        /// </summary>
+        private static ulong GetCurrentUserSteamId()
+        {
+            // Use cached value if available
+            if (steamIdCached && cachedSteamId != 0)
+            {
+                return cachedSteamId;
+            }
+
+            try
+            {
+                if (!ReferenceEquals(getSteamIdMethod, null))
+                {
+                    object result = getSteamIdMethod.Invoke(null, null);
+                    if (!ReferenceEquals(result, null))
+                    {
+                        // Try different casting approaches for different Steamworks types
+                        try
+                        {
+                            // First try direct cast for primitive types
+                            if (result is ulong directULong)
+                            {
+                                cachedSteamId = directULong;
+                                steamIdCached = true;
+                                return directULong;
+                            }
+                            
+                            // Try direct convert for numeric types
+                            ulong steamId = Convert.ToUInt64(result);
+                            cachedSteamId = steamId;
+                            steamIdCached = true;
+                            return steamId;
+                        }
+                        catch (Exception)
+                        {
+                            // Try accessing struct fields if it's a struct
+                            Type resultType = result.GetType();
+                            
+                            // Check for common Steamworks struct field names
+                            var idField = resultType.GetField("m_SteamID") ?? 
+                                         resultType.GetField("SteamID") ?? 
+                                         resultType.GetField("steamID") ??
+                                         resultType.GetField("value") ??
+                                         resultType.GetField("Value");
+                            
+                            if (!ReferenceEquals(idField, null))
+                            {
+                                object fieldValue = idField.GetValue(result);
+                                if (!ReferenceEquals(fieldValue, null))
+                                {
+                                    ulong fieldSteamId = Convert.ToUInt64(fieldValue);
+                                    cachedSteamId = fieldSteamId;
+                                    steamIdCached = true;
+                                    return fieldSteamId;
+                                }
+                            }
+                            
+                            // Try ToString() as last resort
+                            string stringValue = result.ToString();
+                            if (ulong.TryParse(stringValue, out ulong parsedId))
+                            {
+                                cachedSteamId = parsedId;
+                                steamIdCached = true;
+                                return parsedId;
+                            }
+                        }
+                    }
+                }
+                
+                return 0;
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error getting Steam ID: {e.Message}");
+                return 0;
+            }
+        }
+
         // Property accessors for the cached methods
         public static bool IsInitialized => initialized;
         public static MethodInfo SendP2PPacketMethod => sendP2PPacketMethod;

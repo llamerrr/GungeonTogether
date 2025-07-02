@@ -889,11 +889,11 @@ namespace GungeonTogether.UI
             if (!ReferenceEquals(sessionManager, null))
             {
                 // Get available hosts and join the first one, or show selection
-                var hosts = GungeonTogetherMod.Instance?.GetAvailableHosts() ?? new HostInfo[0];
-                if (hosts.Length > 0)
+                var hosts = GungeonTogetherMod.Instance?.GetAvailableHosts() ?? new List<SteamHostManager.HostInfo>();
+                if (hosts.Count > 0)
                 {
                     // Join the first available host
-                    GungeonTogetherMod.Instance?.JoinSpecificHost(hosts[0].SteamId);
+                    GungeonTogetherMod.Instance?.JoinSpecificHost(hosts[0].steamId);
                 }
                 else
                 {

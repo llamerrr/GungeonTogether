@@ -6,337 +6,644 @@ using GungeonTogether.Steam;
 namespace GungeonTogether.Game
 {
     /// <summary>
-    /// Handles synchronization of player positions, animations, and states across multiplayer sessions.
-    /// Ready for real networking implementation
+    /// Handles synchronization of player states across multiplayer sessions
     /// </summary>
     public class PlayerSynchronizer
     {
-        private object gameManager;
+        private static PlayerSynchronizer instance;
+        public static PlayerSynchronizer Instance
+        {
+            get
+            {
+                if (instance == null)
+                {
+                    instance = new PlayerSynchronizer();
+                }
+                return instance;
+            }
+        }
+
+        // Remote player tracking
+        private readonly Dictionary<ulong, RemotePlayerState> remotePlayers = new Dictionary<ulong, RemotePlayerState>();
+        private readonly Dictionary<ulong, GameObject> remotePlayerObjects = new Dictionary<ulong, GameObject>();
         
-        // Player tracking
+        // Local player tracking
         private PlayerController localPlayer;
-        private Dictionary<ulong, RemotePlayer> remotePlayers;
-        private float lastSyncTime;
-        private const float SYNC_INTERVAL = 0.1f; // 10 FPS for position updates
-        
-        // Player data for networking
-        public struct PlayerState
+        private Vector2 lastSentPosition;
+        private float lastSentRotation;
+        private bool lastSentGrounded;
+        private bool lastSentDodgeRolling;
+        private const float POSITION_THRESHOLD = 0.1f;
+        private const float ROTATION_THRESHOLD = 5f;
+
+        public struct RemotePlayerState
         {
-            public Vector2 position;
-            public Vector2 velocity;
-            public bool isMoving;
-            public float facing;
-            public string currentAnimation;
-            public string currentRoom;
-            public int health;
-            public int armor;
+            public ulong SteamId;
+            public Vector2 Position;
+            public Vector2 Velocity;
+            public float Rotation;
+            public bool IsGrounded;
+            public bool IsDodgeRolling;
+            public float LastUpdateTime;
+            public Vector2 TargetPosition;
+            public float InterpolationSpeed;
         }
-        
-        private class RemotePlayer
+
+        private PlayerSynchronizer()
         {
-            public ulong steamId;
-            public PlayerState state;
-            public GameObject gameObject;
-            public PlayerController controller;
-            public float lastUpdateTime;
+            NetworkManager.Instance.OnPlayerJoined += OnPlayerJoined;
+            NetworkManager.Instance.OnPlayerLeft += OnPlayerLeft;
         }
-        
-        public PlayerSynchronizer(object gameManager)
-        {
-            this.gameManager = gameManager;
-            this.remotePlayers = new Dictionary<ulong, RemotePlayer>();
-            
-            GungeonTogether.Logging.Debug.Log("[PlayerSync] PlayerSynchronizer initialized (ready for networking implementation)");
-        }
-        
+
         /// <summary>
-        /// Update player synchronization - call this every frame
+        /// Initialize the player synchronizer
+        /// </summary>
+        public void Initialize()
+        {
+            try
+            {
+                localPlayer = GameManager.Instance?.PrimaryPlayer;
+                if (localPlayer != null)
+                {
+                    GungeonTogether.Logging.Debug.Log("[PlayerSync] Local player found and initialized");
+                    
+                    // Hook into player events
+                    HookPlayerEvents();
+                }
+                else
+                {
+                    GungeonTogether.Logging.Debug.LogError("[PlayerSync] Could not find local player");
+                }
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Initialize error: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Update method to be called from main thread
         /// </summary>
         public void Update()
         {
             try
             {
-                // Only update if we have a valid game manager
-                if (ReferenceEquals(gameManager, null))
-                {
-                    return;
-                }
-                
                 UpdateLocalPlayer();
                 UpdateRemotePlayers();
-                
-                // Send updates at regular intervals (but not too frequently to avoid sync issues)
-                if (Time.time - lastSyncTime >= SYNC_INTERVAL)
-                {
-                    BroadcastPlayerUpdate();
-                    lastSyncTime = Time.time;
-                }
             }
             catch (Exception e)
             {
-                // Don't log every frame to avoid spam - only log once per second
-                if (Time.time - lastSyncTime >= 1.0f)
-                {
-                    GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error in Update: {e.Message}");
-                }
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Update error: {e.Message}");
             }
         }
-        
-        /// <summary>
-        /// Find and track the local player
-        /// </summary>
+
+        #region Local Player
+
+        private void HookPlayerEvents()
+        {
+            if (localPlayer == null) return;
+
+            try
+            {
+                // Hook shooting events
+                if (localPlayer.CurrentGun != null)
+                {
+                    // Monitor gun firing - we'll check this in Update instead of hooking directly
+                }
+
+                GungeonTogether.Logging.Debug.Log("[PlayerSync] Player events hooked successfully");
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Failed to hook player events: {e.Message}");
+            }
+        }
+
         private void UpdateLocalPlayer()
         {
+            if (localPlayer == null) return;
+
             try
             {
-                if (ReferenceEquals(localPlayer, null))
+                var currentPosition = localPlayer.transform.position;
+                var currentRotation = localPlayer.transform.eulerAngles.z;
+                var currentGrounded = localPlayer.IsGrounded;
+                var currentDodgeRolling = localPlayer.IsDodgeRolling;
+
+                // Check if we need to send position update
+                bool shouldSendUpdate = false;
+                
+                if (Vector2.Distance(currentPosition, lastSentPosition) > POSITION_THRESHOLD)
+                    shouldSendUpdate = true;
+                
+                if (Mathf.Abs(currentRotation - lastSentRotation) > ROTATION_THRESHOLD)
+                    shouldSendUpdate = true;
+                
+                if (currentGrounded != lastSentGrounded || currentDodgeRolling != lastSentDodgeRolling)
+                    shouldSendUpdate = true;
+
+                if (shouldSendUpdate)
                 {
-                    // Try to find the local player
-                    localPlayer = GameManager.Instance?.PrimaryPlayer;
+                    NetworkManager.Instance.SendPlayerPosition(
+                        currentPosition,
+                        localPlayer.specRigidbody?.Velocity ?? Vector2.zero,
+                        currentRotation,
+                        currentGrounded,
+                        currentDodgeRolling
+                    );
+
+                    lastSentPosition = currentPosition;
+                    lastSentRotation = currentRotation;
+                    lastSentGrounded = currentGrounded;
+                    lastSentDodgeRolling = currentDodgeRolling;
+                }
+
+                // Check for shooting
+                CheckLocalPlayerShooting();
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Local player update error: {e.Message}");
+            }
+        }
+
+        private void CheckLocalPlayerShooting()
+        {
+            if (localPlayer?.CurrentGun == null) return;
+
+            try
+            {
+                // Check if player is currently shooting
+                bool isShooting = localPlayer.CurrentGun.IsFiring;
+                bool isCharging = localPlayer.CurrentGun.IsCharging;
+
+                if (isShooting || isCharging)
+                {
+                    var gunAngle = localPlayer.CurrentGun.CurrentAngle;
+                    var shootDirection = new Vector2(Mathf.Cos(gunAngle * Mathf.Deg2Rad), Mathf.Sin(gunAngle * Mathf.Deg2Rad));
                     
-                    if (!ReferenceEquals(localPlayer, null))
-                    {
-                        GungeonTogether.Logging.Debug.Log("[PlayerSync] Local player found and tracked");
-                    }
+                    NetworkManager.Instance.SendPlayerShooting(
+                        localPlayer.transform.position,
+                        shootDirection,
+                        localPlayer.CurrentGun.PickupObjectId,
+                        isCharging,
+                        0f // TODO: Find correct charge time property
+                    );
                 }
             }
             catch (Exception e)
             {
-                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error updating local player: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Shooting check error: {e.Message}");
             }
         }
-        
-        /// <summary>
-        /// Update positions and states of remote players
-        /// </summary>
+
+        #endregion
+
+        #region Remote Players
+
+        private ulong GetLocalSteamId()
+        {
+            return NetworkManager.Instance != null ? NetworkManager.Instance.LocalSteamId : 0UL;
+        }
+
         private void UpdateRemotePlayers()
         {
-            // TODO: Implement remote player interpolation and state updates
-            // This will be filled in when we add real networking
-        }
-        
-        /// <summary>
-        /// Broadcast local player update to all connected players
-        /// </summary>
-        private void BroadcastPlayerUpdate()
-        {
-            try
-            {
-                if (ReferenceEquals(localPlayer, null)) return;
+            var currentTime = Time.time;
+            var playersToRemove = new List<ulong>();
+            ulong localSteamId = GetLocalSteamId();
 
-                var playerState = GetLocalPlayerState();
+            foreach (var kvp in remotePlayers)
+            {
+                var steamId = kvp.Key;
+                var playerState = kvp.Value;
 
-                // TODO: Send player state over network using real Steam P2P
-                
-            }
-            catch (Exception e)
-            {
-                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error broadcasting player update: {e.Message}");
-            }
-        }
-        
-        /// <summary>
-        /// Get current state of local player
-        /// </summary>
-        private PlayerState GetLocalPlayerState()
-        {
-            var state = new PlayerState();
-            
-            if (!ReferenceEquals(localPlayer, null))
-            {
-                state.position = localPlayer.transform.position;
-                state.velocity = Vector2.zero; // TODO: Get actual velocity
-                state.isMoving = localPlayer.IsInCombat; // Use available property as placeholder
-                
-                // Use safe reflection to access gun angle
-                state.facing = GetPlayerFacing(localPlayer);
-                
-                state.currentAnimation = "default"; // TODO: Get actual animation state
-                state.currentRoom = GetCurrentRoomName();
-                state.health = (int)(localPlayer.healthHaver?.GetCurrentHealth() ?? 0f);
-                state.armor = (int)(localPlayer.healthHaver?.Armor ?? 0f);
-            }
-            
-            return state;
-        }
-        
-        /// <summary>
-        /// Safely get player facing direction using reflection if needed
-        /// </summary>
-        private float GetPlayerFacing(PlayerController player)
-        {
-            try
-            {
-                // Try to access the field using reflection
-                var fieldInfo = typeof(PlayerController).GetField("m_currentGunAngle", 
-                    System.Reflection.BindingFlags.Instance | 
-                    System.Reflection.BindingFlags.NonPublic | 
-                    System.Reflection.BindingFlags.Public);
-                
-                if (!object.ReferenceEquals(fieldInfo, null))
+                // SKIP local player (host) in timeout check
+                if (steamId.Equals(localSteamId))
+                    continue;
+
+                // Check for timeout
+                if (currentTime - playerState.LastUpdateTime > 5f)
                 {
-                    object value = fieldInfo.GetValue(player);
-                    if (!object.ReferenceEquals(value, null))
+                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] Timeout: Removing remote player {steamId} (last update: {playerState.LastUpdateTime}, now: {currentTime})");
+                    playersToRemove.Add(steamId);
+                    continue;
+                }
+
+                // Interpolate position
+                if (remotePlayerObjects.ContainsKey(steamId))
+                {
+                    var playerObject = remotePlayerObjects[steamId];
+                    if (playerObject != null)
                     {
-                        return (float)value;
+                        // Smooth interpolation to target position
+                        var currentPos = playerObject.transform.position;
+                        var targetPos = playerState.TargetPosition;
+                        var newPos = Vector2.Lerp(currentPos, targetPos, Time.deltaTime * playerState.InterpolationSpeed);
+                        playerObject.transform.position = newPos;
+                        playerObject.transform.rotation = Quaternion.Euler(0, 0, playerState.Rotation);
                     }
                 }
-                
-                // Fallback: use transform rotation
-                return player.transform.eulerAngles.z;
             }
-            catch (Exception e)
+
+            // Remove timed out players (never remove local host)
+            foreach (var steamId in playersToRemove)
             {
-                GungeonTogether.Logging.Debug.LogWarning($"[PlayerSync] Could not get player facing: {e.Message}");
-                // Fallback: use transform rotation
-                return player.transform.eulerAngles.z;
+                RemoveRemotePlayer(steamId);
             }
         }
-        
-        /// <summary>
-        /// Get the name/ID of the current room
-        /// </summary>
-        private string GetCurrentRoomName()
+
+        private void OnPlayerJoined(ulong steamId)
         {
-            try
-            {
-                var currentRoom = GameManager.Instance?.Dungeon?.data?.GetAbsoluteRoomFromPosition(localPlayer.transform.position.IntXY());
-                return currentRoom?.GetRoomName() ?? "unknown";
-            }
-            catch
-            {
-                return "unknown";
-            }
+            CreateRemotePlayer(steamId);
         }
-        
-        /// <summary>
-        /// Handle incoming player update from network
-        /// </summary>
-        public void OnPlayerUpdate(ulong steamId, PlayerState state)
+
+        private void OnPlayerLeft(ulong steamId)
         {
-            try
-            {
-                if (!remotePlayers.ContainsKey(steamId))
-                {
-                    CreateRemotePlayer(steamId);
-                }
-                
-                var remotePlayer = remotePlayers[steamId];
-                remotePlayer.state = state;
-                remotePlayer.lastUpdateTime = Time.time;
-                
-                // Update visual representation
-                UpdateRemotePlayerVisuals(remotePlayer);
-                
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Updated remote player {steamId} at {state.position}");
-            }
-            catch (Exception e)
-            {
-                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error handling player update: {e.Message}");
-            }
+            RemoveRemotePlayer(steamId);
         }
-        
-        /// <summary>
-        /// Create a visual representation for a remote player
-        /// </summary>
+
         private void CreateRemotePlayer(ulong steamId)
         {
+            ulong localSteamId = GetLocalSteamId();
+            if (steamId.Equals(localSteamId))
+                return;
+
             try
             {
-                // TODO: Create actual remote player GameObject
-                // For now, just track in dictionary
-                var remotePlayer = new RemotePlayer
-                {
-                    steamId = steamId,
-                    gameObject = null, // Will create when we have proper player prefabs
-                    controller = null,
-                    lastUpdateTime = Time.time
-                };
+                if (remotePlayerObjects.ContainsKey(steamId)) return;
+
+                // Create a simple visual representation for remote player
+                var remotePlayerObj = new GameObject($"RemotePlayer_{steamId}");
                 
-                remotePlayers[steamId] = remotePlayer;
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Created remote player tracking for {steamId}");
+                // Add sprite renderer for visibility
+                var spriteRenderer = remotePlayerObj.AddComponent<SpriteRenderer>();
+                spriteRenderer.sprite = localPlayer?.GetComponent<SpriteRenderer>()?.sprite;
+                spriteRenderer.color = Color.cyan; // Different color for remote players
+                
+                // Position it initially at spawn
+                remotePlayerObj.transform.position = Vector2.zero;
+                
+                remotePlayerObjects[steamId] = remotePlayerObj;
+                remotePlayers[steamId] = new RemotePlayerState
+                {
+                    SteamId = steamId,
+                    Position = Vector2.zero,
+                    Velocity = Vector2.zero,
+                    Rotation = 0f,
+                    IsGrounded = true,
+                    IsDodgeRolling = false,
+                    LastUpdateTime = Time.time,
+                    TargetPosition = Vector2.zero,
+                    InterpolationSpeed = 10f
+                };
+
+                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Created remote player object for {steamId}");
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Failed to create remote player {steamId}: {e.Message}");
+            }
+        }
+
+        private void RemoveRemotePlayer(ulong steamId)
+        {
+            ulong localSteamId = GetLocalSteamId();
+            if (steamId.Equals(localSteamId))
+                return;
+
+            try
+            {
+                if (remotePlayerObjects.ContainsKey(steamId))
+                {
+                    var playerObject = remotePlayerObjects[steamId];
+                    if (playerObject != null)
+                    {
+                        UnityEngine.Object.Destroy(playerObject);
+                    }
+                    remotePlayerObjects.Remove(steamId);
+                }
+
+                remotePlayers.Remove(steamId);
+                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Removed remote player {steamId}");
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Failed to remove remote player {steamId}: {e.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Network Event Handlers
+
+        /// <summary>
+        /// Handle received player position data
+        /// </summary>
+        public void OnPlayerPositionReceived(PlayerPositionData data)
+        {
+            ulong localSteamId = GetLocalSteamId();
+            if (data.PlayerId.Equals(localSteamId))
+                return;
+
+            try
+            {
+                if (remotePlayers.ContainsKey(data.PlayerId))
+                {
+                    var playerState = remotePlayers[data.PlayerId];
+                    playerState.Position = data.Position;
+                    playerState.Velocity = data.Velocity;
+                    playerState.Rotation = data.Rotation;
+                    playerState.IsGrounded = data.IsGrounded;
+                    playerState.IsDodgeRolling = data.IsDodgeRolling;
+                    playerState.LastUpdateTime = Time.time;
+                    playerState.TargetPosition = data.Position;
+                    
+                    remotePlayers[data.PlayerId] = playerState;
+                }
+                else
+                {
+                    // Create new remote player if we don't have them
+                    CreateRemotePlayer(data.PlayerId);
+                    OnPlayerPositionReceived(data); // Recursively call to handle the data
+                }
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Position receive error: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handle received player shooting data
+        /// </summary>
+        public void OnPlayerShootingReceived(PlayerShootingData data)
+        {
+            try
+            {
+                // Create visual effect for remote player shooting
+                CreateShootingEffect(data.Position, data.Direction);
+                
+                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Player {data.PlayerId} shooting from {data.Position} towards {data.Direction}");
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Shooting receive error: {e.Message}");
+            }
+        }
+
+        private void CreateShootingEffect(Vector2 position, Vector2 direction)
+        {
+            try
+            {
+                // Create a simple line renderer or particle effect to show shooting
+                var effectObj = new GameObject("ShootingEffect");
+                effectObj.transform.position = position;
+                
+                var lineRenderer = effectObj.AddComponent<LineRenderer>();
+                lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+                lineRenderer.startColor = Color.yellow;
+                lineRenderer.endColor = Color.yellow;
+                lineRenderer.startWidth = 0.05f;
+                lineRenderer.endWidth = 0.01f;
+                lineRenderer.positionCount = 2;
+                lineRenderer.useWorldSpace = true;
+                
+                var endPosition = position + direction * 2f; // 2 unit long line
+                lineRenderer.SetPosition(0, position);
+                lineRenderer.SetPosition(1, endPosition);
+                
+                // Destroy the effect after a short time
+                UnityEngine.Object.Destroy(effectObj, 0.1f);
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Shooting effect error: {e.Message}");
+            }
+        }
+
+        private void HandleRemotePlayerUpdate(PlayerPositionData data)
+        {
+            try
+            {
+                if (remotePlayers.ContainsKey(data.PlayerId))
+                {
+                    var state = remotePlayers[data.PlayerId];
+                    state.Position = data.Position;
+                    state.Velocity = data.Velocity;
+                    state.Rotation = data.Rotation;
+                    state.IsGrounded = data.IsGrounded;
+                    state.IsDodgeRolling = data.IsDodgeRolling;
+                    state.LastUpdateTime = Time.time;
+                    state.TargetPosition = data.Position;
+                    remotePlayers[data.PlayerId] = state;
+
+                    UpdateRemotePlayerVisual(data.PlayerId, state);
+                }
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error updating remote player: {e.Message}");
+            }
+        }
+
+        private void HandleRemotePlayerShootingInternal(PlayerShootingData data)
+        {
+            try
+            {
+                // Create visual effect for remote player shooting
+                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Remote player {data.PlayerId} fired weapon {data.WeaponId}");
+                
+                // TODO: Create projectile or visual effect at position and direction
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error handling remote shooting: {e.Message}");
+            }
+        }
+
+        private void UpdateRemotePlayerVisual(ulong playerId, RemotePlayerState state)
+        {
+            try
+            {
+                if (remotePlayerObjects.ContainsKey(playerId))
+                {
+                    var playerObj = remotePlayerObjects[playerId];
+                    if (playerObj != null)
+                    {
+                        playerObj.transform.position = state.Position;
+                        playerObj.transform.eulerAngles = new Vector3(0, 0, state.Rotation);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error updating visual: {e.Message}");
+            }
+        }
+
+        #endregion
+
+        /// <summary>
+        /// Get all remote player states
+        /// </summary>
+        public Dictionary<ulong, RemotePlayerState> GetRemotePlayers()
+        {
+            return new Dictionary<ulong, RemotePlayerState>(remotePlayers);
+        }
+
+        /// <summary>
+        /// Cleanup
+        /// </summary>
+        public void Cleanup()
+        {
+            foreach (var kvp in remotePlayerObjects)
+            {
+                if (kvp.Value != null)
+                {
+                    UnityEngine.Object.Destroy(kvp.Value);
+                }
+            }
+            
+            remotePlayerObjects.Clear();
+            remotePlayers.Clear();
+            
+            GungeonTogether.Logging.Debug.Log("[PlayerSync] Cleanup complete");
+        }
+
+        /// <summary>
+        /// Static initialize method
+        /// </summary>
+        public static void StaticInitialize()
+        {
+            Instance.Initialize();
+        }
+
+        /// <summary>
+        /// Static update method
+        /// </summary>
+        public static void StaticUpdate()
+        {
+            Instance.Update();
+        }
+
+        /// <summary>
+        /// Update remote player from network data
+        /// </summary>
+        public static void UpdateRemotePlayer(PlayerPositionData data)
+        {
+            Instance.HandleRemotePlayerPosition(data);
+        }
+
+        /// <summary>
+        /// Handle remote player shooting
+        /// </summary>
+        public static void HandleRemotePlayerShooting(PlayerShootingData data)
+        {
+            Instance.HandlePlayerShootingData(data);
+        }
+
+        private void HandleRemotePlayerPosition(PlayerPositionData data)
+        {
+            try
+            {
+                if (remotePlayers.ContainsKey(data.PlayerId))
+                {
+                    var playerState = remotePlayers[data.PlayerId];
+                    playerState.Position = data.Position;
+                    playerState.Velocity = data.Velocity;
+                    playerState.Rotation = data.Rotation;
+                    playerState.IsGrounded = data.IsGrounded;
+                    playerState.IsDodgeRolling = data.IsDodgeRolling;
+                    playerState.LastUpdateTime = Time.time;
+                    remotePlayers[data.PlayerId] = playerState;
+                }
+                else
+                {
+                    // Create new remote player
+                    CreateRemotePlayer(data);
+                }
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error handling remote player position: {e.Message}");
+            }
+        }
+
+        private void HandlePlayerShootingData(PlayerShootingData data)
+        {
+            try
+            {
+                CreateShootingEffect(data.Position, data.Direction);
+                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Remote player {data.PlayerId} shooting");
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error handling player shooting: {e.Message}");
+            }
+        }
+
+        private void CreateRemotePlayer(PlayerPositionData data)
+        {
+            try
+            {
+                var remotePlayerState = new RemotePlayerState
+                {
+                    SteamId = data.PlayerId,
+                    Position = data.Position,
+                    Velocity = data.Velocity,
+                    Rotation = data.Rotation,
+                    IsGrounded = data.IsGrounded,
+                    IsDodgeRolling = data.IsDodgeRolling,
+                    LastUpdateTime = Time.time,
+                    TargetPosition = data.Position,
+                    InterpolationSpeed = 5f
+                };
+
+                remotePlayers[data.PlayerId] = remotePlayerState;
+                
+                // Create visual representation
+                CreateRemotePlayerVisual(data.PlayerId, data.Position);
+                
+                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Created remote player {data.PlayerId}");
             }
             catch (Exception e)
             {
                 GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error creating remote player: {e.Message}");
             }
         }
-        
-        /// <summary>
-        /// Update visual representation of remote player
-        /// </summary>
-        private void UpdateRemotePlayerVisuals(RemotePlayer remotePlayer)
+
+        private void CreateRemotePlayerVisual(ulong playerId, Vector2 position)
         {
             try
             {
-                // TODO: Update remote player GameObject position, animation, etc.
-                // This will be implemented when we have proper remote player visuals
-            }
-            catch (Exception e)
-            {
-                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error updating remote player visuals: {e.Message}");
-            }
-        }
-        
-        /// <summary>
-        /// Remove a disconnected player
-        /// </summary>
-        public void OnPlayerDisconnected(ulong steamId)
-        {
-            try
-            {
-                if (remotePlayers.ContainsKey(steamId))
+                var remotePlayerObj = new GameObject($"RemotePlayer_{playerId}");
+                remotePlayerObj.transform.position = position;
+                
+                // Add sprite renderer for visibility
+                var spriteRenderer = remotePlayerObj.AddComponent<SpriteRenderer>();
+                spriteRenderer.color = Color.green;
+                
+                // Create a simple player sprite
+                var texture = new Texture2D(16, 16);
+                for (int x = 0; x < 16; x++)
                 {
-                    var remotePlayer = remotePlayers[steamId];
-                    
-                    // Destroy visual representation
-                    if (!ReferenceEquals(remotePlayer.gameObject, null))
+                    for (int y = 0; y < 16; y++)
                     {
-                        UnityEngine.Object.Destroy(remotePlayer.gameObject);
-                    }
-                    
-                    remotePlayers.Remove(steamId);
-                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] Removed disconnected player {steamId}");
-                }
-            }
-            catch (Exception e)
-            {
-                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error removing disconnected player: {e.Message}");
-            }
-        }
-        
-        /// <summary>
-        /// Get count of connected remote players
-        /// </summary>
-        public int GetRemotePlayerCount()
-        {
-            return remotePlayers.Count;
-        }
-        
-        /// <summary>
-        /// Cleanup when session ends
-        /// </summary>
-        public void Cleanup()
-        {
-            try
-            {
-                // Remove all remote players
-                foreach (var remotePlayer in remotePlayers.Values)
-                {
-                    if (!ReferenceEquals(remotePlayer.gameObject, null))
-                    {
-                        UnityEngine.Object.Destroy(remotePlayer.gameObject);
+                        texture.SetPixel(x, y, Color.green);
                     }
                 }
+                texture.Apply();
                 
-                remotePlayers.Clear();
-                localPlayer = null;
+                var sprite = Sprite.Create(texture, new Rect(0, 0, 16, 16), Vector2.one * 0.5f);
+                spriteRenderer.sprite = sprite;
                 
-                GungeonTogether.Logging.Debug.Log("[PlayerSync] PlayerSynchronizer cleaned up");
+                remotePlayerObjects[playerId] = remotePlayerObj;
+                
+                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Created visual for remote player {playerId}");
             }
             catch (Exception e)
             {
-                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error during cleanup: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error creating remote player visual: {e.Message}");
             }
         }
     }

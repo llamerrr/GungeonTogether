@@ -53,7 +53,7 @@ namespace GungeonTogether.UI
         
         // Host selection
         private Transform hostListContent;
-        private HostInfo[] _availableHostsForSelection = new HostInfo[0];
+        private SteamHostManager.HostInfo[] _availableHostsForSelection = new SteamHostManager.HostInfo[0];
         
         // Cached values to prevent log spam
         private ulong cachedSteamId = 0;
@@ -1010,7 +1010,7 @@ namespace GungeonTogether.UI
         /// <summary>
         /// Show the host selection panel with clickable host entries
         /// </summary>
-        private void ShowHostSelectionPanel(HostInfo[] hosts)
+        private void ShowHostSelectionPanel(SteamHostManager.HostInfo[] hosts)
         {
             try
             {
@@ -1147,11 +1147,11 @@ namespace GungeonTogether.UI
             string status = "";
             if (friend.hasGungeonTogether)
             {
-                if (friend.gungeonTogetherStatus == "hosting")
+                if (friend.gungeonTogetherStatus.Equals("hosting"))
                 {
                     status = " [🌐 HOSTING]";
                 }
-                else if (friend.gungeonTogetherStatus == "playing")
+                else if (friend.gungeonTogetherStatus.Equals("playing"))
                 {
                     status = " [🤝 PLAYING GT]";
                 }
@@ -1227,11 +1227,11 @@ namespace GungeonTogether.UI
         /// <summary>
         /// Create a clickable button for a specific host
         /// </summary>
-        private void CreateHostButton(HostInfo host, int number)
+        private void CreateHostButton(SteamHostManager.HostInfo host, int number)
         {
             if (ReferenceEquals(hostListContent, null)) return;
             
-            var buttonObj = new GameObject($"HostButton_{host.SteamId}");
+            var buttonObj = new GameObject($"HostButton_{host.steamId}");
             buttonObj.transform.SetParent(hostListContent, false);
             
             // Add button component
@@ -1257,7 +1257,7 @@ namespace GungeonTogether.UI
             textObj.transform.SetParent(buttonObj.transform, false);
             
             var textComponent = textObj.AddComponent<Text>();
-            textComponent.text = $"🎮 {host.Name}\n💻 Steam ID: {host.SteamId}";
+            textComponent.text = $"🎮 {host.sessionName}\n💻 Steam ID: {host.steamId}";
             textComponent.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
             textComponent.fontSize = 11;
             textComponent.color = Color.white;
@@ -1273,21 +1273,21 @@ namespace GungeonTogether.UI
             // Add click handler
             button.onClick.AddListener(() => OnHostButtonClicked(host));
             
-            GungeonTogether.Logging.Debug.Log($"[ModernMultiplayerMenu] Created host button: {host.Name}");
+            GungeonTogether.Logging.Debug.Log($"[ModernMultiplayerMenu] Created host button: {host.sessionName}");
         }
         
         /// <summary>
         /// Handle clicking on a specific host button
         /// </summary>
-        private void OnHostButtonClicked(HostInfo host)
+        private void OnHostButtonClicked(SteamHostManager.HostInfo host)
         {
             try
             {
-                GungeonTogether.Logging.Debug.Log($"[ModernMultiplayerMenu] Host button clicked: {host.Name} ({host.SteamId})");
+                GungeonTogether.Logging.Debug.Log($"[ModernMultiplayerMenu] Host button clicked: {host.sessionName} ({host.steamId})");
                 
                 // Join the selected host
-                GungeonTogetherMod.Instance?.JoinSpecificHost(host.SteamId);
-                MultiplayerUIManager.ShowNotification($"🔗 Connecting to {host.Name}...\n\nPlease wait while the connection is established.", 4f);
+                GungeonTogetherMod.Instance?.JoinSpecificHost(host.steamId);
+                MultiplayerUIManager.ShowNotification($"🔗 Connecting to {host.sessionName}...\n\nPlease wait while the connection is established.", 4f);
                 
                 // Close the menu
                 HideMenu();
@@ -1295,7 +1295,7 @@ namespace GungeonTogether.UI
             catch (Exception e)
             {
                 GungeonTogether.Logging.Debug.LogError($"[ModernMultiplayerMenu] Error joining host: {e.Message}");
-                MultiplayerUIManager.ShowNotification($"❌ Failed to join {host.Name}\n\nError: {e.Message}", 5f);
+                MultiplayerUIManager.ShowNotification($"❌ Failed to join {host.sessionName}\n\nError: {e.Message}", 5f);
             }
         }
         
@@ -1381,11 +1381,11 @@ namespace GungeonTogether.UI
                         if (friend.hasGungeonTogether && shownGTFriends < 8)
                         {
                             string gtStatus = "";
-                            if (friend.gungeonTogetherStatus == "hosting")
+                            if (friend.gungeonTogetherStatus.Equals("hosting"))
                             {
                                 gtStatus = " [🌐 HOSTING]";
                             }
-                            else if (friend.gungeonTogetherStatus == "playing")
+                            else if (friend.gungeonTogetherStatus.Equals("playing"))
                             {
                                 gtStatus = " [🤝 PLAYING]";
                             }
