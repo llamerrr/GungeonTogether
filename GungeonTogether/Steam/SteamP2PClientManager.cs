@@ -10,11 +10,17 @@ namespace GungeonTogether.Steam
         private ulong _hostSteamId;
         private ulong _clientSteamId;
         private bool _isConnected;
+        
+        // Heartbeat timing
+        private float _lastHeartbeatTime = 0f;
+        private float _lastHeartbeatLogTime = 0f;
+        private const float HEARTBEAT_INTERVAL = 2.0f; // Send heartbeat every 2 seconds
 
         public SteamP2PClientManager(ulong hostSteamId, ulong clientSteamId)
         {
             _hostSteamId = hostSteamId;
             _clientSteamId = clientSteamId;
+            GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager] Created client manager for host {hostSteamId}, client {clientSteamId}");
             ConnectToHost();
         }
 
@@ -64,15 +70,17 @@ namespace GungeonTogether.Steam
 
             try
             {
+                GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][JOINER] Attempting to send {data?.Length ?? 0} bytes to host {_hostSteamId}");
                 bool sent = SteamNetworkingSocketsHelper.SendP2PPacket(_hostSteamId, data);
+                GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][JOINER] SendToHost(byte[]): sent={sent}, bytes={data?.Length ?? 0}");
                 if (!sent)
                 {
-                    GungeonTogether.Logging.Debug.LogError("[SteamP2PClientManager] Failed to send packet to host");
+                    GungeonTogether.Logging.Debug.LogError("[SteamP2PClientManager][JOINER] Failed to send packet to host");
                 }
             }
             catch (Exception e)
             {
-                GungeonTogether.Logging.Debug.LogError($"[SteamP2PClientManager] Send packet error: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SteamP2PClientManager][JOINER] Send packet error: {e.Message}");
             }
         }
         
@@ -83,6 +91,7 @@ namespace GungeonTogether.Steam
             try
             {
                 var serializedPacket = PacketSerializer.SerializePacket(packet);
+                GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][JOINER] SendToHost(NetworkPacket): type={packet.Type}, bytes={(serializedPacket != null ? serializedPacket.Length : 0)}");
                 if (serializedPacket != null)
                 {
                     SendToHost(serializedPacket);
@@ -90,7 +99,7 @@ namespace GungeonTogether.Steam
             }
             catch (Exception e)
             {
-                GungeonTogether.Logging.Debug.LogError($"[SteamP2PClientManager] Send packet error: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SteamP2PClientManager][JOINER] Send packet error: {e.Message}");
             }
         }
 
@@ -100,43 +109,76 @@ namespace GungeonTogether.Steam
 
             try
             {
-                // Check for incoming packets from host
-                while (SteamNetworkingSocketsHelper.IsP2PPacketAvailable())
+                // Send periodic heartbeat to host
+                if (UnityEngine.Time.time - _lastHeartbeatTime >= HEARTBEAT_INTERVAL)
                 {
-                    var packetData = SteamNetworkingSocketsHelper.ReadP2PPacket();
-                    if (packetData != null)
+                    SendHeartbeat();
+                    _lastHeartbeatTime = UnityEngine.Time.time;
+                }
+                
+                // Use the new efficient packet polling method
+                var packets = SteamNetworkingSocketsHelper.PollIncomingPackets();
+                
+                foreach (var packet in packets)
+                {
+                    if (packet.data.Length > 0 && packet.senderSteamId.Equals(_hostSteamId))
                     {
-                        // Check if it's a heartbeat message
-                        string message = System.Text.Encoding.UTF8.GetString(packetData);
-                        if (message.StartsWith("HEARTBEAT:"))
-                        {
-                            // Respond to heartbeat to keep connection alive
-                            byte[] responseData = System.Text.Encoding.UTF8.GetBytes($"HEARTBEAT_ACK:{_clientSteamId}");
-                            SteamNetworkingSocketsHelper.SendP2PPacket(_hostSteamId, responseData);
-                            GungeonTogether.Logging.Debug.Log("[SteamP2PClientManager] Responded to host heartbeat");
-                        }
-                        else if (message.StartsWith("WELCOME_TO_HOST:"))
-                        {
-                            // Host welcomed us, acknowledge
-                            byte[] ackData = System.Text.Encoding.UTF8.GetBytes($"WELCOME_ACK:{_clientSteamId}");
-                            SteamNetworkingSocketsHelper.SendP2PPacket(_hostSteamId, ackData);
-                            GungeonTogether.Logging.Debug.Log("[SteamP2PClientManager] Acknowledged host welcome");
-                        }
-                        else
-                        {
-                            // Try to deserialize as network packet
-                            var packet = PacketSerializer.DeserializePacket(packetData);
-                            if (packet.HasValue)
-                            {
-                                NetworkManager.Instance.QueueIncomingPacket(packet.Value);
-                            }
-                        }
+                        ProcessReceivedPacket(packet.data, packet.senderSteamId);
                     }
                 }
             }
             catch (Exception e)
             {
                 GungeonTogether.Logging.Debug.LogError($"[SteamP2PClientManager] Update error: {e.Message}");
+            }
+        }
+
+        private void ProcessReceivedPacket(byte[] data, ulong senderSteamId)
+        {
+            try
+            {
+                GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][JOINER] Received packet from {senderSteamId}, bytes={data?.Length ?? 0}");
+                // Check if it's a special message
+                string message = System.Text.Encoding.UTF8.GetString(data);
+                
+                if (message.StartsWith("HEARTBEAT:"))
+                {
+                    // Respond to heartbeat to keep connection alive
+                    byte[] responseData = System.Text.Encoding.UTF8.GetBytes($"HEARTBEAT_ACK:{_clientSteamId}");
+                    SteamNetworkingSocketsHelper.SendP2PPacket(_hostSteamId, responseData);
+                    GungeonTogether.Logging.Debug.Log("[SteamP2PClientManager] Responded to host heartbeat");
+                }
+                else if (message.StartsWith("WELCOME_TO_HOST:") || message.StartsWith("WELCOME_RESPONSE:"))
+                {
+                    // Host welcomed us, acknowledge and notify
+                    byte[] ackData = System.Text.Encoding.UTF8.GetBytes($"WELCOME_ACK:{_clientSteamId}");
+                    SteamNetworkingSocketsHelper.SendP2PPacket(_hostSteamId, ackData);
+                    GungeonTogether.Logging.Debug.Log("[SteamP2PClientManager] Acknowledged host welcome");
+                    
+                    // Notify NetworkManager that we've connected to host
+                    if (!NetworkManager.Instance.IsHost())
+                    {
+                        NetworkManager.Instance.HandlePlayerJoin(_hostSteamId);
+                    }
+                }
+                else
+                {
+                    // Try to deserialize as network packet
+                    var packet = PacketSerializer.DeserializePacket(data);
+                    if (packet.HasValue)
+                    {
+                        NetworkManager.Instance.QueueIncomingPacket(packet.Value);
+                        GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager] Processed network packet: {packet.Value.Type} from host");
+                    }
+                    else
+                    {
+                        GungeonTogether.Logging.Debug.LogWarning($"[SteamP2PClientManager] Failed to deserialize packet from host");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[SteamP2PClientManager] Error processing packet from host: {e.Message}");
             }
         }
 
@@ -160,6 +202,34 @@ namespace GungeonTogether.Steam
             catch (Exception e)
             {
                 GungeonTogether.Logging.Debug.LogError($"[SteamP2PClientManager] Join packet error: {e.Message}");
+            }
+        }
+
+        private void SendHeartbeat()
+        {
+            try
+            {
+                // Send heartbeat packet to host
+                var heartbeatPacket = new NetworkPacket
+                {
+                    Type = PacketType.HeartBeat,
+                    SenderId = _clientSteamId,
+                    Data = new byte[0],
+                    Timestamp = UnityEngine.Time.time
+                };
+                
+                SendToHost(heartbeatPacket);
+                
+                // More reliable logging - every 5 seconds
+                if (UnityEngine.Time.time - _lastHeartbeatLogTime > 5.0f)
+                {
+                    GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager] Sent heartbeat to host {_hostSteamId} at {UnityEngine.Time.time:F1}s");
+                    _lastHeartbeatLogTime = UnityEngine.Time.time;
+                }
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[SteamP2PClientManager] SendHeartbeat error: {e.Message}");
             }
         }
 

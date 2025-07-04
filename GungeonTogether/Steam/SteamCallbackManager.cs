@@ -162,6 +162,17 @@ namespace GungeonTogether.Steam
                 {
                     string name = SteamFriends.GetFriendPersonaName(new CSteamID(member));
                     GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] player {name} has joined the session (LobbyChatUpdate)");
+                    
+                    // CRITICAL: Notify NetworkManager about the player join
+                    try
+                    {
+                        GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] Forwarding player join to NetworkManager: {member}");
+                        NetworkManager.Instance.NotifyPlayerJoined(member);
+                    }
+                    catch (Exception e)
+                    {
+                        GungeonTogether.Logging.Debug.LogError($"[steamcallbackmanager] Error notifying NetworkManager of player join: {e.Message}");
+                    }
                 }
             }
             foreach (var member in _previousLobbyMembers)
@@ -170,6 +181,17 @@ namespace GungeonTogether.Steam
                 {
                     string name = SteamFriends.GetFriendPersonaName(new CSteamID(member));
                     GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] player {name} has left the session (LobbyChatUpdate)");
+                    
+                    // CRITICAL: Notify NetworkManager about the player leave
+                    try
+                    {
+                        GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] Forwarding player leave to NetworkManager: {member}");
+                        NetworkManager.Instance.NotifyPlayerLeft(member);
+                    }
+                    catch (Exception e)
+                    {
+                        GungeonTogether.Logging.Debug.LogError($"[steamcallbackmanager] Error notifying NetworkManager of player leave: {e.Message}");
+                    }
                 }
             }
             _previousLobbyMembers = currentMembers;
@@ -243,6 +265,26 @@ namespace GungeonTogether.Steam
                     _instance = new SteamCallbackManager();
                 }
                 return _instance;
+            }
+        }
+
+        public ulong GetCurrentLobbyId()
+        {
+            return _currentLobbyId;
+        }
+
+        public ulong GetLobbyOwnerSteamId(ulong lobbyId)
+        {
+            try
+            {
+                // Try to get lobby owner using Steam API
+                var lobbyOwner = SteamMatchmaking.GetLobbyOwner(new CSteamID(lobbyId));
+                return lobbyOwner.m_SteamID;
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogWarning($"[SteamCallbackManager] Could not get lobby owner: {e.Message}");
+                return 0UL;
             }
         }
     }

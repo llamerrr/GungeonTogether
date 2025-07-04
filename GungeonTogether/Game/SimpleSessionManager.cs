@@ -20,7 +20,7 @@ namespace GungeonTogether.Game
         private ISteamNetworking steamNet;
         
         // Player synchronization
-        private PlayerSynchronizer playerSync;
+        private PlayerSynchroniser playerSync;
         
         // Real connection tracking
         private Dictionary<ulong, PlayerConnection> connectedPlayers;
@@ -98,6 +98,19 @@ namespace GungeonTogether.Game
                 EnsureSteamNetworkingInitialized();
                 SubscribeToSteamEvents();
                 InitializePlayerSync();
+                
+                // Initialize NetworkManager as host
+                var lobbyId = SteamCallbackManager.Instance.GetCurrentLobbyId();
+                GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Attempting to initialize NetworkManager as host with lobby ID: {lobbyId}");
+                if (NetworkManager.Instance.InitializeAsHost(lobbyId))
+                {
+                    GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] NetworkManager initialized as host successfully");
+                }
+                else
+                {
+                    GungeonTogether.Logging.Debug.LogError("[SimpleSessionManager] Failed to initialize NetworkManager as host");
+                }
+                
                 SteamCallbackManager.Instance.HostLobby();
             }
 
@@ -143,6 +156,39 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.LogWarning("[SimpleSessionManager] Steam not available - joining offline session");
             }
             InitializePlayerSync();
+            
+            // Initialize NetworkManager as client
+            // Try to get the host Steam ID from the lobby
+            ulong hostSteamId = 0UL;
+            try
+            {
+                // If we joined a lobby, try to get the lobby owner's Steam ID
+                if (sessionId.StartsWith("lobby_") && ulong.TryParse(sessionId.Substring(6), out ulong joinedLobbyId))
+                {
+                    // This would need to be implemented in Steam callback manager
+                    // For now, use a placeholder
+                    hostSteamId = SteamCallbackManager.Instance.GetLobbyOwnerSteamId(joinedLobbyId);
+                }
+                if (hostSteamId == 0UL)
+                {
+                    hostSteamId = 76561198000000000UL; // Fallback placeholder
+                }
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogWarning($"[SimpleSessionManager] Could not get host Steam ID: {e.Message}");
+                hostSteamId = 76561198000000000UL; // Fallback placeholder
+            }
+            
+            GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Attempting to initialize NetworkManager as client connecting to host: {hostSteamId}");
+            if (NetworkManager.Instance.InitializeAsClient(hostSteamId))
+            {
+                GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] NetworkManager initialized as client successfully");
+            }
+            else
+            {
+                GungeonTogether.Logging.Debug.LogError("[SimpleSessionManager] Failed to initialize NetworkManager as client");
+            }
         }
         
         public void StopSession()
@@ -177,11 +223,35 @@ namespace GungeonTogether.Game
             try
             {
                 if (!IsActive) return;
+                
+                // Ensure PlayerSynchroniser is properly initialized when player is available
+                if (playerSync != null && GameManager.Instance?.PrimaryPlayer != null)
+                {
+                    // Re-initialize if the local player wasn't available during first initialization
+                    var playerSyncType = playerSync.GetType();
+                    var localPlayerField = playerSyncType.GetField("localPlayer", 
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    if (localPlayerField != null)
+                    {
+                        var localPlayer = localPlayerField.GetValue(playerSync);
+                        if (localPlayer == null)
+                        {
+                            GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Re-initializing PlayerSynchroniser now that player is available");
+                            playerSync.Initialize();
+                        }
+                    }
+                }
+                
+                // Update networking
+                NetworkManager.Instance.Update();
+                
                 playerSync?.Update();
+                
                 // Poll for new lobby members every second if hosting
                 if (IsHost && Time.time - lastConnectionCheck >= CONNECTION_CHECK_INTERVAL)
                 {
                     GungeonTogether.Steam.SteamHostManager.CheckForLobbyJoins();
+                    lastConnectionCheck = Time.time;
                 }
             }
             catch (Exception e)
@@ -195,8 +265,10 @@ namespace GungeonTogether.Game
         {
             try
             {
-                playerSync = PlayerSynchronizer.Instance;
-                GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Player synchronization initialized (ready for networking integration)");
+                GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Initializing player synchronization...");
+                playerSync = PlayerSynchroniser.Instance;
+                playerSync.Initialize(); // Explicitly call Initialize
+                GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Player synchronization initialized successfully");
             } catch (Exception e)
             {
                 GungeonTogether.Logging.Debug.LogError($"[SimpleSessionManager] Failed to initialize player sync: {e.Message}");
@@ -245,7 +317,7 @@ namespace GungeonTogether.Game
                     {
                         LogHostConnectionStatus($"Player {steamId} disconnected");
                     }
-                    // TODO: Add OnPlayerDisconnected method to PlayerSynchronizer
+                    // TODO: Add OnPlayerDisconnected method to PlayerSynchroniser
                     // playerSync?.OnPlayerDisconnected(steamId);
                 }
                 UpdateConnectionStatus();
@@ -276,6 +348,14 @@ namespace GungeonTogether.Game
         {
             // Placeholder: return dummy location
             return "Main Menu";
+        }
+        
+        /// <summary>
+        /// Returns a list of connected player Steam IDs (host only).
+        /// </summary>
+        public List<ulong> ConnectedPlayerSteamIds
+        {
+            get { return new List<ulong>(connectedPlayers.Keys); }
         }
     }
 }

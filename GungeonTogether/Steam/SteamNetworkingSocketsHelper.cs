@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
+using Steamworks;
 
 namespace GungeonTogether.Steam
 {
@@ -13,13 +14,36 @@ namespace GungeonTogether.Steam
         private static MethodInfo _isP2PPacketAvailableMethod;
         private static MethodInfo _acceptP2PSessionMethod;
         private static MethodInfo _closeP2PSessionMethod;
+        private static MethodInfo _allowP2PPacketRelayMethod;
+        private static MethodInfo _getP2PSessionStateMethod;
         private static bool _initialized;
+        
+        // Cache for P2P session state - critical for proper session management
+        private static readonly System.Collections.Generic.HashSet<ulong> _acceptedSessions = new System.Collections.Generic.HashSet<ulong>();
+        
+        // Steam callback registration
+        private static Callback<P2PSessionRequest_t> _p2pSessionRequest;
+        private static Callback<P2PSessionConnectFail_t> _p2pSessionConnectFail;
 
         public static bool IsInitialized => _initialized;
+        
+        // Event for when a P2P session request is received
+        public static event System.Action<ulong> OnP2PSessionRequested;
+
+        static SteamNetworkingSocketsHelper()
+        {
+            GungeonTogether.Logging.Debug.Log("[SteamNetworkingSocketsHelper] Static constructor called. Steam P2P helper ready, but will not force early initialization.");
+            // Register Steamworks.NET callbacks
+            _p2pSessionRequest = Callback<P2PSessionRequest_t>.Create(OnP2PSessionRequest);
+            _p2pSessionConnectFail = Callback<P2PSessionConnectFail_t>.Create(OnP2PSessionConnectFail);
+        }
 
         public static bool Initialize()
         {
             if (_initialized) return true;
+            
+            GungeonTogether.Logging.Debug.Log("[SteamNetworkingSocketsHelper] Starting P2P initialization...");
+            
             try
             {
                 // Find Assembly-CSharp-firstpass which contains ETG's Steamworks.NET
@@ -41,7 +65,7 @@ namespace GungeonTogether.Steam
                     return false;
                 }
                 
-                // Use the existing working SteamNetworking P2P API instead of trying to find SteamNetworkingSockets
+                // Use the existing working SteamNetworking P2P API
                 _steamNetworkingType = steamworksAssembly.GetType("Steamworks.SteamNetworking", false);
                 if (ReferenceEquals(_steamNetworkingType, null))
                 {
@@ -51,7 +75,7 @@ namespace GungeonTogether.Steam
                 
                 GungeonTogether.Logging.Debug.Log("[SteamNetworkingSocketsHelper] Found SteamNetworking type, setting up P2P methods");
                 
-                // Get P2P networking methods that are known to work in ETG
+                // Get P2P networking methods
                 var allMethods = _steamNetworkingType.GetMethods(BindingFlags.Static | BindingFlags.Public);
                 
                 foreach (var method in allMethods)
@@ -87,6 +111,24 @@ namespace GungeonTogether.Steam
                         _closeP2PSessionMethod = method;
                         GungeonTogether.Logging.Debug.Log($"[SteamNetworkingSocketsHelper] Found CloseP2PSessionWithUser method with {method.GetParameters().Length} parameters");
                     }
+                    else if (string.Equals(method.Name, "AllowP2PPacketRelay"))
+                    {
+                        _allowP2PPacketRelayMethod = method;
+                        GungeonTogether.Logging.Debug.Log($"[SteamNetworkingSocketsHelper] Found AllowP2PPacketRelay method");
+                    }
+                    else if (string.Equals(method.Name, "GetP2PSessionState"))
+                    {
+                        _getP2PSessionStateMethod = method;
+                        GungeonTogether.Logging.Debug.Log($"[SteamNetworkingSocketsHelper] Found GetP2PSessionState method");
+                    }
+                }
+                
+                // Log all static public methods on SteamNetworking for debugging
+                GungeonTogether.Logging.Debug.Log("[SteamNetworkingSocketsHelper] Listing all static public methods on SteamNetworking:");
+                foreach (var method in allMethods)
+                {
+                    var paramList = string.Join(", ", method.GetParameters().Select(p => p.ParameterType.Name + " " + p.Name).ToArray());
+                    GungeonTogether.Logging.Debug.Log($"[SteamNetworkingSocketsHelper] Method: {method.Name}({paramList})");
                 }
                 
                 if (ReferenceEquals(_sendP2PPacketMethod, null) || ReferenceEquals(_readP2PPacketMethod, null))
@@ -95,6 +137,7 @@ namespace GungeonTogether.Steam
                     return false;
                 }
                 
+                GungeonTogether.Logging.Debug.Log("[SteamNetworkingSocketsHelper] Found all required P2P methods");
                 _initialized = true;
                 GungeonTogether.Logging.Debug.Log("[SteamNetworkingSocketsHelper] Successfully initialized with Steam P2P networking");
                 return true;
@@ -102,6 +145,120 @@ namespace GungeonTogether.Steam
             catch (Exception e)
             {
                 GungeonTogether.Logging.Debug.LogError($"[SteamNetworkingSocketsHelper] Initialization failed: {e.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Enables the Steam P2P relay if Steamworks is initialized. Should be called after Steamworks is ready.
+        /// </summary>
+        public static void EnableRelayIfReady()
+        {
+            bool relayEnabled = false;
+            try
+            {
+                // Only attempt if Steamworks is initialized
+                if (!SteamManager.Initialized)
+                {
+                    GungeonTogether.Logging.Debug.LogWarning("[SteamNetworkingSocketsHelper] Steamworks not initialized, cannot enable relay yet.");
+                    return;
+                }
+                // Try direct call first
+                if (SteamNetworking.AllowP2PPacketRelay(true))
+                {
+                    relayEnabled = true;
+                    GungeonTogether.Logging.Debug.Log("[SteamNetworkingSocketsHelper] Enabled P2P packet relay (direct call success)");
+                }
+                else
+                {
+                    GungeonTogether.Logging.Debug.LogWarning("[SteamNetworkingSocketsHelper] Direct call to AllowP2PPacketRelay returned false");
+                }
+            }
+            catch (Exception directEx)
+            {
+                GungeonTogether.Logging.Debug.LogWarning($"[SteamNetworkingSocketsHelper] Direct call to AllowP2PPacketRelay failed: {directEx.Message}");
+            }
+
+            // Also try reflection-based call as backup
+            if (!ReferenceEquals(_allowP2PPacketRelayMethod, null))
+            {
+                try
+                {
+                    object result = _allowP2PPacketRelayMethod.Invoke(null, new object[] { true });
+                    if (result is bool && (bool)result)
+                    {
+                        relayEnabled = true;
+                        GungeonTogether.Logging.Debug.Log("[SteamNetworkingSocketsHelper] Enabled P2P packet relay via reflection (success)");
+                    }
+                    else
+                    {
+                        GungeonTogether.Logging.Debug.LogWarning($"[SteamNetworkingSocketsHelper] Reflection call to AllowP2PPacketRelay returned: {result}");
+                    }
+                }
+                catch (Exception relayEx)
+                {
+                    GungeonTogether.Logging.Debug.LogWarning($"[SteamNetworkingSocketsHelper] Exception while enabling packet relay via reflection: {relayEx}");
+                }
+            }
+            else
+            {
+                GungeonTogether.Logging.Debug.LogWarning("[SteamNetworkingSocketsHelper] AllowP2PPacketRelay method not found via reflection");
+            }
+
+            if (!relayEnabled)
+            {
+                GungeonTogether.Logging.Debug.LogError("[SteamNetworkingSocketsHelper] CRITICAL: Failed to enable P2P packet relay! P2P connections may fail.");
+            }
+        }
+
+        private static void OnP2PSessionRequest(P2PSessionRequest_t param)
+        {
+            // Accept the session if appropriate (e.g., if the user is in our lobby)
+            GungeonTogether.Logging.Debug.Log($"[SteamNetworkingSocketsHelper] OnP2PSessionRequest from {param.m_steamIDRemote}");
+            // Accept all for now (you may want to add checks here)
+            SteamNetworking.AcceptP2PSessionWithUser(param.m_steamIDRemote);
+            // Notify listeners if needed
+            OnP2PSessionRequested?.Invoke((ulong)param.m_steamIDRemote);
+        }
+        private static void OnP2PSessionConnectFail(P2PSessionConnectFail_t param)
+        {
+            GungeonTogether.Logging.Debug.LogWarning($"[SteamNetworkingSocketsHelper] OnP2PSessionConnectFail from {param.m_steamIDRemote}, error: {param.m_eP2PSessionError}");
+        }
+        
+        public static bool AcceptP2PSession(ulong steamIdRemote)
+        {
+            if (!Initialize() || ReferenceEquals(_acceptP2PSessionMethod, null)) return false;
+            
+            // Check if we already accepted this session
+            if (_acceptedSessions.Contains(steamIdRemote))
+            {
+                return true; // Already accepted
+            }
+            
+            try
+            {
+                // Create CSteamID object
+                var csteamIdType = _steamNetworkingType.Assembly.GetType("Steamworks.CSteamID");
+                var csteamId = Activator.CreateInstance(csteamIdType, steamIdRemote);
+                
+                object result = _acceptP2PSessionMethod.Invoke(null, new object[] { csteamId });
+                bool accepted = (bool)result;
+                
+                if (accepted)
+                {
+                    _acceptedSessions.Add(steamIdRemote);
+                    GungeonTogether.Logging.Debug.Log($"[SteamNetworkingSocketsHelper] Accepted P2P session with {steamIdRemote}");
+                }
+                else
+                {
+                    GungeonTogether.Logging.Debug.LogWarning($"[SteamNetworkingSocketsHelper] Failed to accept P2P session with {steamIdRemote}");
+                }
+                
+                return accepted;
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[SteamNetworkingSocketsHelper] AcceptP2PSession failed: {e.Message}");
                 return false;
             }
         }
@@ -123,10 +280,17 @@ namespace GungeonTogether.Steam
                 {
                     // Standard signature: SendP2PPacket(CSteamID steamIDRemote, byte[] data, uint cubData, EP2PSend eP2PSendType, int nChannel = 0)
                     var ep2pSendType = _steamNetworkingType.Assembly.GetType("Steamworks.EP2PSend");
-                    var reliableType = Enum.Parse(ep2pSendType, "k_EP2PSendReliable"); // Use reliable sending
+                    var reliableType = Enum.Parse(ep2pSendType, "k_EP2PSendReliable"); // Use reliable sending for critical data
                     
                     object result = _sendP2PPacketMethod.Invoke(null, new object[] { csteamId, data, (uint)data.Length, reliableType, channel });
-                    return (bool)result;
+                    bool sent = (bool)result;
+                    
+                    if (!sent)
+                    {
+                        GungeonTogether.Logging.Debug.LogWarning($"[SteamNetworkingSocketsHelper] Failed to send P2P packet to {steamIdRemote}");
+                    }
+                    
+                    return sent;
                 }
                 
                 return false;
@@ -187,8 +351,9 @@ namespace GungeonTogether.Steam
             }
         }
 
-        public static byte[] ReadP2PPacket(int channel = 0)
+        public static byte[] ReadP2PPacket(out ulong senderSteamId, int channel = 0)
         {
+            senderSteamId = 0UL;
             if (!Initialize() || ReferenceEquals(_readP2PPacketMethod, null)) return null;
             
             try
@@ -219,6 +384,14 @@ namespace GungeonTogether.Steam
                     if ((bool)result)
                     {
                         uint actualSize = (uint)args[2];
+                        var csteamIdRemote = args[3];
+                        
+                        // Extract sender Steam ID
+                        if (!ReferenceEquals(csteamIdRemote, null))
+                        {
+                            senderSteamId = (ulong)csteamIdRemote.GetType().GetField("m_SteamID").GetValue(csteamIdRemote);
+                        }
+                        
                         if (actualSize > 0 && actualSize <= buffer.Length)
                         {
                             byte[] actualData = new byte[actualSize];
@@ -236,24 +409,12 @@ namespace GungeonTogether.Steam
                 return null;
             }
         }
-
-        public static bool AcceptP2PSession(ulong steamIdRemote)
+        
+        // Backward compatibility method
+        public static byte[] ReadP2PPacket(int channel = 0)
         {
-            if (!Initialize() || ReferenceEquals(_acceptP2PSessionMethod, null)) return false;
-            
-            try
-            {
-                var csteamIdType = _steamNetworkingType.Assembly.GetType("Steamworks.CSteamID");
-                var csteamId = Activator.CreateInstance(csteamIdType, steamIdRemote);
-                
-                object result = _acceptP2PSessionMethod.Invoke(null, new object[] { csteamId });
-                return (bool)result;
-            }
-            catch (Exception e)
-            {
-                GungeonTogether.Logging.Debug.LogError($"[SteamNetworkingSocketsHelper] AcceptP2PSession failed: {e.Message}");
-                return false;
-            }
+            ulong senderSteamId;
+            return ReadP2PPacket(out senderSteamId, channel);
         }
 
         public static bool CloseP2PSession(ulong steamIdRemote)
@@ -266,7 +427,15 @@ namespace GungeonTogether.Steam
                 var csteamId = Activator.CreateInstance(csteamIdType, steamIdRemote);
                 
                 object result = _closeP2PSessionMethod.Invoke(null, new object[] { csteamId });
-                return (bool)result;
+                bool closed = (bool)result;
+                
+                if (closed)
+                {
+                    _acceptedSessions.Remove(steamIdRemote);
+                    GungeonTogether.Logging.Debug.Log($"[SteamNetworkingSocketsHelper] Closed P2P session with {steamIdRemote}");
+                }
+                
+                return closed;
             }
             catch (Exception e)
             {
@@ -299,6 +468,52 @@ namespace GungeonTogether.Steam
                 GungeonTogether.Logging.Debug.LogError($"[SteamNetworkingSocketsHelper] GetP2PSessionState failed: {e.Message}");
                 return false;
             }
+        }
+        
+        /// <summary>
+        /// Data structure for incoming packet with sender info
+        /// </summary>
+        public struct IncomingPacket
+        {
+            public byte[] data;
+            public ulong senderSteamId;
+            
+            public IncomingPacket(byte[] data, ulong senderSteamId)
+            {
+                this.data = data;
+                this.senderSteamId = senderSteamId;
+            }
+        }
+        
+        /// <summary>
+        /// Continuously poll for incoming P2P packets and return them with sender info
+        /// This should be called from the main update loop
+        /// </summary>
+        public static System.Collections.Generic.List<IncomingPacket> PollIncomingPackets(int channel = 0)
+        {
+            var packets = new System.Collections.Generic.List<IncomingPacket>();
+            
+            if (!Initialize()) return packets;
+            
+            try
+            {
+                // Read all available packets
+                while (IsP2PPacketAvailable(channel))
+                {
+                    ulong senderSteamId;
+                    byte[] data = ReadP2PPacket(out senderSteamId, channel);
+                    if (data != null)
+                    {
+                        packets.Add(new IncomingPacket(data, senderSteamId));
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[SteamNetworkingSocketsHelper] PollIncomingPackets failed: {e.Message}");
+            }
+            
+            return packets;
         }
     }
 }

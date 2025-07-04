@@ -233,13 +233,8 @@ namespace GungeonTogether.Game
                             string roomType = "Unknown";
                             try
                             {
-                                // Method 1: Try PrototypeRoomCategory from area
-                                if (room.area != null && room.area.PrototypeRoomCategory != null)
-                                {
-                                    roomType = room.area.PrototypeRoomCategory.ToString();
-                                }
-                                // Method 2: Try category from prototype room
-                                else if (room.area != null && room.area.prototypeRoom != null)
+                                // Method 1: Try category from prototype room
+                                if (room.area != null && room.area.prototypeRoom != null)
                                 {
                                     var categoryProperty = room.area.prototypeRoom.GetType().GetProperty("category");
                                     if (categoryProperty != null)
@@ -251,7 +246,7 @@ namespace GungeonTogether.Game
                                         }
                                     }
                                 }
-                                // Method 3: Fallback determination
+                                // Method 2: Fallback determination
                                 else
                                 {
                                     roomType = DetermineRoomType(room);
@@ -525,7 +520,7 @@ namespace GungeonTogether.Game
                             // Check for boss room indicators
                             foreach (var roomEvent in prototypeData.roomEvents)
                             {
-                                if (roomEvent != null && roomEvent.action != null)
+                                if (roomEvent != null)
                                 {
                                     string actionType = roomEvent.action.ToString().ToLower();
                                     if (actionType.Contains("boss"))

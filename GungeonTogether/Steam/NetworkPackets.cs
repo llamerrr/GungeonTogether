@@ -57,7 +57,10 @@ namespace GungeonTogether.Steam
         
         // Synchronization
         StateSync = 70,
-        HeartBeat = 71
+        HeartBeat = 71,
+
+        // Map/Scene sync
+        MapSync = 100 // Add map/scene sync packet type
     }
 
     [Serializable]
@@ -65,6 +68,7 @@ namespace GungeonTogether.Steam
     {
         public PacketType Type;
         public ulong SenderId;
+        public ulong TargetSteamId; // 0 means send to all
         public float Timestamp;
         public byte[] Data;
 
@@ -72,6 +76,7 @@ namespace GungeonTogether.Steam
         {
             Type = type;
             SenderId = senderId;
+            TargetSteamId = 0UL; // Default to send to all
             Timestamp = Time.time;
             Data = data;
         }
@@ -86,6 +91,7 @@ namespace GungeonTogether.Steam
         public float Rotation;
         public bool IsGrounded;
         public bool IsDodgeRolling;
+        public string MapName; // Add map/scene name for sync
     }
 
     [Serializable]

@@ -20,7 +20,7 @@ namespace GungeonTogether.UI
 
         [Header("Debug UI Settings")]
         public bool debugUIEnabled = false;
-        public KeyCode toggleKey = KeyCode.F1;
+        public KeyCode toggleKey = KeyCode.F3;
         
         // UI State
         private Vector2 scrollPos = Vector2.zero;
@@ -56,6 +56,20 @@ namespace GungeonTogether.UI
         
         void Update()
         {
+            // Handle debug UI toggle
+            if (Input.GetKeyDown(toggleKey))
+            {
+                debugUIEnabled = !debugUIEnabled;
+                UnityEngine.Debug.Log($"[DebugUIManager] Debug UI {(debugUIEnabled ? "enabled" : "disabled")}");
+            }
+            
+            // Handle multiplayer test trigger (F9)
+            if (Input.GetKeyDown(KeyCode.F9))
+            {
+                UnityEngine.Debug.Log("[DebugUIManager] Triggering multiplayer test suite...");
+                GungeonTogetherMod.RunMultiplayerTests();
+            }
+            
             // Update network timer
             networkUpdateTimer += Time.unscaledDeltaTime;
         }
@@ -341,19 +355,86 @@ namespace GungeonTogether.UI
         {
             GUILayout.Label("=== NETWORK DEBUG ===", GUI.skin.box);
             
+            // Test controls
+            DrawInfoBox("Test Controls", () => {
+                if (GUILayout.Button("Run Multiplayer Test Suite (F9)"))
+                {
+                    GungeonTogetherMod.RunMultiplayerTests();
+                }
+                GUILayout.Label("Tests will check Steam API, networking, player sync, and more.");
+                
+                // Debug test for packet counters
+                if (GUILayout.Button("Test Packet Counter (Fake Remote Packet)"))
+                {
+                    GungeonTogether.Game.PlayerSynchroniser.OnAnyRemotePacketReceived(999999UL); // Fake remote Steam ID
+                    UnityEngine.Debug.Log("[DebugUI] Manually triggered fake remote packet");
+                }
+            });
+            
             var sessionManager = GungeonTogetherMod.Instance?._sessionManager;
             
             DrawInfoBox("Session Status", () => {
+                var mod = GungeonTogetherMod.Instance;
+                var sessionManager = mod?._sessionManager;
+                // Multiplayer role
+                if (mod != null)
+                {
+                    DrawLabelValue("Multiplayer Role", mod.MultiplayerRole);
+                }
+                // Session booleans
                 if (sessionManager != null)
                 {
                     DrawLabelValue("Session Active", sessionManager.IsActive.ToString());
                     DrawLabelValue("Is Host", sessionManager.IsHost.ToString());
+                    DrawLabelValue("Is Joiner", (sessionManager.IsActive && !sessionManager.IsHost).ToString());
+                    DrawLabelValue("Is Singleplayer", (!sessionManager.IsActive).ToString());
                     DrawLabelValue("Status", sessionManager.Status ?? "Unknown");
                 }
                 else
                 {
                     GUILayout.Label("No session manager available");
                 }
+                // Networking state
+                if (mod != null)
+                {
+                    var networkingInitialized = typeof(GungeonTogether.GungeonTogetherMod).GetField("networkingInitialized", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(mod);
+                    DrawLabelValue("Networking Initialized", networkingInitialized?.ToString() ?? "null");
+                }
+                // Steam IDs
+                ulong localSteamId = 0;
+                try {
+                    localSteamId = GungeonTogether.Steam.SteamReflectionHelper.GetLocalSteamId();
+                } catch {}
+                DrawLabelValue("Local Steam ID", localSteamId.ToString());
+                // Host Steam ID (if joiner or available)
+                if (sessionManager != null && !sessionManager.IsHost && !string.IsNullOrEmpty(sessionManager.currentHostId))
+                {
+                    DrawLabelValue("Host Steam ID", sessionManager.currentHostId);
+                }
+                else if (sessionManager != null && sessionManager.IsHost)
+                {
+                    DrawLabelValue("Host Steam ID", GungeonTogether.Steam.SteamReflectionHelper.GetLocalSteamId().ToString());
+                }
+                // Connected peers (host only)
+                if (sessionManager != null && sessionManager.IsHost)
+                {
+                    var peers = sessionManager.ConnectedPlayerSteamIds;
+                    DrawLabelValue("Connected Peers", peers.Count > 0 ? string.Join(", ", peers.Select(x => x.ToString()).ToArray()) : "None");
+                }
+                // Show if PlayerSynchroniser.StaticUpdate() was called this frame and on which role
+                var lastSyncUpdateFrame = typeof(GungeonTogether.Game.PlayerSynchroniser).GetField("LastStaticUpdateFrame", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null);
+                var lastSyncUpdateRole = typeof(GungeonTogether.Game.PlayerSynchroniser).GetField("LastStaticUpdateRole", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null);
+                DrawLabelValue("PlayerSynchroniser.StaticUpdate()", $"Last: frame {lastSyncUpdateFrame}, role: {lastSyncUpdateRole}");
+
+                // Show last update sent to host/joiners
+                var lastUpdateSentFrame = typeof(GungeonTogether.Game.PlayerSynchroniser).GetField("LastUpdateSentFrame", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null);
+                var lastUpdateSentTime = typeof(GungeonTogether.Game.PlayerSynchroniser).GetField("LastUpdateSentTime", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null);
+                DrawLabelValue("Last Update Sent (to host/joiners)", $"Frame: {lastUpdateSentFrame}, Time: {lastUpdateSentTime:F2}s");
+
+                // Show last update received from any player
+                var lastUpdateReceivedFrame = typeof(GungeonTogether.Game.PlayerSynchroniser).GetField("LastUpdateReceivedFrame", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null);
+                var lastUpdateReceivedTime = typeof(GungeonTogether.Game.PlayerSynchroniser).GetField("LastUpdateReceivedTime", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null);
+                DrawLabelValue("Last Update Received (from any player)", $"Frame: {lastUpdateReceivedFrame}, Time: {lastUpdateReceivedTime:F2}s");
             });
             
             // Steam networking info

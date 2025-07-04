@@ -20,7 +20,29 @@ namespace GungeonTogether.Steam
         {
             _lobbyId = lobbyId;
             _hostSteamId = hostSteamId;
+            // Subscribe to the P2P session request callback
+            SteamNetworkingSocketsHelper.OnP2PSessionRequested += OnP2PSessionRequestedFromClient;
             StartListening();
+        }
+
+        private void OnP2PSessionRequestedFromClient(ulong clientSteamId)
+        {
+            // Only handle if not already connected and not self
+            if (clientSteamId == _hostSteamId || _clientConnections.ContainsKey(clientSteamId))
+                return;
+            GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] [P2P CALLBACK] Session accepted for client {clientSteamId}, sending welcome packet.");
+            // Send welcome packet after session is accepted
+            byte[] welcomeData = System.Text.Encoding.UTF8.GetBytes($"WELCOME_TO_HOST:{_hostSteamId}");
+            bool sentWelcome = SteamNetworkingSocketsHelper.SendP2PPacket(clientSteamId, welcomeData);
+            if (sentWelcome)
+            {
+                _clientConnections[clientSteamId] = clientSteamId;
+                GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] [P2P CALLBACK] Welcome packet sent and client added: {clientSteamId}");
+            }
+            else
+            {
+                GungeonTogether.Logging.Debug.LogWarning($"[SteamP2PHostManager] [P2P CALLBACK] Failed to send welcome packet to client: {clientSteamId}");
+            }
         }
 
         private void StartListening()
@@ -55,30 +77,7 @@ namespace GungeonTogether.Steam
                 {
                     continue;
                 }
-                
-                // CRITICAL: Instead of just accepting, INITIATE P2P by sending a welcome packet
-                // This will establish the P2P session properly
-                byte[] welcomeData = System.Text.Encoding.UTF8.GetBytes($"WELCOME_TO_HOST:{_hostSteamId}");
-                bool sentWelcome = SteamNetworkingSocketsHelper.SendP2PPacket(memberSteamId, welcomeData);
-                
-                if (sentWelcome)
-                {
-                    // Now accept the P2P session
-                    bool sessionAccepted = SteamNetworkingSocketsHelper.AcceptP2PSession(memberSteamId);
-                    if (sessionAccepted)
-                    {
-                        _clientConnections[memberSteamId] = memberSteamId; // Store steam ID as connection identifier
-                        GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Initiated and accepted P2P session with client: {memberSteamId}");
-                    }
-                    else
-                    {
-                        GungeonTogether.Logging.Debug.LogWarning($"[SteamP2PHostManager] Welcome sent but failed to accept P2P session with client: {memberSteamId}");
-                    }
-                }
-                else
-                {
-                    GungeonTogether.Logging.Debug.LogWarning($"[SteamP2PHostManager] Failed to send welcome packet to client: {memberSteamId}");
-                }
+                // Do not send welcome or accept session here; let the callback handle it
             }
             
             GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] P2P connection check complete. Connected clients: {_clientConnections.Count}");
@@ -133,15 +132,15 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                // Check for available P2P packets
-                while (SteamNetworkingSocketsHelper.IsP2PPacketAvailable())
+                // Use the new efficient packet polling method
+                var packets = SteamNetworkingSocketsHelper.PollIncomingPackets();
+                
+                foreach (var packet in packets)
                 {
-                    byte[] data = SteamNetworkingSocketsHelper.ReadP2PPacket();
-                    if (data != null && data.Length > 0)
+                    if (packet.data.Length > 0)
                     {
-                        GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Received P2P packet: {data.Length} bytes");
-                        // Process the packet - in a real implementation this would be handled by NetworkManager
-                        ProcessReceivedPacket(data);
+                        GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Received P2P packet from {packet.senderSteamId}: {packet.data.Length} bytes");
+                        ProcessReceivedPacket(packet.data, packet.senderSteamId);
                     }
                 }
             }
@@ -151,7 +150,7 @@ namespace GungeonTogether.Steam
             }
         }
 
-        private void ProcessReceivedPacket(byte[] data)
+        private void ProcessReceivedPacket(byte[] data, ulong senderSteamId)
         {
             try
             {
@@ -169,26 +168,23 @@ namespace GungeonTogether.Steam
                         {
                             _clientConnections[clientSteamId] = clientSteamId;
                             GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Added client to connections: {clientSteamId}");
+                            
+                            // Send welcome response and notify NetworkManager
+                            byte[] welcomeResponse = System.Text.Encoding.UTF8.GetBytes($"WELCOME_RESPONSE:{_hostSteamId}");
+                            SteamNetworkingSocketsHelper.SendP2PPacket(clientSteamId, welcomeResponse);
+                            NetworkManager.Instance.HandlePlayerJoin(clientSteamId);
                         }
                     }
                 }
                 else if (dataStr.StartsWith("HEARTBEAT_ACK:"))
                 {
-                    // Client responded to heartbeat
-                    string steamIdStr = dataStr.Substring("HEARTBEAT_ACK:".Length);
-                    if (ulong.TryParse(steamIdStr, out ulong clientSteamId))
-                    {
-                        GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Received heartbeat ack from client: {clientSteamId}");
-                    }
+                    // Client responded to heartbeat - just log it, no action needed
+                    GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Received heartbeat ack from client: {senderSteamId}");
                 }
                 else if (dataStr.StartsWith("WELCOME_ACK:"))
                 {
                     // Client acknowledged our welcome
-                    string steamIdStr = dataStr.Substring("WELCOME_ACK:".Length);
-                    if (ulong.TryParse(steamIdStr, out ulong clientSteamId))
-                    {
-                        GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Client acknowledged welcome: {clientSteamId}");
-                    }
+                    GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Client acknowledged welcome: {senderSteamId}");
                 }
                 else
                 {
@@ -196,18 +192,19 @@ namespace GungeonTogether.Steam
                     var packet = PacketSerializer.DeserializePacket(data);
                     if (packet.HasValue)
                     {
+                        GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Deserialized network packet: type={packet.Value.Type}, sender={senderSteamId}, bytes={data.Length}");
                         NetworkManager.Instance.QueueIncomingPacket(packet.Value);
-                        GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Processed network packet: {packet.Value.Type}");
+                        GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Processed network packet: {packet.Value.Type} from {senderSteamId}");
                     }
                     else
                     {
-                        GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Received unknown data: {dataStr}");
+                        GungeonTogether.Logging.Debug.LogWarning($"[SteamP2PHostManager] Failed to deserialize network packet from {senderSteamId}");
                     }
                 }
             }
             catch (Exception e)
             {
-                GungeonTogether.Logging.Debug.LogError($"[SteamP2PHostManager] Error processing packet: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[SteamP2PHostManager] Error processing packet from {senderSteamId}: {e.Message}");
             }
         }
 

@@ -56,6 +56,8 @@ namespace GungeonTogether
                     if (SteamNetworkingSocketsHelper.Initialize())
                     {
                         Logger.LogInfo("Steam Networking Sockets initialized successfully");
+                        // Enable relay after Steamworks is initialized
+                        SteamNetworkingSocketsHelper.EnableRelayIfReady();
                     }
                     else
                     {
@@ -185,6 +187,12 @@ namespace GungeonTogether
 
         void Update()
         {
+            // Throttle main update log to every 5 seconds (assuming 60fps)
+            if (Time.frameCount % 300 == 0)
+            {
+                Logger.LogInfo($"[GT Update] Frame {Time.frameCount} | networkingInitialized={networkingInitialized}, SessionManagerActive={_sessionManager?.IsActive}, IsHost={_sessionManager?.IsHost}, SessionManagerNull={_sessionManager == null}, SteamId={SteamReflectionHelper.GetLocalSteamId()}");
+            }
+
             // Update the session manager each frame (includes P2P networking and player sync)
             _sessionManager?.Update();
             
@@ -195,12 +203,45 @@ namespace GungeonTogether
                 
                 if (_sessionManager is not null && _sessionManager.IsActive)
                 {
-                    PlayerSynchronizer.StaticUpdate();
+                    // Removed noisy log: PlayerSynchroniser.StaticUpdate() on HOST/JOINER
+                    PlayerSynchroniser.StaticUpdate();
                     EnemySynchronizer.StaticUpdate();
                     ProjectileSynchronizer.StaticUpdate();
                 }
+                else
+                {
+                    if (Time.frameCount % 300 == 0)
+                        Logger.LogInfo($"[GT Update] _sessionManager is null or not active");
+                }
             }
-            
+            else
+            {
+                if (Time.frameCount % 300 == 0)
+                    Logger.LogInfo($"[GT Update] networkingInitialized is false");
+            }
+
+            // Throttle fallback debug logs
+            if (Time.frameCount % 300 == 0)
+            {
+                Logger.LogInfo($"[GT Update][FALLBACK DEBUG] networkingInitialized={networkingInitialized}, _sessionManager==null:{_sessionManager==null}, _sessionManager?.IsHost={_sessionManager?.IsHost}");
+            }
+
+            // FINAL FALLBACK: If networking is initialized and not host, always run synchronizers for joiner
+            if (networkingInitialized && (_sessionManager == null || (_sessionManager != null && !_sessionManager.IsHost)))
+            {
+                PlayerSynchroniser.StaticUpdate();
+                EnemySynchronizer.StaticUpdate();
+                ProjectileSynchronizer.StaticUpdate();
+            }
+
+            // CATCH-ALL: If this process is not the host, always run synchronizer update
+            if (_sessionManager == null || (_sessionManager != null && !_sessionManager.IsHost))
+            {
+                PlayerSynchroniser.StaticUpdate();
+                EnemySynchronizer.StaticUpdate();
+                ProjectileSynchronizer.StaticUpdate();
+            }
+
             // CRITICAL: Process Steam callbacks every frame to catch join requests
             try
             {
@@ -541,7 +582,13 @@ namespace GungeonTogether
                             NetworkedDungeonManager.Instance.Initialize(false);
                             Logger.LogInfo($"NetworkManager initialized as CLIENT connecting to {steamId}");
                         }
-                        
+                        // CRITICAL: Ensure PlayerSynchroniser is initialized for joiner!
+                        Logger.LogInfo("[JOINER] Calling PlayerSynchroniser.StaticInitialize() after join");
+                        PlayerSynchroniser.StaticInitialize();
+                        EnemySynchronizer.StaticInitialize();
+                        ProjectileSynchronizer.StaticInitialize();
+                        DungeonGenerationHook.InstallHooks();
+                        NetworkedDungeonManager.Instance.Initialize(false);
                         // Notify UI
                         if (uiInitialized)
                         {
@@ -837,7 +884,7 @@ namespace GungeonTogether
                 PacketSerializer.Initialize();
                 
                 // Initialize game synchronizers
-                PlayerSynchronizer.StaticInitialize();
+                PlayerSynchroniser.StaticInitialize();
                 EnemySynchronizer.StaticInitialize();
                 ProjectileSynchronizer.StaticInitialize();
                 
@@ -958,7 +1005,24 @@ namespace GungeonTogether
                 Logger.LogError($"Error running Steam diagnostics: {e.Message}");
             }
         }
-
+        
+        /// <summary>
+        /// Run the comprehensive multiplayer test suite
+        /// Call this method to validate all multiplayer systems
+        /// </summary>
+        public static void RunMultiplayerTests()
+        {
+            UnityEngine.Debug.Log("Starting comprehensive multiplayer test suite...");
+            try
+            {
+                GungeonTogether.Debug.MultiplayerTestSuite.RunAllTests();
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogError($"Failed to run multiplayer tests: {e.Message}");
+            }
+        }
+        
         /// <summary>
         /// Get available hosts for joining
         /// </summary>
@@ -982,6 +1046,19 @@ namespace GungeonTogether
             }
         }
 
-        // ...existing code...
+        /// <summary>
+        /// Returns the current multiplayer role as a string: "Host", "Joiner", or "Singleplayer".
+        /// </summary>
+        public string MultiplayerRole
+        {
+            get
+            {
+                if (_sessionManager == null || !_sessionManager.IsActive)
+                    return "Singleplayer";
+                if (_sessionManager.IsHost)
+                    return "Host";
+                return "Joiner";
+            }
+        }
     }
 }
