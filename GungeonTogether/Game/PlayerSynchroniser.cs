@@ -1,8 +1,8 @@
+using GungeonTogether.Steam;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using GungeonTogether.Steam;
 using UnityEngine.SceneManagement;
 
 namespace GungeonTogether.Game
@@ -137,10 +137,10 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Collection modification detected (out of sync): {ex.Message}");
                 GungeonTogether.Logging.Debug.LogError($"[PlayerSync] This typically happens when collections are modified during iteration from another thread");
                 GungeonTogether.Logging.Debug.LogError($"[PlayerSync] The synchronization locks should prevent this - investigating further...");
-                
+
                 // Log collection state for debugging
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Current collection state - Remote players: {remotePlayers?.Count ?? -1}, Remote objects: {remotePlayerObjects?.Count ?? -1}");
-                
+
                 // Skip this frame and continue - the collections will be stable next frame
                 GungeonTogether.Logging.Debug.Log("[PlayerSync] Skipping this update frame due to collection modification");
             }
@@ -298,7 +298,7 @@ namespace GungeonTogether.Game
             // Create a snapshot to avoid collection modification during iteration
             Dictionary<ulong, RemotePlayerState> remotePlayersSnapshot;
             Dictionary<ulong, GameObject> remotePlayerObjectsSnapshot;
-            
+
             try
             {
                 lock (collectionLock)
@@ -323,7 +323,7 @@ namespace GungeonTogether.Game
                     continue;
 
                 bool isDebugFakePlayer = steamId >= 12345678UL && steamId <= 99999999UL; // Range of fake Steam IDs used in debug
-                
+
                 // Keep debug fake players alive by refreshing their update time
                 if (isDebugFakePlayer)
                 {
@@ -341,7 +341,7 @@ namespace GungeonTogether.Game
 
                 // Check for timeout (but skip timeout for debug mode fake players)
                 float timeoutDuration = HEARTBEAT_INTERVAL * TIMEOUT_MULTIPLIER;
-                
+
                 if (!isDebugFakePlayer && currentTime - playerState.LastUpdateTime > timeoutDuration)
                 {
                     GungeonTogether.Logging.Debug.Log($"[PlayerSync] Timeout: Removing remote player {steamId} (last update: {playerState.LastUpdateTime}, now: {currentTime})");
@@ -419,14 +419,14 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.Log("[PlayerSync] Skipping CreateRemotePlayer for local player.");
                 return;
             }
-            
+
             try
             {
                 lock (collectionLock)
                 {
                     // DEBUG: Log all connected players for troubleshooting
                     GungeonTogether.Logging.Debug.Log($"[PlayerSync] Connected players: {string.Join(", ", remotePlayers.Keys.Select(k => k.ToString()).ToArray())}");
-                    
+
                     if (remotePlayerObjects.ContainsKey(steamId))
                     {
                         GungeonTogether.Logging.Debug.Log($"[PlayerSync] Remote player object already exists for {steamId}");
@@ -449,7 +449,7 @@ namespace GungeonTogether.Game
                         TargetPosition = Vector2.zero,
                         InterpolationSpeed = 10f,
                         MapName = localMapName ?? mapName // Use current local map name for debug players
-                        
+
                     };
                     GungeonTogether.Logging.Debug.Log($"[PlayerSync] Created remote player object for {steamId}");
                 }
@@ -644,7 +644,7 @@ namespace GungeonTogether.Game
 
             // Make sure the object stays visible and is not destroyed
             UnityEngine.Object.DontDestroyOnLoad(remotePlayerObj);
-            
+
             GungeonTogether.Logging.Debug.Log($"[PlayerSync][DEBUG] Created debug square player at {initialPosition}, sorting layer: {spriteRenderer.sortingLayerName}, order: {spriteRenderer.sortingOrder}");
             GungeonTogether.Logging.Debug.Log($"[PlayerSync][DEBUG] Debug square object active: {remotePlayerObj.activeInHierarchy}, sprite enabled: {spriteRenderer.enabled}");
 
@@ -659,11 +659,11 @@ namespace GungeonTogether.Game
             var remotePlayerObj = new GameObject($"RemotePlayer_{steamId}_Simple");
             var spriteRenderer = remotePlayerObj.AddComponent<SpriteRenderer>();
             CreateFallbackSprite(spriteRenderer);
-            
+
             // Add basic behavior component
             var remotePlayerBehavior = remotePlayerObj.AddComponent<RemotePlayerBehavior>();
             remotePlayerBehavior.Initialize(steamId);
-            
+
             // Position it at a visible location
             Vector3 initialPosition = Vector3.zero;
             if (localPlayer != null)
@@ -675,7 +675,7 @@ namespace GungeonTogether.Game
                 initialPosition = new Vector3(5f, 5f, 0f);
             }
             remotePlayerObj.transform.position = initialPosition;
-            
+
             return remotePlayerObj;
         }
 
@@ -727,7 +727,7 @@ namespace GungeonTogether.Game
             try
             {
                 Dictionary<ulong, RemotePlayerState> currentStates;
-                
+
                 lock (collectionLock)
                 {
                     // Store current remote player states
@@ -794,7 +794,7 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync][DEBUG] Processing position packet from remote player: {data.PlayerId}");
                 OnAnyRemotePacketReceived(data.PlayerId);
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Received position for remote player {data.PlayerId}: pos={data.Position} rot={data.Rotation} grounded={data.IsGrounded} dodge={data.IsDodgeRolling}");
-                
+
                 lock (collectionLock)
                 {
                     if (remotePlayers.ContainsKey(data.PlayerId))
@@ -816,7 +816,7 @@ namespace GungeonTogether.Game
                         // Create player outside the lock to avoid deadlock
                     }
                 }
-                
+
                 // Create player outside the main lock to avoid potential deadlock
                 if (!remotePlayers.ContainsKey(data.PlayerId))
                 {
@@ -915,7 +915,7 @@ namespace GungeonTogether.Game
                         remotePlayers[data.PlayerId] = state;
                     }
                 }
-                
+
                 // Update visual outside lock to avoid deadlock
                 if (remotePlayers.ContainsKey(data.PlayerId))
                 {
@@ -951,7 +951,7 @@ namespace GungeonTogether.Game
                     if (playerObj != null)
                     {
                         bool isDebugFakePlayer = playerId >= 12345678UL && playerId <= 99999999UL; // Range of fake Steam IDs used in debug
-                        
+
                         // Always show debug fake players, or normal logic for real players
                         if (isDebugFakePlayer || state.MapName == localMapName)
                         {
@@ -1077,7 +1077,7 @@ namespace GungeonTogether.Game
                         GungeonTogether.Logging.Debug.Log($"[PlayerSync] Updated remote player {data.PlayerId} to pos={data.Position} rot={data.Rotation} map={playerState.MapName}");
                     }
                 }
-                
+
                 // Update visual outside lock
                 if (remotePlayers.ContainsKey(data.PlayerId))
                 {

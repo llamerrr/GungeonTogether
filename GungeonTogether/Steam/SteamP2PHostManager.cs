@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using UnityEngine;
 
 namespace GungeonTogether.Steam
 {
@@ -49,7 +48,7 @@ namespace GungeonTogether.Steam
         {
             // For P2P, we don't need to create a listen socket - we just accept incoming sessions
             GungeonTogether.Logging.Debug.Log("[SteamP2PHostManager] Host is ready to accept P2P connections");
-            
+
             // Important: Start listening for P2P session requests immediately
             _lastHeartbeatTime = UnityEngine.Time.time;
         }
@@ -64,14 +63,14 @@ namespace GungeonTogether.Steam
             var getLobbyMemberByIndex = steamMatchmakingType.GetMethod("GetLobbyMemberByIndex");
             object csteamLobbyId = Activator.CreateInstance(csteamIdType, _lobbyId);
             int memberCount = (int)getNumLobbyMembers.Invoke(null, new object[] { csteamLobbyId });
-            
+
             GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Checking {memberCount} lobby members for P2P connections");
-            
+
             for (int i = 0; i < memberCount; i++)
             {
                 object memberIdObj = getLobbyMemberByIndex.Invoke(null, new object[] { csteamLobbyId, i });
                 ulong memberSteamId = (ulong)memberIdObj.GetType().GetField("m_SteamID").GetValue(memberIdObj);
-                
+
                 // Never add the host's own SteamID to _clientConnections
                 if (memberSteamId.Equals(_hostSteamId) || _clientConnections.ContainsKey(memberSteamId))
                 {
@@ -79,7 +78,7 @@ namespace GungeonTogether.Steam
                 }
                 // Do not send welcome or accept session here; let the callback handle it
             }
-            
+
             GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] P2P connection check complete. Connected clients: {_clientConnections.Count}");
         }
 
@@ -134,7 +133,7 @@ namespace GungeonTogether.Steam
             {
                 // Use the new efficient packet polling method
                 var packets = SteamNetworkingSocketsHelper.PollIncomingPackets();
-                
+
                 foreach (var packet in packets)
                 {
                     if (packet.data.Length > 0)
@@ -156,7 +155,7 @@ namespace GungeonTogether.Steam
             {
                 // Convert to string to check for special messages
                 string dataStr = System.Text.Encoding.UTF8.GetString(data);
-                
+
                 if (dataStr.StartsWith("CLIENT_HANDSHAKE:"))
                 {
                     // Client is initiating connection
@@ -168,7 +167,7 @@ namespace GungeonTogether.Steam
                         {
                             _clientConnections[clientSteamId] = clientSteamId;
                             GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Added client to connections: {clientSteamId}");
-                            
+
                             // Send welcome response and notify NetworkManager
                             byte[] welcomeResponse = System.Text.Encoding.UTF8.GetBytes($"WELCOME_RESPONSE:{_hostSteamId}");
                             SteamNetworkingSocketsHelper.SendP2PPacket(clientSteamId, welcomeResponse);
@@ -226,7 +225,7 @@ namespace GungeonTogether.Steam
         {
             // Process incoming messages
             ReceiveMessages();
-            
+
             // Send periodic heartbeat to keep connections alive
             if (UnityEngine.Time.time - _lastHeartbeatTime >= HEARTBEAT_INTERVAL)
             {
@@ -260,7 +259,7 @@ namespace GungeonTogether.Steam
             GungeonTogether.Logging.Debug.Log($"  Lobby ID: {_lobbyId}");
             GungeonTogether.Logging.Debug.Log($"  Host Steam ID: {_hostSteamId}");
             GungeonTogether.Logging.Debug.Log($"  Connected Clients: {_clientConnections.Count}");
-            
+
             foreach (var kvp in _clientConnections)
             {
                 GungeonTogether.Logging.Debug.Log($"    Client: {kvp.Key}");

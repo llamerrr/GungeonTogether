@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using GungeonTogether.Debug;
 
 namespace GungeonTogether.Steam
 {
@@ -29,27 +28,27 @@ namespace GungeonTogether.Steam
         private static string lastInviteLobbyId = "";
         private static ulong currentHostSteamId = 0; // Track who is currently hosting
         private static bool isCurrentlyHosting = false;
-        
+
         // Automatic host discovery system
         private static Dictionary<ulong, HostInfo> availableHosts = new Dictionary<ulong, HostInfo>();
 
         // Current lobby state
         private static ulong currentLobbyId = 0;
         private static bool isLobbyHost = false;
-        
+
         // Add caching for host scanning too
         private static float lastHostScan = 0f;
         private static readonly float hostScanInterval = 3.0f; // Scan for hosts every 3 seconds max
 
         public static System.Action<ulong, string> OnPlayerJoined;
-                // Property accessors
+        // Property accessors
         public static bool IsCurrentlyHosting => isCurrentlyHosting;
         public static ulong CurrentHostSteamId => currentHostSteamId;
         public static ulong CurrentLobbyId => currentLobbyId;
         public static bool IsLobbyHost => isLobbyHost;
         public static string LastInviteLobbyId => lastInviteLobbyId;
-        
-        
+
+
         public struct HostInfo
         {
             public ulong steamId;
@@ -58,7 +57,7 @@ namespace GungeonTogether.Steam
             public float lastSeen;
             public bool isActive;
         }
-        
+
         /// <summary>
         /// Automatically set invite info when Steam overlay invite is clicked
         /// This captures the real Steam ID from Steam's callback system
@@ -82,7 +81,7 @@ namespace GungeonTogether.Steam
                 // GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] Added host from invite: {hostSteamId}");
             }
         }
-        
+
         /// <summary>
         /// Get the Steam ID of the last person who invited this player
         /// Returns 0 if no invite is available
@@ -91,7 +90,7 @@ namespace GungeonTogether.Steam
         {
             return lastInvitedBySteamId;
         }
-        
+
         /// <summary>
         /// Get the most recent available host Steam ID for automatic joining
         /// </summary>
@@ -121,7 +120,7 @@ namespace GungeonTogether.Steam
                 foreach (var kvp in availableHosts)
                 {
                     var host = kvp.Value;
-                    if (host.isActive && 
+                    if (host.isActive &&
                         !ReferenceEquals(host.steamId, mySteamId) &&
                         !ReferenceEquals(host.steamId, currentHostSteamId) &&
                         host.lastSeen > mostRecent)
@@ -146,7 +145,7 @@ namespace GungeonTogether.Steam
                 return 0;
             }
         }
-        
+
         /// <summary>
         /// Clear invite information after use
         /// </summary>
@@ -156,7 +155,7 @@ namespace GungeonTogether.Steam
             lastInviteLobbyId = "";
             // GungeonTogether.Logging.Debug.Log("[ETGSteamP2P] Cleared invite info");
         }
-        
+
         /// <summary>
         /// Automatically register this player as a host when they start hosting
         /// </summary>
@@ -185,7 +184,7 @@ namespace GungeonTogether.Steam
                 GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error registering as host");
             }
         }
-        
+
         /// <summary>
         /// Stop hosting and clean up host registration
         /// </summary>
@@ -193,7 +192,7 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                if (isCurrentlyHosting && (!ReferenceEquals(currentHostSteamId,0)))
+                if (isCurrentlyHosting && (!ReferenceEquals(currentHostSteamId, 0)))
                 {
                     availableHosts.Remove(currentHostSteamId);
                     // GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] Unregistered as host: {currentHostSteamId}");
@@ -206,7 +205,7 @@ namespace GungeonTogether.Steam
                 GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error unregistering as host");
             }
         }
-        
+
         /// <summary>
         /// Broadcast host availability to the network (called periodically when hosting)
         /// </summary>
@@ -214,7 +213,7 @@ namespace GungeonTogether.Steam
         {
             try
             {
-                if (isCurrentlyHosting && (!ReferenceEquals(currentHostSteamId,0)))
+                if (isCurrentlyHosting && (!ReferenceEquals(currentHostSteamId, 0)))
                 {
                     // Update our host info
                     if (availableHosts.ContainsKey(currentHostSteamId))
@@ -233,7 +232,7 @@ namespace GungeonTogether.Steam
                 GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error broadcasting host availability: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// <summary>
         /// Automatically discover available hosts on the network
@@ -247,7 +246,8 @@ namespace GungeonTogether.Steam
                 try
                 {
                     mySteamId = SteamReflectionHelper.GetSteamID();
-                } catch (Exception)
+                }
+                catch (Exception)
                 {
                     // GungeonTogether.Logging.Debug.LogWarning($"[ETGSteamP2P] Could not get own Steam ID for host filtering: {ex.Message}");
                 }
@@ -294,7 +294,7 @@ namespace GungeonTogether.Steam
                 return new ulong[0];
             }
         }
-        
+
         /// <summary>
         /// Get available hosts as a dictionary for compatibility with existing code
         /// </summary>
@@ -323,7 +323,7 @@ namespace GungeonTogether.Steam
                 return new Dictionary<ulong, HostInfo>();
             }
         }
-        
+
         /// <summary>
         /// Setup Rich Presence for hosting a multiplayer session
         /// This enables "Join Game" in Steam overlay and friends list
@@ -431,7 +431,7 @@ namespace GungeonTogether.Steam
                 GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error starting hosting session: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Setup Rich Presence for joining a multiplayer session
         /// </summary>
@@ -455,7 +455,7 @@ namespace GungeonTogether.Steam
                 GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error starting joining session: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Stop multiplayer session and clear Rich Presence
         /// </summary>
@@ -470,7 +470,7 @@ namespace GungeonTogether.Steam
                     clearRichPresenceMethod.Invoke(null, null);
                     GungeonTogether.Logging.Debug.Log("[ETGSteamP2P] Cleared Rich Presence");
                 }
-                
+
                 // Leave lobby if we're in one
                 if (!ReferenceEquals(currentLobbyId, 0))
                 {
@@ -481,14 +481,14 @@ namespace GungeonTogether.Steam
                         leaveLobbyMethod.Invoke(null, new object[] { steamIdParam });
                         GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] Left lobby: {currentLobbyId}");
                     }
-                    
+
                     currentLobbyId = 0;
                     isLobbyHost = false;
                 }
-                
+
                 // Unregister as host
                 UnregisterAsHost();
-                
+
                 GungeonTogether.Logging.Debug.Log("[ETGSteamP2P] Stopped multiplayer session");
             }
             catch (Exception e)
@@ -496,7 +496,7 @@ namespace GungeonTogether.Steam
                 GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error stopping session: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Set lobby metadata that friends can see
         /// </summary>
@@ -506,11 +506,11 @@ namespace GungeonTogether.Steam
             {
                 if (ReferenceEquals(currentLobbyId, 0) || ReferenceEquals(SteamReflectionHelper.SetLobbyDataMethod, null))
                     return false;
-                
+
                 var steamIdParam = SteamReflectionHelper.ConvertToCSteamID(currentLobbyId);
                 var result = SteamReflectionHelper.SetLobbyDataMethod.Invoke(null, new object[] { steamIdParam, key, value });
-                
-                if (!ReferenceEquals(result,null) && result is bool success)
+
+                if (!ReferenceEquals(result, null) && result is bool success)
                 {
                     if (success)
                     {
@@ -518,7 +518,7 @@ namespace GungeonTogether.Steam
                         return true;
                     }
                 }
-                
+
                 return false;
             }
             catch (Exception e)
@@ -527,7 +527,7 @@ namespace GungeonTogether.Steam
                 return false;
             }
         }
-        
+
         /// <summary>
         /// Create a Steam lobby for multiplayer session
         /// </summary>
@@ -581,7 +581,7 @@ namespace GungeonTogether.Steam
                 return false;
             }
         }
-        
+
         /// <summary>
         /// Join a Steam lobby by ID
         /// </summary>
@@ -594,7 +594,7 @@ namespace GungeonTogether.Steam
                 {
                     var steamIdParam = SteamReflectionHelper.ConvertToCSteamID(lobbyId);
                     var result = joinLobbyMethod.Invoke(null, new object[] { steamIdParam });
-                    
+
                     if (!ReferenceEquals(result, null))
                     {
                         GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] Joining lobby: {lobbyId}");
@@ -603,7 +603,7 @@ namespace GungeonTogether.Steam
                         return true;
                     }
                 }
-                
+
                 return false;
             }
             catch (Exception e)
@@ -612,7 +612,7 @@ namespace GungeonTogether.Steam
                 return false;
             }
         }
-        
+
         /// <summary>
         /// Leave current lobby
         /// </summary>
@@ -624,13 +624,13 @@ namespace GungeonTogether.Steam
                 {
                     var steamIdParam = SteamReflectionHelper.ConvertToCSteamID(currentLobbyId);
                     SteamReflectionHelper.LeaveLobbyMethod.Invoke(null, new object[] { steamIdParam });
-                    
+
                     GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] Left lobby: {currentLobbyId}");
                     currentLobbyId = 0;
                     isLobbyHost = false;
                     return true;
                 }
-                
+
                 return false;
             }
             catch (Exception e)
@@ -639,7 +639,7 @@ namespace GungeonTogether.Steam
                 return false;
             }
         }
-        
+
         /// <summary>
         /// Scan Steam friends to find those playing ETG who might be hosting GungeonTogether
         /// </summary>
@@ -652,28 +652,28 @@ namespace GungeonTogether.Steam
                 {
                     return;
                 }
-                
+
                 lastHostScan = Time.time;
-                
+
                 // GungeonTogether.Logging.Debug.Log("[SteamHostManager] Scanning friends for GungeonTogether hosts...");
-                
+
                 // Get Steam friends who are playing ETG
                 var friends = SteamFriendsHelper.GetSteamFriends();
-                
+
                 // GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] Scanning {friends.Length} Steam friends for GungeonTogether hosts...");
-                
+
                 int etgPlayersFound = 0;
                 int actualHostsFound = 0;
                 int potentialHostsAdded = 0;
-                
+
                 foreach (var friend in friends)
                 {
                     if (friend.isPlayingETG && friend.isOnline)
                     {
                         etgPlayersFound++;
-                        
+
                         // GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] Found friend {friend.name} ({friend.steamId}) playing ETG - checking if hosting GungeonTogether...");
-                        
+
                         // Check if this friend is actually hosting GungeonTogether by checking Rich Presence
                         bool isHostingGungeonTogether = false;
                         try
@@ -682,9 +682,9 @@ namespace GungeonTogether.Steam
                             string gungeonTogetherStatus = SteamReflectionHelper.GetFriendRichPresence(friend.steamId, "gungeon_together");
                             string gtVersion = SteamReflectionHelper.GetFriendRichPresence(friend.steamId, "gt_version");
                             string connectString = SteamReflectionHelper.GetFriendRichPresence(friend.steamId, "connect");
-                            
+
                             // Friend is hosting if they have GungeonTogether Rich Presence set to "hosting"
-                            if (string.Equals(gungeonTogetherStatus, "hosting") || 
+                            if (string.Equals(gungeonTogetherStatus, "hosting") ||
                                 (!string.IsNullOrEmpty(gtVersion) && !string.IsNullOrEmpty(connectString)))
                             {
                                 isHostingGungeonTogether = true;
@@ -704,7 +704,7 @@ namespace GungeonTogether.Steam
                         {
                             GungeonTogether.Logging.Debug.LogWarning($"[ETGSteamP2P] Could not check Rich Presence for {friend.name}: {exception.Message}");
                         }
-                        
+
                         // Only add as host if they're actually hosting GungeonTogether
                         if (isHostingGungeonTogether)
                         {
@@ -719,7 +719,7 @@ namespace GungeonTogether.Steam
                                     isActive = true
                                 };
                                 potentialHostsAdded++;
-                                
+
                                 GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] ✅ Added {friend.name} as confirmed GungeonTogether host");
                             }
                             else
@@ -730,16 +730,16 @@ namespace GungeonTogether.Steam
                                 hostInfo.isActive = true;
                                 hostInfo.sessionName = $"{friend.name}'s GungeonTogether";
                                 availableHosts[friend.steamId] = hostInfo;
-                                
+
 
                                 GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] 🔄 Updated existing host entry for {friend.name}");
                             }
                         }
                     }
                 }
-                
+
                 GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] Friend scan complete: {etgPlayersFound} playing ETG, {actualHostsFound} hosting GungeonTogether, {potentialHostsAdded} new hosts added");
-                
+
                 if (etgPlayersFound == 0)
                 {
                     GungeonTogether.Logging.Debug.Log("[ETGSteamP2P] No friends currently playing Enter the Gungeon");
@@ -754,7 +754,7 @@ namespace GungeonTogether.Steam
                 GungeonTogether.Logging.Debug.LogError($"[ETGSteamP2P] Error scanning friends for hosts: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Set the Rich Presence 'connect' field to the current lobby ID (if valid)
         /// </summary>
@@ -767,7 +767,7 @@ namespace GungeonTogether.Steam
                 setRichPresenceMethod.Invoke(null, new object[] { "connect", currentLobbyId.ToString() });
             }
         }
-        
+
         /// <summary>
         /// Log when a player joins via invite or overlay (for debugging/analytics)
         /// </summary>
@@ -775,7 +775,7 @@ namespace GungeonTogether.Steam
         {
             GungeonTogether.Logging.Debug.Log($"[ETGSteamP2P] Player joined via invite/overlay: SteamID={steamId}");
         }
-        
+
         /// <summary>
         /// Polls the current lobby for new members and logs when someone joins.
         /// Should be called periodically by the host.
@@ -875,7 +875,7 @@ namespace GungeonTogether.Steam
             }
             _lastLobbyMembers = currentMembers;
         }
-        
+
         /// <summary>
         /// Alias for CheckForLobbyJoins for compatibility with legacy code.
         /// </summary>
@@ -883,7 +883,7 @@ namespace GungeonTogether.Steam
         {
             CheckForLobbyJoins();
         }
-        
+
         private static object lobbyDataUpdateCallbackInstance;
 
         /// <summary>
@@ -968,6 +968,6 @@ namespace GungeonTogether.Steam
             }
         }
 
-        
+
     }
 }

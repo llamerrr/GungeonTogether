@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
-using Dungeonator;
 
 namespace GungeonTogether.UI
 {
@@ -21,39 +19,39 @@ namespace GungeonTogether.UI
         [Header("Debug UI Settings")]
         public bool debugUIEnabled = false;
         public KeyCode toggleKey = KeyCode.F3;
-        
+
         // UI State
         private Vector2 scrollPos = Vector2.zero;
         private string searchFilter = "";
         private int selectedTab = 0;
         private readonly string[] tabs = { "Dungeon", "Enemies", "Variables", "Seeds", "Network" };
-        
+
         // Window properties
         private Rect windowRect = new Rect(50, 50, 800, 600);
         private bool isDragging = false;
-        
+
         // Cache for reflection lookups to improve performance
         private static Dictionary<Type, FieldInfo[]> fieldCache = new Dictionary<Type, FieldInfo[]>();
         private static Dictionary<Type, PropertyInfo[]> propertyCache = new Dictionary<Type, PropertyInfo[]>();
-        
+
         // Network debug data
         private float networkUpdateTimer = 0f;
         private const float NETWORK_REFRESH_RATE = 1f; // Update network data every second
-        
+
         void Awake()
         {
             if (_instance == null)
             {
                 _instance = this;
                 DontDestroyOnLoad(gameObject);
-                 UnityEngine.Debug.Log("[DebugUIManager] Debug UI Manager initialized");
+                UnityEngine.Debug.Log("[DebugUIManager] Debug UI Manager initialized");
             }
             else
             {
                 Destroy(gameObject);
             }
         }
-        
+
         void Update()
         {
             // Handle debug UI toggle
@@ -62,33 +60,33 @@ namespace GungeonTogether.UI
                 debugUIEnabled = !debugUIEnabled;
                 UnityEngine.Debug.Log($"[DebugUIManager] Debug UI {(debugUIEnabled ? "enabled" : "disabled")}");
             }
-            
+
             // Handle multiplayer test trigger (F9)
             if (Input.GetKeyDown(KeyCode.F9))
             {
                 UnityEngine.Debug.Log("[DebugUIManager] Triggering multiplayer test suite...");
                 GungeonTogetherMod.RunMultiplayerTests();
             }
-            
+
             // Update network timer
             networkUpdateTimer += Time.unscaledDeltaTime;
         }
-        
+
         void OnGUI()
         {
             if (!debugUIEnabled) return;
-            
+
             // Create a dark theme style
             SetupDebugUIStyle();
-            
+
             // Main debug window
             windowRect = GUI.Window(12345, windowRect, DrawDebugWindow, "GungeonTogether Debug Tools v1.0");
         }
-        
+
         private void DrawDebugWindow(int windowID)
         {
             GUILayout.BeginVertical();
-            
+
             // Header with close button
             GUILayout.BeginHorizontal();
             GUILayout.Label($"Debug Tools - {tabs[selectedTab]} Tab", GUI.skin.box);
@@ -98,10 +96,10 @@ namespace GungeonTogether.UI
                 debugUIEnabled = false;
             }
             GUILayout.EndHorizontal();
-            
+
             // Tab selection
             selectedTab = GUILayout.Toolbar(selectedTab, tabs);
-            
+
             // Search filter
             GUILayout.BeginHorizontal();
             GUILayout.Label("Filter:", GUILayout.Width(50));
@@ -111,15 +109,15 @@ namespace GungeonTogether.UI
                 searchFilter = "";
             }
             GUILayout.EndHorizontal();
-            
+
             // Quick action buttons
             DrawQuickActions();
-            
+
             GUILayout.Space(5);
-            
+
             // Content area with scroll
             scrollPos = GUILayout.BeginScrollView(scrollPos, GUILayout.Height(450));
-            
+
             try
             {
                 switch (selectedTab)
@@ -136,69 +134,71 @@ namespace GungeonTogether.UI
                 GUILayout.Label($"Error in tab {tabs[selectedTab]}: {ex.Message}", GUI.skin.box);
                 GUILayout.Label($"Stack: {ex.StackTrace}", GUI.skin.textArea);
             }
-            
+
             GUILayout.EndScrollView();
             GUILayout.EndVertical();
-            
+
             // Make window draggable
             GUI.DragWindow();
         }
-        
+
         private void DrawQuickActions()
         {
             GUILayout.BeginHorizontal(GUI.skin.box);
             GUILayout.Label("Quick Actions:", GUILayout.Width(100));
-            
+
             // Save/Load buttons
             GUI.color = Color.green;
             if (GUILayout.Button("F6: Save Dungeon", GUILayout.Width(120)))
             {
                 GungeonTogether.Debug.DungeonSaveLoad.SaveCurrentDungeon();
             }
-            
+
             GUI.color = Color.cyan;
             if (GUILayout.Button("F5: Load Dungeon", GUILayout.Width(120)))
             {
                 GungeonTogether.Debug.DungeonSaveLoad.LoadDungeon();
             }
-            
+
             GUI.color = Color.yellow;
             if (GUILayout.Button("F7: Compare", GUILayout.Width(100)))
             {
                 GungeonTogether.Debug.DungeonSaveLoad.CompareDungeonWithSaved();
             }
-            
+
             GUI.color = Color.white;
             GUILayout.EndHorizontal();
         }
-        
+
         #region Tab Drawing Methods
-        
+
         private void DrawDungeonTab()
         {
             GUILayout.Label("=== DUNGEON DEBUG ===", GUI.skin.box);
-            
+
             if (GameManager.Instance?.Dungeon != null)
             {
                 var dungeon = GameManager.Instance.Dungeon;
-                
+
                 // Basic dungeon info
-                DrawInfoBox("Basic Information", () => {
+                DrawInfoBox("Basic Information", () =>
+                {
                     DrawLabelValue("Dungeon Seed", dungeon.GetDungeonSeed().ToString());
                     DrawLabelValue("Dimensions", $"{dungeon.Width} x {dungeon.Height}");
                     DrawLabelValue("Floor Name", dungeon.DungeonFloorName ?? "Unknown");
                     DrawLabelValue("Tileset ID", dungeon.tileIndices?.tilesetId.ToString() ?? "Unknown");
                     DrawLabelValue("Rooms Count", (dungeon.data?.rooms?.Count ?? 0).ToString());
                 });
-                
+
                 // Room details
                 if (dungeon.data?.rooms != null && dungeon.data.rooms.Count > 0)
                 {
-                    DrawInfoBox($"Room Information ({dungeon.data.rooms.Count} rooms)", () => {
+                    DrawInfoBox($"Room Information ({dungeon.data.rooms.Count} rooms)", () =>
+                    {
                         foreach (var room in dungeon.data.rooms.Take(10)) // Limit to first 10 rooms
                         {
                             if (room == null) continue;
-                            
+
                             string roomName = $"Room_{room.GetHashCode()}";
                             if (ShouldShow(roomName))
                             {
@@ -212,7 +212,7 @@ namespace GungeonTogether.UI
                                 GUILayout.EndHorizontal();
                             }
                         }
-                        
+
                         if (dungeon.data.rooms.Count > 10)
                         {
                             GUILayout.Label($"... and {dungeon.data.rooms.Count - 10} more rooms");
@@ -225,30 +225,31 @@ namespace GungeonTogether.UI
                 GUILayout.Label("No dungeon available", GUI.skin.box);
             }
         }
-        
+
         private void DrawEnemiesTab()
         {
             GUILayout.Label("=== ENEMIES DEBUG ===", GUI.skin.box);
-            
+
             var enemies = FindObjectsOfType<AIActor>();
-            
-            DrawInfoBox($"Enemy Information ({enemies.Length} enemies)", () => {
+
+            DrawInfoBox($"Enemy Information ({enemies.Length} enemies)", () =>
+            {
                 foreach (var enemy in enemies.Take(20)) // Limit to first 20 enemies
                 {
                     if (enemy == null) continue;
-                    
+
                     string enemyName = enemy.GetActorName() ?? enemy.name;
                     if (ShouldShow(enemyName))
                     {
                         GUILayout.BeginHorizontal();
                         GUILayout.Label($"Enemy: {enemyName}", GUILayout.Width(200));
-                        
+
                         if (enemy.healthHaver != null)
                         {
                             float health = enemy.healthHaver.GetCurrentHealth();
                             float maxHealth = enemy.healthHaver.GetMaxHealth();
                             GUILayout.Label($"HP: {health:F1}/{maxHealth:F1}", GUILayout.Width(100));
-                            
+
                             if (GUILayout.Button("Kill", GUILayout.Width(50)))
                             {
                                 enemy.healthHaver.ApplyDamage(9999f, Vector2.zero, "Debug", CoreDamageTypes.None, DamageCategory.Normal);
@@ -258,17 +259,17 @@ namespace GungeonTogether.UI
                         {
                             GUILayout.Label("No HealthHaver", GUILayout.Width(100));
                         }
-                        
+
                         GUILayout.EndHorizontal();
                     }
                 }
-                
+
                 if (enemies.Length > 20)
                 {
                     GUILayout.Label($"... and {enemies.Length - 20} more enemies");
                 }
             });
-            
+
             // Kill all enemies button
             GUILayout.BeginHorizontal();
             GUI.color = Color.red;
@@ -285,47 +286,50 @@ namespace GungeonTogether.UI
             GUI.color = Color.white;
             GUILayout.EndHorizontal();
         }
-        
+
         private void DrawVariablesTab()
         {
             GUILayout.Label("=== VARIABLES DEBUG ===", GUI.skin.box);
-            
+
             // GameManager variables
             if (GameManager.Instance != null)
             {
-                DrawInfoBox("GameManager", () => {
+                DrawInfoBox("GameManager", () =>
+                {
                     DrawObjectReflection(GameManager.Instance, "GameManager.Instance");
                 });
             }
-            
+
             // PlayerController variables
             var players = FindObjectsOfType<PlayerController>();
             foreach (var player in players)
             {
                 if (player != null)
                 {
-                    DrawInfoBox($"Player {player.PlayerIDX}", () => {
+                    DrawInfoBox($"Player {player.PlayerIDX}", () =>
+                    {
                         DrawObjectReflection(player, $"Player[{player.PlayerIDX}]");
                     });
                 }
             }
         }
-        
+
         private void DrawSeedsTab()
         {
             GUILayout.Label("=== SEEDS DEBUG ===", GUI.skin.box);
-            
-            DrawInfoBox("Random Number Generation", () => {
+
+            DrawInfoBox("Random Number Generation", () =>
+            {
                 if (GameManager.Instance?.Dungeon != null)
                 {
                     var dungeon = GameManager.Instance.Dungeon;
                     DrawLabelValue("Current Dungeon Seed", dungeon.GetDungeonSeed().ToString());
                 }
-                
+
                 // Unity's random state
                 var randomState = UnityEngine.Random.state;
                 DrawLabelValue("Unity Random State", randomState.ToString());
-                
+
                 // Sample some random values for testing
                 GUILayout.Label("Random Test Values:");
                 for (int i = 0; i < 5; i++)
@@ -334,46 +338,48 @@ namespace GungeonTogether.UI
                     GUILayout.Label($"  Random[{i}]: {randValue:F6}");
                 }
             });
-            
-            DrawInfoBox("Seed Management", () => {
+
+            DrawInfoBox("Seed Management", () =>
+            {
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button("Reset Random Seed"))
                 {
                     UnityEngine.Random.InitState((int)System.DateTime.Now.Ticks);
-                     UnityEngine.Debug.Log("[DebugUI] Random seed reset");
+                    UnityEngine.Debug.Log("[DebugUI] Random seed reset");
                 }
                 if (GUILayout.Button("Set Seed to 12345"))
                 {
                     UnityEngine.Random.InitState(12345);
-                     UnityEngine.Debug.Log("[DebugUI] Random seed set to 12345");
+                    UnityEngine.Debug.Log("[DebugUI] Random seed set to 12345");
                 }
                 GUILayout.EndHorizontal();
             });
         }
-        
+
         private void DrawNetworkTab()
         {
             GUILayout.Label("=== NETWORK DEBUG ===", GUI.skin.box);
-            
+
             // Test controls
-            DrawInfoBox("Test Controls", () => {
+            DrawInfoBox("Test Controls", () =>
+            {
                 if (GUILayout.Button("Run Multiplayer Test Suite (F9)"))
                 {
                     GungeonTogetherMod.RunMultiplayerTests();
                 }
                 GUILayout.Label("Tests will check Steam API, networking, player sync, and more.");
-                
+
                 // Debug test for packet counters
                 if (GUILayout.Button("Test Packet Counter (Fake Remote Packet)"))
                 {
                     GungeonTogether.Game.PlayerSynchroniser.OnAnyRemotePacketReceived(999999UL); // Fake remote Steam ID
                     UnityEngine.Debug.Log("[DebugUI] Manually triggered fake remote packet");
                 }
-                
+
                 // Test buttons for debugging
                 GUILayout.Space(10);
                 GUILayout.Label("Debug Test Controls:", GUILayout.ExpandWidth(true));
-                
+
                 if (GUILayout.Button("Test Remote Player Creation", GUILayout.Width(200)))
                 {
                     GungeonTogether.Logging.Debug.Log("[DebugUI] Manual test: Creating test remote player");
@@ -397,7 +403,7 @@ namespace GungeonTogether.UI
                         GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to create test remote player: {e.Message}");
                     }
                 }
-                
+
                 if (GUILayout.Button("Force Set as Joiner", GUILayout.Width(200)))
                 {
                     GungeonTogether.Logging.Debug.Log("[DebugUI] Manual test: Forcing session to joiner state");
@@ -411,11 +417,11 @@ namespace GungeonTogether.UI
                             var isActiveField = sessionType.GetField("IsActive", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
                             var isHostField = sessionType.GetField("IsHost", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
                             var currentHostIdField = sessionType.GetField("currentHostId", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                            
+
                             if (isActiveField != null) isActiveField.SetValue(sessionManager, true);
                             if (isHostField != null) isHostField.SetValue(sessionManager, false);
                             if (currentHostIdField != null) currentHostIdField.SetValue(sessionManager, "test_host_123");
-                            
+
                             GungeonTogether.Logging.Debug.Log("[DebugUI] Forced joiner state set");
                         }
                     }
@@ -424,7 +430,7 @@ namespace GungeonTogether.UI
                         GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to set joiner state: {e.Message}");
                     }
                 }
-                
+
                 if (GUILayout.Button("Spawn Test Remote Player", GUILayout.Width(200)))
                 {
                     GungeonTogether.Logging.Debug.Log("[DebugUI] Manual test: Spawning test remote player at visible location");
@@ -432,15 +438,15 @@ namespace GungeonTogether.UI
                     {
                         var testSteamId = 12345678UL; // Different test ID
                         var testPosition = new Vector3(38f, 20f, 20f); // Spawn near camera
-                        
+
                         // Force create remote player directly using the correct method signature
                         var playerSync = GungeonTogether.Game.PlayerSynchroniser.Instance;
-                        var createMethod = typeof(GungeonTogether.Game.PlayerSynchroniser).GetMethod("CreateRemotePlayer", 
+                        var createMethod = typeof(GungeonTogether.Game.PlayerSynchroniser).GetMethod("CreateRemotePlayer",
                             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
                             null,
                             new Type[] { typeof(ulong), typeof(string) },
                             null);
-                        
+
                         if (createMethod != null)
                         {
                             createMethod.Invoke(playerSync, new object[] { testSteamId, "TestMap" });
@@ -456,7 +462,7 @@ namespace GungeonTogether.UI
                         GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to spawn test remote player: {e.Message}");
                     }
                 }
-                
+
                 if (GUILayout.Button("Test Local Player Detection", GUILayout.Width(200)))
                 {
                     GungeonTogether.Logging.Debug.Log("[DebugUI] Manual test: Testing local player detection");
@@ -464,17 +470,17 @@ namespace GungeonTogether.UI
                     {
                         var gameManager = GameManager.Instance;
                         var primaryPlayer = gameManager?.PrimaryPlayer;
-                        
+
                         GungeonTogether.Logging.Debug.Log($"[DebugUI] GameManager.Instance: {(gameManager != null ? "Found" : "NULL")}");
                         GungeonTogether.Logging.Debug.Log($"[DebugUI] PrimaryPlayer: {(primaryPlayer != null ? "Found" : "NULL")}");
-                        
+
                         if (primaryPlayer != null)
                         {
                             GungeonTogether.Logging.Debug.Log($"[DebugUI] Player Position: {primaryPlayer.transform.position}");
                             GungeonTogether.Logging.Debug.Log($"[DebugUI] Player Name: {primaryPlayer.name}");
                             GungeonTogether.Logging.Debug.Log($"[DebugUI] Player ID: {primaryPlayer.PlayerIDX}");
                         }
-                        
+
                         // Try to force PlayerSynchroniser to re-initialize
                         var playerSync = GungeonTogether.Game.PlayerSynchroniser.Instance;
                         if (playerSync != null)
@@ -488,7 +494,7 @@ namespace GungeonTogether.UI
                         GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to test local player detection: {e.Message}");
                     }
                 }
-                
+
                 if (GUILayout.Button("Create Simple Test GameObject", GUILayout.Width(200)))
                 {
                     GungeonTogether.Logging.Debug.Log("[DebugUI] Manual test: Creating simple test GameObject");
@@ -496,18 +502,18 @@ namespace GungeonTogether.UI
                     {
                         var testObj = new GameObject("DebugTestObject");
                         var spriteRenderer = testObj.AddComponent<SpriteRenderer>();
-                        
+
                         // Create a simple colored square
                         var texture = new Texture2D(32, 32);
                         for (int x = 0; x < 32; x++)
                             for (int y = 0; y < 32; y++)
                                 texture.SetPixel(x, y, Color.green);
                         texture.Apply();
-                        
+
                         var sprite = Sprite.Create(texture, new Rect(0, 0, 32, 32), Vector2.one * 0.5f);
                         spriteRenderer.sprite = sprite;
                         spriteRenderer.color = Color.green;
-                        
+
                         // Position it near the camera if available
                         if (Camera.main != null)
                         {
@@ -517,9 +523,9 @@ namespace GungeonTogether.UI
                         {
                             testObj.transform.position = new Vector3(38f, 20f, 25f);
                         }
-                        
+
                         GungeonTogether.Logging.Debug.Log($"[DebugUI] Created test GameObject at position: {testObj.transform.position}");
-                        
+
                         // Auto-destroy after 5 seconds
                         UnityEngine.Object.Destroy(testObj, 5f);
                     }
@@ -528,7 +534,7 @@ namespace GungeonTogether.UI
                         GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to create test GameObject: {e.Message}");
                     }
                 }
-                
+
                 if (GUILayout.Button("List All Remote Players", GUILayout.Width(200)))
                 {
                     GungeonTogether.Logging.Debug.Log("[DebugUI] Manual test: Listing all remote player objects");
@@ -536,39 +542,39 @@ namespace GungeonTogether.UI
                     {
                         // Find all GameObjects that might be remote players
                         var allGameObjects = FindObjectsOfType<GameObject>();
-                        var remotePlayerObjects = allGameObjects.Where(obj => 
-                            obj.name.Contains("RemotePlayer") || 
+                        var remotePlayerObjects = allGameObjects.Where(obj =>
+                            obj.name.Contains("RemotePlayer") ||
                             obj.name.Contains("DebugTestObject")).ToArray();
-                        
+
                         GungeonTogether.Logging.Debug.Log($"[DebugUI] Found {remotePlayerObjects.Length} potential remote player objects:");
-                        
+
                         foreach (var obj in remotePlayerObjects)
                         {
                             var position = obj.transform.position;
                             var spriteRenderer = obj.GetComponent<SpriteRenderer>();
                             var hasSprite = spriteRenderer != null && spriteRenderer.sprite != null;
                             var isVisible = spriteRenderer != null && spriteRenderer.enabled;
-                            
+
                             GungeonTogether.Logging.Debug.Log($"[DebugUI] - {obj.name} at {position}, HasSprite: {hasSprite}, Visible: {isVisible}, Active: {obj.activeInHierarchy}");
-                            
+
                             if (spriteRenderer != null)
                             {
                                 GungeonTogether.Logging.Debug.Log($"[DebugUI]   Sprite: {spriteRenderer.sprite?.name ?? "NULL"}, Color: {spriteRenderer.color}, Layer: {spriteRenderer.sortingLayerName}, Order: {spriteRenderer.sortingOrder}");
                             }
                         }
-                        
+
                         // Also check PlayerSynchroniser's internal tracking
                         var playerSync = GungeonTogether.Game.PlayerSynchroniser.Instance;
                         if (playerSync != null)
                         {
                             var remotePlayersField = typeof(GungeonTogether.Game.PlayerSynchroniser).GetField("remotePlayers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                             var remotePlayerObjectsField = typeof(GungeonTogether.Game.PlayerSynchroniser).GetField("remotePlayerObjects", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                            
+
                             if (remotePlayersField != null && remotePlayerObjectsField != null)
                             {
                                 var remotePlayers = remotePlayersField.GetValue(playerSync);
                                 var remotePlayerObjectsDict = remotePlayerObjectsField.GetValue(playerSync);
-                                
+
                                 GungeonTogether.Logging.Debug.Log($"[DebugUI] PlayerSynchroniser tracking - remotePlayers: {remotePlayers}, remotePlayerObjects: {remotePlayerObjectsDict}");
                             }
                         }
@@ -578,22 +584,22 @@ namespace GungeonTogether.UI
                         GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to list remote players: {e.Message}");
                     }
                 }
-                
+
                 // Debug mode toggle button
                 GUILayout.BeginHorizontal();
                 var debugModeEnabled = GungeonTogether.Game.PlayerSynchroniser.DebugModeSimpleSquares;
                 var buttonText = debugModeEnabled ? "Disable Debug Squares" : "Enable Debug Squares";
                 var buttonColor = debugModeEnabled ? Color.red : Color.green;
-                
+
                 var originalColor = GUI.backgroundColor;
                 GUI.backgroundColor = buttonColor;
-                
+
                 if (GUILayout.Button(buttonText, GUILayout.Width(200)))
                 {
                     GungeonTogether.Game.PlayerSynchroniser.DebugModeSimpleSquares = !debugModeEnabled;
                     var newState = GungeonTogether.Game.PlayerSynchroniser.DebugModeSimpleSquares;
                     GungeonTogether.Logging.Debug.Log($"[DebugUI] Debug squares mode toggled to: {newState}");
-                    
+
                     if (newState)
                     {
                         GungeonTogether.Logging.Debug.Log("[DebugUI] Debug mode ENABLED - Remote players will be spawned as green squares");
@@ -602,7 +608,7 @@ namespace GungeonTogether.UI
                     {
                         GungeonTogether.Logging.Debug.Log("[DebugUI] Debug mode DISABLED - Remote players will use normal sprites");
                     }
-                    
+
                     // Recreate all existing remote players with the new debug mode setting
                     try
                     {
@@ -614,10 +620,10 @@ namespace GungeonTogether.UI
                         GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to recreate remote players: {e.Message}");
                     }
                 }
-                
+
                 GUI.backgroundColor = originalColor;
                 GUILayout.EndHorizontal();
-                
+
                 // Direct debug square creation button
                 if (GUILayout.Button("Create Persistent Debug Square", GUILayout.Width(200)))
                 {
@@ -627,24 +633,24 @@ namespace GungeonTogether.UI
                         // Enable debug mode temporarily
                         var wasDebugMode = GungeonTogether.Game.PlayerSynchroniser.DebugModeSimpleSquares;
                         GungeonTogether.Game.PlayerSynchroniser.DebugModeSimpleSquares = true;
-                        
+
                         // Create a debug remote player directly
                         var testSteamId = 88888888UL; // Debug Steam ID
                         var playerSync = GungeonTogether.Game.PlayerSynchroniser.Instance;
-                        
+
                         // Force creation using the internal method
-                        var createMethod = typeof(GungeonTogether.Game.PlayerSynchroniser).GetMethod("CreateRemotePlayer", 
+                        var createMethod = typeof(GungeonTogether.Game.PlayerSynchroniser).GetMethod("CreateRemotePlayer",
                             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
                             null,
                             new Type[] { typeof(ulong), typeof(string) },
                             null);
-                        
+
                         if (createMethod != null)
                         {
                             createMethod.Invoke(playerSync, new object[] { testSteamId, "DebugMap" });
                             GungeonTogether.Logging.Debug.Log($"[DebugUI] Created persistent debug square with ID {testSteamId}");
                         }
-                        
+
                         // Restore previous debug mode
                         GungeonTogether.Game.PlayerSynchroniser.DebugModeSimpleSquares = wasDebugMode;
                     }
@@ -654,10 +660,11 @@ namespace GungeonTogether.UI
                     }
                 }
             });
-            
+
             var sessionManager = GungeonTogetherMod.Instance?._sessionManager;
-            
-            DrawInfoBox("Session Status", () => {
+
+            DrawInfoBox("Session Status", () =>
+            {
                 var mod = GungeonTogetherMod.Instance;
                 var sessionManager = mod?._sessionManager;
                 // Multiplayer role
@@ -673,7 +680,7 @@ namespace GungeonTogether.UI
                     DrawLabelValue("Is Joiner", (sessionManager.IsActive && !sessionManager.IsHost).ToString());
                     DrawLabelValue("Is Singleplayer", (!sessionManager.IsActive).ToString());
                     DrawLabelValue("Status", sessionManager.Status ?? "Unknown");
-                    
+
                     // Add more detailed debug info
                     DrawLabelValue("Current Host ID", sessionManager.currentHostId ?? "None");
                 }
@@ -689,9 +696,11 @@ namespace GungeonTogether.UI
                 }
                 // Steam IDs
                 ulong localSteamId = 0;
-                try {
+                try
+                {
                     localSteamId = GungeonTogether.Steam.SteamReflectionHelper.GetLocalSteamId();
-                } catch {}
+                }
+                catch { }
                 DrawLabelValue("Local Steam ID", localSteamId.ToString());
                 // Host Steam ID (if joiner or available)
                 if (sessionManager != null && !sessionManager.IsHost && !string.IsNullOrEmpty(sessionManager.currentHostId))
@@ -723,9 +732,10 @@ namespace GungeonTogether.UI
                 var lastUpdateReceivedTime = typeof(GungeonTogether.Game.PlayerSynchroniser).GetField("LastUpdateReceivedTime", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null);
                 DrawLabelValue("Last Update Received (from any player)", $"Frame: {lastUpdateReceivedFrame}, Time: {lastUpdateReceivedTime:F2}s");
             });
-            
+
             // Steam networking info
-            DrawInfoBox("Steam Networking", () => {
+            DrawInfoBox("Steam Networking", () =>
+            {
                 try
                 {
                     // Add Steam-specific debugging here
@@ -737,11 +747,11 @@ namespace GungeonTogether.UI
                 }
             });
         }
-        
+
         #endregion
-        
+
         #region Helper Methods
-        
+
         private void DrawInfoBox(string title, System.Action content)
         {
             GUILayout.BeginVertical(GUI.skin.box);
@@ -750,7 +760,7 @@ namespace GungeonTogether.UI
             GUILayout.EndVertical();
             GUILayout.Space(5);
         }
-        
+
         private void DrawLabelValue(string label, string value)
         {
             GUILayout.BeginHorizontal();
@@ -758,7 +768,7 @@ namespace GungeonTogether.UI
             GUILayout.Label(value ?? "null");
             GUILayout.EndHorizontal();
         }
-        
+
         private void DrawObjectReflection(object obj, string objName)
         {
             if (obj == null)
@@ -766,9 +776,9 @@ namespace GungeonTogether.UI
                 GUILayout.Label($"{objName} is null");
                 return;
             }
-            
+
             Type type = obj.GetType();
-            
+
             // Get cached fields or create them
             if (!fieldCache.ContainsKey(type))
             {
@@ -777,7 +787,7 @@ namespace GungeonTogether.UI
                     .Take(20) // Limit to prevent UI overflow
                     .ToArray();
             }
-            
+
             // Get cached properties or create them
             if (!propertyCache.ContainsKey(type))
             {
@@ -786,12 +796,12 @@ namespace GungeonTogether.UI
                     .Take(20) // Limit to prevent UI overflow
                     .ToArray();
             }
-            
+
             // Display fields
             foreach (var field in fieldCache[type])
             {
                 if (!ShouldShow(field.Name)) continue;
-                
+
                 try
                 {
                     var value = field.GetValue(obj);
@@ -802,12 +812,12 @@ namespace GungeonTogether.UI
                     DrawLabelValue(field.Name, $"Error: {ex.Message}");
                 }
             }
-            
+
             // Display properties
             foreach (var prop in propertyCache[type])
             {
                 if (!ShouldShow(prop.Name)) continue;
-                
+
                 try
                 {
                     var value = prop.GetValue(obj, null);
@@ -819,34 +829,34 @@ namespace GungeonTogether.UI
                 }
             }
         }
-        
+
         private bool IsDisplayableType(Type type)
         {
-            return type.IsPrimitive || 
-                   type == typeof(string) || 
-                   type == typeof(Vector2) || 
-                   type == typeof(Vector3) || 
+            return type.IsPrimitive ||
+                   type == typeof(string) ||
+                   type == typeof(Vector2) ||
+                   type == typeof(Vector3) ||
                    type == typeof(DateTime) ||
                    type.IsEnum;
         }
-        
+
         private bool ShouldShow(string name)
         {
             if (string.IsNullOrEmpty(searchFilter)) return true;
             return name.ToLowerInvariant().Contains(searchFilter.ToLowerInvariant());
         }
-        
+
         private void SetupDebugUIStyle()
         {
             // Setup dark theme for debug UI
             GUI.backgroundColor = new Color(0.2f, 0.2f, 0.2f, 0.9f);
             GUI.contentColor = Color.white;
         }
-        
+
         #endregion
-        
+
         #region Static Methods
-        
+
         /// <summary>
         /// Initialize the debug UI system
         /// </summary>
@@ -857,10 +867,10 @@ namespace GungeonTogether.UI
                 // Create a GameObject for the debug UI manager
                 GameObject debugUIObj = new GameObject("DebugUIManager");
                 _instance = debugUIObj.AddComponent<DebugUIManager>();
-                 UnityEngine.Debug.Log("[DebugUIManager] Debug UI system initialized");
+                UnityEngine.Debug.Log("[DebugUIManager] Debug UI system initialized");
             }
         }
-        
+
         /// <summary>
         /// Toggle the visibility of the debug UI
         /// </summary>
@@ -872,22 +882,22 @@ namespace GungeonTogether.UI
             }
             else
             {
-                 UnityEngine.Debug.LogWarning("[DebugUIManager] Cannot toggle visibility - Debug UI not initialized");
+                UnityEngine.Debug.LogWarning("[DebugUIManager] Cannot toggle visibility - Debug UI not initialized");
             }
         }
-        
+
         #endregion
-        
+
         #region Instance Methods
-        
+
         private void ToggleDebugUI()
         {
             debugUIEnabled = !debugUIEnabled;
-             UnityEngine.Debug.Log($"[DebugUIManager] Debug UI {(debugUIEnabled ? "enabled" : "disabled")}");
+            UnityEngine.Debug.Log($"[DebugUIManager] Debug UI {(debugUIEnabled ? "enabled" : "disabled")}");
         }
-        
+
         #endregion
-        
+
         void OnDestroy()
         {
             if (_instance == this)

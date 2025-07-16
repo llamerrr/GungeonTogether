@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace GungeonTogether.Steam
@@ -12,7 +11,7 @@ namespace GungeonTogether.Steam
         // Connection management
         PlayerJoin = 1,
         PlayerLeave = 2,
-        
+
         // Player state
         PlayerPosition = 10,
         PlayerMovement = 11,
@@ -21,7 +20,7 @@ namespace GungeonTogether.Steam
         PlayerHealth = 14,
         PlayerAnimation = 15,
         PlayerInteraction = 16,
-        
+
         // Enemy state (Host -> Clients)
         EnemySpawn = 20,
         EnemyPosition = 21,
@@ -31,30 +30,30 @@ namespace GungeonTogether.Steam
         EnemyDeath = 25,
         EnemyAnimation = 26,
         EnemyPathUpdate = 27,
-        
+
         // Dungeon/Room state (Host -> Clients)
         DungeonGenerated = 30,
         RoomEntered = 31,
         RoomCleared = 32,
         DoorOpened = 33,
         DoorClosed = 34,
-        
+
         // Items and pickups
         ItemSpawn = 40,
         ItemPickup = 41,
         ItemDrop = 42,
         ChestOpened = 43,
-        
+
         // Projectiles
         ProjectileSpawn = 50,
         ProjectileUpdate = 51,
         ProjectileDestroy = 52,
-        
+
         // Game events
         GameStart = 60,
         GamePause = 61,
         GameEnd = 62,
-        
+
         // Synchronization
         StateSync = 70,
         HeartBeat = 71,

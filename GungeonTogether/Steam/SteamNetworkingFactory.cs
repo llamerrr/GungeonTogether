@@ -1,6 +1,5 @@
 using System;
 using System.Reflection;
-using UnityEngine;
 
 namespace GungeonTogether.Steam
 {
@@ -18,28 +17,28 @@ namespace GungeonTogether.Steam
             try
             {
                 GungeonTogether.Logging.Debug.Log("[SteamFactory] Attempting to create Steam networking via reflection...");
-                
+
                 // Get the current assembly
                 var assembly = Assembly.GetExecutingAssembly();
-                
+
                 // Try to get the ETGSteamP2PNetworking type
                 var steamNetType = assembly.GetType("GungeonTogether.Steam.ETGSteamP2PNetworking", false);
-                
+
                 if (object.ReferenceEquals(steamNetType, null))
                 {
                     GungeonTogether.Logging.Debug.LogWarning("[SteamFactory] ETGSteamP2PNetworking type not found");
                     return null;
                 }
-                
+
                 // Try to create an instance
                 var instance = Activator.CreateInstance(steamNetType);
-                
+
                 if (object.ReferenceEquals(instance, null))
                 {
                     GungeonTogether.Logging.Debug.LogWarning("[SteamFactory] Failed to create ETGSteamP2PNetworking instance");
                     return null;
                 }
-                
+
                 // Check if it implements ISteamNetworking
                 if (instance is ISteamNetworking steamNet)
                 {

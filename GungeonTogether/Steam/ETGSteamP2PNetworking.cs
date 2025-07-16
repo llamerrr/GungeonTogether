@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
 using UnityEngine;
 
 namespace GungeonTogether.Steam
@@ -22,7 +20,7 @@ namespace GungeonTogether.Steam
         public static ETGSteamP2PNetworking Instance { get; private set; }
 
         private bool isInitialized = false;
-        
+
         // Debounce mechanism for PrintFriendsList to prevent console spam
         private static float lastPrintFriendsListTime = 0f;
         private static readonly float printFriendsListCooldown = 2.0f; // 2 seconds minimum between calls

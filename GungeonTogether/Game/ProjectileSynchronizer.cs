@@ -1,7 +1,7 @@
+using GungeonTogether.Steam;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using GungeonTogether.Steam;
 
 namespace GungeonTogether.Game
 {
@@ -27,7 +27,7 @@ namespace GungeonTogether.Game
         private readonly Dictionary<int, Projectile> localProjectiles = new Dictionary<int, Projectile>();
         private readonly Dictionary<int, RemoteProjectileData> remoteProjectiles = new Dictionary<int, RemoteProjectileData>();
         private readonly Dictionary<int, GameObject> remoteProjectileObjects = new Dictionary<int, GameObject>();
-        
+
         private bool isInitialized;
         private float lastUpdateTime;
         private const float UPDATE_INTERVAL = 0.05f; // 20 FPS for projectile updates
@@ -163,7 +163,7 @@ namespace GungeonTogether.Game
             try
             {
                 bool isPlayerProjectile = IsPlayerProjectile(projectile);
-                
+
                 // Send spawn notification
                 NetworkManager.Instance.SendProjectileSpawn(
                     projectileId,
@@ -200,12 +200,12 @@ namespace GungeonTogether.Game
             try
             {
                 // Send destroy notification
-                var packet = new NetworkPacket(PacketType.ProjectileDestroy, 
-                    SteamReflectionHelper.GetLocalSteamId(), 
+                var packet = new NetworkPacket(PacketType.ProjectileDestroy,
+                    SteamReflectionHelper.GetLocalSteamId(),
                     BitConverter.GetBytes(projectileId));
-                
+
                 NetworkManager.Instance.SendToAll(PacketType.ProjectileDestroy, BitConverter.GetBytes(projectileId));
-                
+
                 GungeonTogether.Logging.Debug.Log($"[ProjectileSync] Local projectile destroyed: {projectileId}");
             }
             catch (Exception e)
@@ -223,9 +223,9 @@ namespace GungeonTogether.Game
                 {
                     return projectile.Owner is PlayerController;
                 }
-                
+
                 // Fallback: check projectile source
-                return projectile.PossibleSourceGun != null && 
+                return projectile.PossibleSourceGun != null &&
                        projectile.PossibleSourceGun.CurrentOwner is PlayerController;
             }
             catch
@@ -269,7 +269,7 @@ namespace GungeonTogether.Game
                     var projectileData = kvp.Value;
 
                     // Check for timeout (projectiles have short lifespan)
-                    if (currentTime - projectileData.SpawnTime > 10f || 
+                    if (currentTime - projectileData.SpawnTime > 10f ||
                         currentTime - projectileData.LastUpdateTime > 2f)
                     {
                         projectilesToRemove.Add(projectileId);
@@ -305,9 +305,9 @@ namespace GungeonTogether.Game
                         var currentTime = Time.time;
                         var deltaTime = currentTime - projectileData.LastUpdateTime;
                         var newPosition = projectileData.Position + projectileData.Velocity * deltaTime;
-                        
+
                         projectileObj.transform.position = newPosition;
-                        
+
                         // Update the stored position
                         var updatedData = projectileData;
                         updatedData.Position = newPosition;
@@ -329,14 +329,14 @@ namespace GungeonTogether.Game
 
                 // Create a simple visual representation for remote projectile
                 var remoteProjectileObj = new GameObject($"RemoteProjectile_{projectileId}");
-                
+
                 // Add sprite renderer for visibility
                 var spriteRenderer = remoteProjectileObj.AddComponent<SpriteRenderer>();
-                
+
                 // Different colors for different projectile types/owners
                 Color projectileColor = projectileData.IsPlayerProjectile ? Color.blue : new Color(1f, 0.5f, 0f); // Orange
                 spriteRenderer.color = projectileColor;
-                
+
                 // Create a simple circular sprite
                 var texture = new Texture2D(8, 8);
                 var center = new Vector2(4, 4);
@@ -356,13 +356,13 @@ namespace GungeonTogether.Game
                     }
                 }
                 texture.Apply();
-                
+
                 var sprite = Sprite.Create(texture, new Rect(0, 0, 8, 8), Vector2.one * 0.5f);
                 spriteRenderer.sprite = sprite;
-                
+
                 // Position it
                 remoteProjectileObj.transform.position = projectileData.Position;
-                
+
                 // Add a trail effect
                 var trailRenderer = remoteProjectileObj.AddComponent<TrailRenderer>();
                 trailRenderer.material = new Material(Shader.Find("Sprites/Default"));
@@ -371,9 +371,9 @@ namespace GungeonTogether.Game
                 trailRenderer.startWidth = 0.1f;
                 trailRenderer.endWidth = 0.01f;
                 trailRenderer.time = 0.2f;
-                
+
                 remoteProjectileObjects[projectileId] = remoteProjectileObj;
-                
+
                 GungeonTogether.Logging.Debug.Log($"[ProjectileSync] Created remote projectile visual for {projectileId}");
             }
             catch (Exception e)
@@ -414,11 +414,11 @@ namespace GungeonTogether.Game
                 // Create a small particle effect for projectile destruction
                 var effectObj = new GameObject("ProjectileDestroyEffect");
                 effectObj.transform.position = position;
-                
+
                 // Simple expanding circle effect
                 var spriteRenderer = effectObj.AddComponent<SpriteRenderer>();
                 spriteRenderer.color = Color.white;
-                
+
                 // Create explosion texture
                 var texture = new Texture2D(16, 16);
                 var center = new Vector2(8, 8);
@@ -432,10 +432,10 @@ namespace GungeonTogether.Game
                     }
                 }
                 texture.Apply();
-                
+
                 var sprite = Sprite.Create(texture, new Rect(0, 0, 16, 16), Vector2.one * 0.5f);
                 spriteRenderer.sprite = sprite;
-                
+
                 // Animate and destroy
                 StartCoroutine(AnimateExplosion(effectObj, spriteRenderer));
             }
@@ -451,18 +451,18 @@ namespace GungeonTogether.Game
             float elapsed = 0f;
             Vector3 startScale = Vector3.one * 0.5f;
             Vector3 endScale = Vector3.one * 2f;
-            
+
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
                 float t = elapsed / duration;
-                
+
                 effectObj.transform.localScale = Vector3.Lerp(startScale, endScale, t);
                 renderer.color = new Color(1f, 1f, 0.5f, 1f - t);
-                
+
                 yield return null;
             }
-            
+
             UnityEngine.Object.Destroy(effectObj);
         }
 
@@ -480,7 +480,7 @@ namespace GungeonTogether.Game
             {
                 var currentTime = Time.time;
                 var localProjectilesToRemove = new List<int>();
-                
+
                 // Clean up local projectiles that no longer exist
                 foreach (var kvp in localProjectiles)
                 {
@@ -489,7 +489,7 @@ namespace GungeonTogether.Game
                         localProjectilesToRemove.Add(kvp.Key);
                     }
                 }
-                
+
                 foreach (var projectileId in localProjectilesToRemove)
                 {
                     localProjectiles.Remove(projectileId);
@@ -602,11 +602,11 @@ namespace GungeonTogether.Game
                     UnityEngine.Object.Destroy(kvp.Value);
                 }
             }
-            
+
             localProjectiles.Clear();
             remoteProjectiles.Clear();
             remoteProjectileObjects.Clear();
-            
+
             GungeonTogether.Logging.Debug.Log("[ProjectileSync] Cleanup complete");
         }
 
@@ -656,7 +656,7 @@ namespace GungeonTogether.Game
 
                 remoteProjectiles[data.ProjectileId] = remoteData;
                 CreateRemoteProjectileVisual(data.ProjectileId, remoteData);
-                
+
                 GungeonTogether.Logging.Debug.Log($"[ProjectileSync] Spawned remote projectile {data.ProjectileId}");
             }
             catch (Exception e)

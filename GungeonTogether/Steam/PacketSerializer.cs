@@ -1,7 +1,5 @@
 using System;
 using System.IO;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.Text;
 using UnityEngine;
 
 namespace GungeonTogether.Steam
@@ -106,7 +104,7 @@ namespace GungeonTogether.Steam
         private static void SerializeStruct<T>(BinaryWriter writer, T obj) where T : struct
         {
             var type = typeof(T);
-            
+
             if (type.Equals(typeof(PlayerPositionData)))
             {
                 var data = (PlayerPositionData)(object)obj;
@@ -177,7 +175,7 @@ namespace GungeonTogether.Steam
         private static T DeserializeStruct<T>(BinaryReader reader) where T : struct
         {
             var type = typeof(T);
-            
+
             if (type.Equals(typeof(PlayerPositionData)))
             {
                 var data = new PlayerPositionData
@@ -226,7 +224,7 @@ namespace GungeonTogether.Steam
                 {
                     pathPoints[i] = new Vector2(reader.ReadSingle(), reader.ReadSingle());
                 }
-                
+
                 var data = new EnemyPathData
                 {
                     EnemyId = reader.ReadInt32(),
@@ -251,7 +249,7 @@ namespace GungeonTogether.Steam
                 };
                 return (T)(object)data;
             }
-            
+
             return default(T);
         }
 

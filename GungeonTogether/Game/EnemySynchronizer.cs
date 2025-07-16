@@ -1,7 +1,7 @@
+using GungeonTogether.Steam;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using GungeonTogether.Steam;
 
 namespace GungeonTogether.Game
 {
@@ -28,7 +28,7 @@ namespace GungeonTogether.Game
         private readonly Dictionary<int, AIActor> trackedEnemies = new Dictionary<int, AIActor>();
         private readonly Dictionary<int, RemoteEnemyState> remoteEnemyStates = new Dictionary<int, RemoteEnemyState>();
         private readonly Dictionary<int, GameObject> remoteEnemyObjects = new Dictionary<int, GameObject>();
-        
+
         private bool isHost;
         private float lastUpdateTime;
         private const float UPDATE_INTERVAL = 0.1f; // 10 FPS for enemy updates
@@ -74,7 +74,7 @@ namespace GungeonTogether.Game
         public void Initialize(bool asHost)
         {
             isHost = asHost;
-            
+
             if (isHost)
             {
                 GungeonTogether.Logging.Debug.Log("[EnemySync] Initialized as HOST - will control enemies");
@@ -205,7 +205,7 @@ namespace GungeonTogether.Game
 
                 // Check for path updates
                 UpdateEnemyPath(enemy, enemyId);
-                
+
                 // Check for shooting
                 CheckEnemyShooting(enemy, enemyId);
             }
@@ -259,7 +259,7 @@ namespace GungeonTogether.Game
                             if (behavior != null && behavior.IsReady())
                             {
                                 var targetPosition = GameManager.Instance?.PrimaryPlayer?.transform.position ?? Vector2.zero;
-                                
+
                                 NetworkManager.Instance.SendEnemyShooting(
                                     enemyId,
                                     enemy.transform.position,
@@ -280,7 +280,7 @@ namespace GungeonTogether.Game
         private void CheckForDestroyedEnemies()
         {
             var enemiesToRemove = new List<int>();
-            
+
             foreach (var kvp in trackedEnemies)
             {
                 if (kvp.Value == null || !kvp.Value.isActiveAndEnabled)
@@ -301,7 +301,7 @@ namespace GungeonTogether.Game
             try
             {
                 GungeonTogether.Logging.Debug.Log($"[EnemySync] Enemy spawned: {enemy.name} at {enemy.transform.position}");
-                
+
                 // Send spawn notification to clients
                 var enemyId = enemy.GetInstanceID();
                 NetworkManager.Instance.SendEnemyState(
@@ -325,7 +325,7 @@ namespace GungeonTogether.Game
             try
             {
                 GungeonTogether.Logging.Debug.Log($"[EnemySync] Enemy destroyed: {enemyId}");
-                
+
                 // Send death notification to clients
                 NetworkManager.Instance.SendEnemyState(
                     enemyId,
@@ -395,7 +395,7 @@ namespace GungeonTogether.Game
                         var currentPos = enemyObj.transform.position;
                         var targetPos = enemyData.TargetPosition;
                         var newPos = Vector2.Lerp(currentPos, targetPos, Time.deltaTime * 5f);
-                        
+
                         enemyObj.transform.position = newPos;
                         enemyObj.transform.rotation = Quaternion.Euler(0, 0, enemyData.Rotation);
 
@@ -422,7 +422,7 @@ namespace GungeonTogether.Game
                     var healthBar = new GameObject("HealthBar");
                     healthBar.transform.SetParent(enemyObj.transform);
                     healthBar.transform.localPosition = Vector3.up * 0.5f;
-                    
+
                     var renderer = healthBar.AddComponent<LineRenderer>();
                     renderer.material = new Material(Shader.Find("Sprites/Default"));
                     renderer.startColor = Color.red;
@@ -432,7 +432,7 @@ namespace GungeonTogether.Game
                     renderer.positionCount = 2;
                     renderer.useWorldSpace = false;
                 }
-                
+
                 if (healthBarObj != null)
                 {
                     var renderer = healthBarObj.GetComponent<LineRenderer>();
@@ -441,7 +441,7 @@ namespace GungeonTogether.Game
                         float healthPercent = health / maxHealth;
                         renderer.SetPosition(0, Vector3.left * 0.2f);
                         renderer.SetPosition(1, Vector3.left * 0.2f + Vector3.right * (0.4f * healthPercent));
-                        
+
                         // Hide if at full health or dead
                         renderer.enabled = health > 0 && health < maxHealth;
                     }
@@ -461,11 +461,11 @@ namespace GungeonTogether.Game
 
                 // Create a simple visual representation for remote enemy
                 var remoteEnemyObj = new GameObject($"RemoteEnemy_{enemyId}");
-                
+
                 // Add sprite renderer for visibility
                 var spriteRenderer = remoteEnemyObj.AddComponent<SpriteRenderer>();
                 spriteRenderer.color = Color.red; // Red for enemies
-                
+
                 // Create a simple square sprite
                 var texture = new Texture2D(16, 16);
                 for (int x = 0; x < 16; x++)
@@ -476,15 +476,15 @@ namespace GungeonTogether.Game
                     }
                 }
                 texture.Apply();
-                
+
                 var sprite = Sprite.Create(texture, new Rect(0, 0, 16, 16), Vector2.one * 0.5f);
                 spriteRenderer.sprite = sprite;
-                
+
                 // Position it
                 remoteEnemyObj.transform.position = enemyData.Position;
-                
+
                 remoteEnemyObjects[enemyId] = remoteEnemyObj;
-                
+
                 GungeonTogether.Logging.Debug.Log($"[EnemySync] Created remote enemy visual for {enemyId}");
             }
             catch (Exception e)
@@ -586,7 +586,7 @@ namespace GungeonTogether.Game
                 if (remoteEnemyStates.ContainsKey(data.EnemyId))
                 {
                     var enemyData = remoteEnemyStates[data.EnemyId];
-                    
+
                     // Update target position based on path
                     if (data.PathPoints != null && data.PathPoints.Length > 0)
                     {
@@ -613,7 +613,7 @@ namespace GungeonTogether.Game
             {
                 // Create visual effect for enemy shooting
                 CreateEnemyShootingEffect(data.Position, data.TargetPosition);
-                
+
                 GungeonTogether.Logging.Debug.Log($"[EnemySync] Enemy {data.EnemyId} shooting from {data.Position} to {data.TargetPosition}");
             }
             catch (Exception e)
@@ -629,7 +629,7 @@ namespace GungeonTogether.Game
                 // Create a visual line showing the shot
                 var effectObj = new GameObject("EnemyShootingEffect");
                 effectObj.transform.position = fromPosition;
-                
+
                 var lineRenderer = effectObj.AddComponent<LineRenderer>();
                 lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
                 lineRenderer.startColor = Color.red;
@@ -638,10 +638,10 @@ namespace GungeonTogether.Game
                 lineRenderer.endWidth = 0.01f;
                 lineRenderer.positionCount = 2;
                 lineRenderer.useWorldSpace = true;
-                
+
                 lineRenderer.SetPosition(0, fromPosition);
                 lineRenderer.SetPosition(1, toPosition);
-                
+
                 // Destroy the effect after a short time
                 UnityEngine.Object.Destroy(effectObj, 0.15f);
             }
@@ -673,11 +673,11 @@ namespace GungeonTogether.Game
                     UnityEngine.Object.Destroy(kvp.Value);
                 }
             }
-            
+
             trackedEnemies.Clear();
             remoteEnemyStates.Clear();
             remoteEnemyObjects.Clear();
-            
+
             GungeonTogether.Logging.Debug.Log("[EnemySync] Cleanup complete");
         }
 
@@ -796,10 +796,10 @@ namespace GungeonTogether.Game
                 };
 
                 remoteEnemyStates[data.EnemyId] = remoteEnemyState;
-                
+
                 // Create visual representation
                 CreateRemoteEnemyVisual(data.EnemyId, data.Position);
-                
+
                 GungeonTogether.Logging.Debug.Log($"[EnemySync] Created remote enemy {data.EnemyId}");
             }
             catch (Exception e)
@@ -814,11 +814,11 @@ namespace GungeonTogether.Game
             {
                 var remoteEnemyObj = new GameObject($"RemoteEnemy_{enemyId}");
                 remoteEnemyObj.transform.position = position;
-                
+
                 // Add sprite renderer for visibility
                 var spriteRenderer = remoteEnemyObj.AddComponent<SpriteRenderer>();
                 spriteRenderer.color = Color.red;
-                
+
                 // Create a simple enemy sprite
                 var texture = new Texture2D(16, 16);
                 for (int x = 0; x < 16; x++)
@@ -829,12 +829,12 @@ namespace GungeonTogether.Game
                     }
                 }
                 texture.Apply();
-                
+
                 var sprite = Sprite.Create(texture, new Rect(0, 0, 16, 16), Vector2.one * 0.5f);
                 spriteRenderer.sprite = sprite;
-                
+
                 remoteEnemyObjects[enemyId] = remoteEnemyObj;
-                
+
                 GungeonTogether.Logging.Debug.Log($"[EnemySync] Created visual for remote enemy {enemyId}");
             }
             catch (Exception e)

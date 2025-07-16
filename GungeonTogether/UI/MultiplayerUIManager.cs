@@ -1,8 +1,6 @@
+using GungeonTogether.Game;
 using System;
 using UnityEngine;
-using UnityEngine.UI;
-using GungeonTogether.Game;
-using GungeonTogether.Steam;
 
 namespace GungeonTogether.UI
 {
@@ -16,7 +14,7 @@ namespace GungeonTogether.UI
         private static PlayerListUI playerListUI;
         private static UIAudioManager audioManager;
         private static bool isInitialized = false;
-        
+
         /// <summary>
         /// Initialize the UI system
         /// </summary>
@@ -29,13 +27,13 @@ namespace GungeonTogether.UI
                     GungeonTogether.Logging.Debug.LogWarning("[MultiplayerUIManager] UI already initialized");
                     return;
                 }
-                
+
                 GungeonTogether.Logging.Debug.Log("[MultiplayerUIManager] Initializing UI system...");
-                
+
                 // Create main UI manager GameObject
                 var uiManagerObject = new GameObject("GungeonTogether_UIManager");
                 UnityEngine.Object.DontDestroyOnLoad(uiManagerObject);
-                
+
                 // Initialize core UI controller first - this is the most important
                 try
                 {
@@ -50,7 +48,7 @@ namespace GungeonTogether.UI
                     GungeonTogether.Logging.Debug.LogError($"[MultiplayerUIManager] Stack trace: {ex.StackTrace}");
                     return; // Don't continue if core UI fails
                 }
-                
+
                 // Initialize audio manager
                 try
                 {
@@ -64,10 +62,10 @@ namespace GungeonTogether.UI
                     GungeonTogether.Logging.Debug.LogError($"[MultiplayerUIManager] Failed to initialize audio manager: {ex.Message}");
                     // Continue without audio - not critical
                 }
-                
+
                 // Mark as initialized early so other components can safely check
                 isInitialized = true;
-                
+
                 // Initialize secondary UI components - these can fail without breaking core functionality
                 // Player list UI
                 try
@@ -82,9 +80,9 @@ namespace GungeonTogether.UI
                     GungeonTogether.Logging.Debug.LogError($"[MultiplayerUIManager] Failed to initialize player list UI: {ex.Message}");
                     playerListUI = null; // Mark as failed but continue
                 }
-                
+
                 GungeonTogether.Logging.Debug.Log("[MultiplayerUIManager] UI system initialized successfully");
-                
+
                 // Play initialization sound and show welcome notification
                 try
                 {
@@ -103,7 +101,7 @@ namespace GungeonTogether.UI
                 isInitialized = false; // Make sure we mark as failed
             }
         }
-        
+
         /// <summary>
         /// Set the session manager reference for the UI
         /// </summary>
@@ -115,7 +113,7 @@ namespace GungeonTogether.UI
                 GungeonTogether.Logging.Debug.Log("[MultiplayerUIManager] Session manager set for UI");
             }
         }
-        
+
         /// <summary>
         /// Show the multiplayer UI
         /// </summary>
@@ -127,7 +125,7 @@ namespace GungeonTogether.UI
                 Initialize();
                 return;
             }
-            
+
             if (!ReferenceEquals(uiController, null))
             {
                 uiController.ShowUI();
@@ -137,7 +135,7 @@ namespace GungeonTogether.UI
                 GungeonTogether.Logging.Debug.LogError("[MultiplayerUIManager] UI controller is null after initialization");
             }
         }
-        
+
         /// <summary>
         /// Hide the multiplayer UI
         /// </summary>
@@ -148,7 +146,7 @@ namespace GungeonTogether.UI
                 uiController.HideUI();
             }
         }
-        
+
         /// <summary>
         /// Toggle the multiplayer UI visibility
         /// </summary>
@@ -160,7 +158,7 @@ namespace GungeonTogether.UI
                 Initialize();
                 return;
             }
-            
+
             if (!ReferenceEquals(uiController, null))
             {
                 uiController.ToggleUI();
@@ -170,7 +168,7 @@ namespace GungeonTogether.UI
                 GungeonTogether.Logging.Debug.LogError("[MultiplayerUIManager] UI controller is null after initialization");
             }
         }
-        
+
         /// <summary>
         /// Show a notification message
         /// </summary>
@@ -185,7 +183,7 @@ namespace GungeonTogether.UI
                 GungeonTogether.Logging.Debug.Log($"[MultiplayerUIManager] Notification: {message}");
             }
         }
-        
+
         /// <summary>
         /// Update UI state when session state changes
         /// </summary>
@@ -210,7 +208,7 @@ namespace GungeonTogether.UI
                 ShowNotification("🚪 Disconnected from session", 2f);
             }
         }
-        
+
         /// <summary>
         /// Handle Steam overlay join events
         /// </summary>
@@ -219,7 +217,7 @@ namespace GungeonTogether.UI
             PlayUISound("steam_overlay_open");
             ShowNotification($"🎮 Steam overlay join requested for host: {hostSteamId}", 3f);
         }
-        
+
         /// <summary>
         /// Handle successful Steam connections
         /// </summary>
@@ -228,7 +226,7 @@ namespace GungeonTogether.UI
             PlayUISound("mp_connect");
             ShowNotification($"✅ Successfully connected via Steam to host: {hostSteamId}", 3f);
         }
-        
+
         /// <summary>
         /// Handle Steam connection failures
         /// </summary>
@@ -237,7 +235,7 @@ namespace GungeonTogether.UI
             PlayUISound("ui_error");
             ShowNotification($"❌ Steam connection failed: {reason}", 4f);
         }
-        
+
         /// <summary>
         /// Handle player joining events
         /// </summary>
@@ -245,11 +243,11 @@ namespace GungeonTogether.UI
         {
             PlayUISound("mp_player_joined");
             ShowNotification($"👥 Player joined: {steamId}", 2f);
-            
+
             // Add to player list (in real implementation, get actual player name)
             AddPlayer(steamId, $"Player_{steamId}", false);
         }
-        
+
         /// <summary>
         /// Handle player leaving events
         /// </summary>
@@ -257,16 +255,16 @@ namespace GungeonTogether.UI
         {
             PlayUISound("mp_player_left");
             ShowNotification($"👋 Player left: {steamId}", 2f);
-            
+
             // Remove from player list
             RemovePlayer(steamId);
         }
-        
+
         /// <summary>
         /// Check if UI is initialized
         /// </summary>
         public static bool IsInitialized => isInitialized && !ReferenceEquals(uiController, null);
-        
+
         /// <summary>
         /// Cleanup UI resources
         /// </summary>
@@ -275,25 +273,25 @@ namespace GungeonTogether.UI
             try
             {
                 GungeonTogether.Logging.Debug.Log("[MultiplayerUIManager] Cleaning up UI system...");
-                
+
                 if (!ReferenceEquals(uiController, null))
                 {
                     UnityEngine.Object.Destroy(uiController.gameObject);
                     uiController = null;
                 }
-                
+
                 if (!ReferenceEquals(audioManager, null))
                 {
                     UnityEngine.Object.Destroy(audioManager.gameObject);
                     audioManager = null;
                 }
-                
+
                 if (!ReferenceEquals(playerListUI, null))
                 {
                     UnityEngine.Object.Destroy(playerListUI.gameObject);
                     playerListUI = null;
                 }
-                
+
                 isInitialized = false;
                 GungeonTogether.Logging.Debug.Log("[MultiplayerUIManager] UI system cleanup completed");
             }
@@ -302,7 +300,7 @@ namespace GungeonTogether.UI
                 GungeonTogether.Logging.Debug.LogError($"[MultiplayerUIManager] Error during cleanup: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Play a UI sound effect
         /// </summary>
@@ -313,7 +311,7 @@ namespace GungeonTogether.UI
                 audioManager.PlaySound(soundName, volumeMultiplier, pitchMultiplier);
             }
         }
-        
+
         /// <summary>
         /// Play a UI sound with random pitch variation
         /// </summary>
@@ -324,7 +322,7 @@ namespace GungeonTogether.UI
                 audioManager.PlaySoundRandomPitch(soundName, pitchVariation, volumeMultiplier);
             }
         }
-        
+
         /// <summary>
         /// Set UI audio volume
         /// </summary>
@@ -335,7 +333,7 @@ namespace GungeonTogether.UI
                 audioManager.SetMasterVolume(volume);
             }
         }
-        
+
         /// <summary>
         /// Enable or disable UI sound effects
         /// </summary>
@@ -346,7 +344,7 @@ namespace GungeonTogether.UI
                 audioManager.SetSoundEffectsEnabled(enabled);
             }
         }
-        
+
         /// <summary>
         /// Show the player list
         /// </summary>
@@ -357,7 +355,7 @@ namespace GungeonTogether.UI
                 playerListUI.ShowPlayerList();
             }
         }
-        
+
         /// <summary>
         /// Hide the player list
         /// </summary>
@@ -368,7 +366,7 @@ namespace GungeonTogether.UI
                 playerListUI.HidePlayerList();
             }
         }
-        
+
         /// <summary>
         /// Toggle the player list
         /// </summary>
@@ -379,7 +377,7 @@ namespace GungeonTogether.UI
                 playerListUI.TogglePlayerList();
             }
         }
-        
+
         /// <summary>
         /// Add a player to the player list
         /// </summary>
@@ -390,7 +388,7 @@ namespace GungeonTogether.UI
                 playerListUI.AddPlayer(steamId, playerName, isHost);
             }
         }
-        
+
         /// <summary>
         /// Remove a player from the player list
         /// </summary>
@@ -401,7 +399,7 @@ namespace GungeonTogether.UI
                 playerListUI.RemovePlayer(steamId);
             }
         }
-        
+
         /// <summary>
         /// Update a player's information in the player list
         /// </summary>
@@ -412,7 +410,7 @@ namespace GungeonTogether.UI
                 playerListUI.UpdatePlayer(steamId, playerName, isHost, status, ping);
             }
         }
-        
+
         /// <summary>
         /// Get UI controller instance
         /// </summary>
@@ -420,7 +418,7 @@ namespace GungeonTogether.UI
         {
             return uiController;
         }
-        
+
         /// <summary>
         /// Get player list UI instance
         /// </summary>
@@ -428,7 +426,7 @@ namespace GungeonTogether.UI
         {
             return playerListUI;
         }
-        
+
         /// <summary>
         /// Get audio manager instance
         /// </summary>

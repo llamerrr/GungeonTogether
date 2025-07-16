@@ -1,7 +1,6 @@
+using Steamworks;
 using System;
 using System.Collections.Generic;
-using Steamworks;
-using UnityEngine;
 
 namespace GungeonTogether.Steam
 {
@@ -162,7 +161,7 @@ namespace GungeonTogether.Steam
                 {
                     string name = SteamFriends.GetFriendPersonaName(new CSteamID(member));
                     GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] player {name} has joined the session (LobbyChatUpdate)");
-                    
+
                     // CRITICAL: Notify NetworkManager about the player join
                     try
                     {
@@ -181,7 +180,7 @@ namespace GungeonTogether.Steam
                 {
                     string name = SteamFriends.GetFriendPersonaName(new CSteamID(member));
                     GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] player {name} has left the session (LobbyChatUpdate)");
-                    
+
                     // CRITICAL: Notify NetworkManager about the player leave
                     try
                     {

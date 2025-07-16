@@ -1,6 +1,6 @@
+using Dungeonator;
 using System;
 using UnityEngine;
-using Dungeonator;
 
 namespace GungeonTogether.Game
 {
@@ -14,21 +14,21 @@ namespace GungeonTogether.Game
         public static event System.Action<Dungeon> OnDungeonGenerated;
         public static event System.Action<RoomHandler> OnRoomGenerated;
         public static event System.Action<int> OnSeedChanged;
-        
+
         private static bool hooksInstalled = false;
         private static int lastSeed = 0;
-        
+
         /// <summary>
         /// Install hooks into the dungeon generation system
         /// </summary>
         public static void InstallHooks()
         {
             if (hooksInstalled) return;
-            
+
             try
             {
                 UnityEngine.Debug.Log("[DungeonHook] Installing dungeon generation hooks...");
-                
+
                 // Hook into GameManager events
                 if (GameManager.Instance != null)
                 {
@@ -40,7 +40,7 @@ namespace GungeonTogether.Game
                         hookComponent = gameManagerObject.AddComponent<DungeonGenerationHookComponent>();
                     }
                 }
-                
+
                 hooksInstalled = true;
                 UnityEngine.Debug.Log("[DungeonHook] Dungeon generation hooks installed successfully");
             }
@@ -49,14 +49,14 @@ namespace GungeonTogether.Game
                 UnityEngine.Debug.LogError($"[DungeonHook] Failed to install hooks: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Remove hooks from the dungeon generation system
         /// </summary>
         public static void RemoveHooks()
         {
             if (!hooksInstalled) return;
-            
+
             try
             {
                 // Remove component if it exists
@@ -68,7 +68,7 @@ namespace GungeonTogether.Game
                         UnityEngine.Object.Destroy(hookComponent);
                     }
                 }
-                
+
                 hooksInstalled = false;
                 UnityEngine.Debug.Log("[DungeonHook] Dungeon generation hooks removed");
             }
@@ -77,7 +77,7 @@ namespace GungeonTogether.Game
                 UnityEngine.Debug.LogError($"[DungeonHook] Error removing hooks: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Trigger dungeon generated event
         /// </summary>
@@ -93,7 +93,7 @@ namespace GungeonTogether.Game
                 UnityEngine.Debug.LogError($"[DungeonHook] Error triggering dungeon generated event: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Trigger room generated event
         /// </summary>
@@ -108,7 +108,7 @@ namespace GungeonTogether.Game
                 UnityEngine.Debug.LogError($"[DungeonHook] Error triggering room generated event: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Trigger seed changed event
         /// </summary>
@@ -129,7 +129,7 @@ namespace GungeonTogether.Game
             }
         }
     }
-    
+
     /// <summary>
     /// Component that monitors GameManager for dungeon generation events
     /// </summary>
@@ -139,13 +139,13 @@ namespace GungeonTogether.Game
         private int lastSeed;
         private float lastCheckTime;
         private const float CHECK_INTERVAL = 0.1f; // Check every 100ms
-        
+
         void Start()
         {
             UnityEngine.Debug.Log("[DungeonHook] Hook component started");
             lastSeed = GameManager.Instance?.CurrentRunSeed ?? 0;
         }
-        
+
         void Update()
         {
             try
@@ -153,7 +153,7 @@ namespace GungeonTogether.Game
                 // Don't check every frame to avoid performance issues
                 if (Time.time - lastCheckTime < CHECK_INTERVAL) return;
                 lastCheckTime = Time.time;
-                
+
                 CheckForSeedChange();
                 CheckForDungeonChange();
             }
@@ -166,7 +166,7 @@ namespace GungeonTogether.Game
                 }
             }
         }
-        
+
         private void CheckForSeedChange()
         {
             try
@@ -186,7 +186,7 @@ namespace GungeonTogether.Game
                 UnityEngine.Debug.LogError($"[DungeonHook] Error checking seed change: {e.Message}");
             }
         }
-        
+
         private void CheckForDungeonChange()
         {
             try
@@ -194,14 +194,14 @@ namespace GungeonTogether.Game
                 if (GameManager.Instance != null && GameManager.Instance.Dungeon != null)
                 {
                     Dungeon currentDungeon = GameManager.Instance.Dungeon;
-                    
+
                     // Check if we have a new dungeon
                     if (currentDungeon != lastDungeon && currentDungeon.data != null)
                     {
                         lastDungeon = currentDungeon;
                         UnityEngine.Debug.Log("[DungeonHook] New dungeon detected");
                         DungeonGenerationHook.TriggerDungeonGenerated(currentDungeon);
-                        
+
                         // Also check for new rooms in this dungeon
                         CheckForNewRooms(currentDungeon);
                     }
@@ -212,7 +212,7 @@ namespace GungeonTogether.Game
                 UnityEngine.Debug.LogError($"[DungeonHook] Error checking dungeon change: {e.Message}");
             }
         }
-        
+
         private void CheckForNewRooms(Dungeon dungeon)
         {
             try
@@ -235,7 +235,7 @@ namespace GungeonTogether.Game
                 UnityEngine.Debug.LogError($"[DungeonHook] Error checking for new rooms: {e.Message}");
             }
         }
-        
+
         void OnDestroy()
         {
             UnityEngine.Debug.Log("[DungeonHook] Hook component destroyed");

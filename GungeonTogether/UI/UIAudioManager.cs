@@ -16,16 +16,16 @@ namespace GungeonTogether.UI
         [Header("Audio Settings")]
         public float masterVolume = 0.7f;
         public bool enableSoundEffects = true;
-        
+
         [Header("Audio Sources")]
         public AudioSource uiAudioSource;
         public AudioSource notificationAudioSource;
         public AudioSource ambientAudioSource;
-        
+
         // Audio clip storage
         private Dictionary<string, AudioClip> audioClips = new Dictionary<string, AudioClip>();
         private Dictionary<string, AudioClipData> clipData = new Dictionary<string, AudioClipData>();
-        
+
         // Audio clip data structure
         [System.Serializable]
         public class AudioClipData
@@ -35,7 +35,7 @@ namespace GungeonTogether.UI
             public float pitch = 1f;
             public bool loop = false;
             public AudioSource preferredSource;
-            
+
             public AudioClipData(AudioClip audioClip, float vol = 1f, float p = 1f, bool isLooping = false)
             {
                 clip = audioClip;
@@ -44,7 +44,7 @@ namespace GungeonTogether.UI
                 loop = isLooping;
             }
         }
-        
+
         void Awake()
         {
             if (ReferenceEquals(_instance, null))
@@ -59,7 +59,7 @@ namespace GungeonTogether.UI
                 Destroy(gameObject);
             }
         }
-        
+
         /// <summary>
         /// Initialize the audio manager
         /// </summary>
@@ -74,7 +74,7 @@ namespace GungeonTogether.UI
                 uiAudioSource.playOnAwake = false;
                 uiAudioSource.volume = masterVolume;
             }
-            
+
             if (ReferenceEquals(notificationAudioSource, null))
             {
                 var notificationAudioObj = new GameObject("NotificationAudioSource");
@@ -83,7 +83,7 @@ namespace GungeonTogether.UI
                 notificationAudioSource.playOnAwake = false;
                 notificationAudioSource.volume = masterVolume * 0.8f;
             }
-            
+
             if (ReferenceEquals(ambientAudioSource, null))
             {
                 var ambientAudioObj = new GameObject("AmbientAudioSource");
@@ -93,11 +93,11 @@ namespace GungeonTogether.UI
                 ambientAudioSource.volume = masterVolume * 0.3f;
                 ambientAudioSource.loop = true;
             }
-            
+
             // Generate procedural audio clips
             GenerateAudioClips();
         }
-        
+
         /// <summary>
         /// Generate procedural audio clips for UI sounds
         /// </summary>
@@ -113,14 +113,14 @@ namespace GungeonTogether.UI
                 clipData["ui_success"] = new AudioClipData(GenerateSuccessSound(), 0.8f, 1f);
                 clipData["ui_error"] = new AudioClipData(GenerateErrorSound(), 0.8f, 1f);
                 clipData["ui_warning"] = new AudioClipData(GenerateWarningSound(), 0.7f, 1f);
-                
+
                 // Multiplayer Specific Sounds
                 clipData["mp_connect"] = new AudioClipData(GenerateConnectSound(), 0.8f, 1f);
                 clipData["mp_disconnect"] = new AudioClipData(GenerateDisconnectSound(), 0.8f, 0.8f);
                 clipData["mp_host_found"] = new AudioClipData(GenerateHostFoundSound(), 0.6f, 1.1f);
                 clipData["mp_player_joined"] = new AudioClipData(GeneratePlayerJoinedSound(), 0.7f, 1f);
                 clipData["mp_player_left"] = new AudioClipData(GeneratePlayerLeftSound(), 0.6f, 0.9f);
-                
+
                 // Notification Sounds
                 clipData["notification_info"] = new AudioClipData(GenerateNotificationSound(NotificationTone.Info), 0.5f, 1f);
                 clipData["notification_success"] = new AudioClipData(GenerateNotificationSound(NotificationTone.Success), 0.6f, 1f);
@@ -128,11 +128,11 @@ namespace GungeonTogether.UI
                 clipData["notification_error"] = new AudioClipData(GenerateNotificationSound(NotificationTone.Error), 0.8f, 1f);
                 clipData["notification_steam"] = new AudioClipData(GenerateNotificationSound(NotificationTone.Steam), 0.6f, 1.1f);
                 clipData["notification_multiplayer"] = new AudioClipData(GenerateNotificationSound(NotificationTone.Multiplayer), 0.6f, 1f);
-                
+
                 // Steam Sounds
                 clipData["steam_overlay_open"] = new AudioClipData(GenerateSteamOverlaySound(), 0.5f, 1f);
                 clipData["steam_friend_online"] = new AudioClipData(GenerateFriendOnlineSound(), 0.4f, 1.2f);
-                
+
                 GungeonTogether.Logging.Debug.Log("[UIAudio] Generated procedural audio clips");
             }
             catch (Exception ex)
@@ -140,7 +140,7 @@ namespace GungeonTogether.UI
                 GungeonTogether.Logging.Debug.LogError($"[UIAudio] Failed to generate audio clips: {ex.Message}");
             }
         }
-        
+
         /// <summary>
         /// Play a UI sound effect
         /// </summary>
@@ -148,18 +148,18 @@ namespace GungeonTogether.UI
         {
             if (!enableSoundEffects || !clipData.ContainsKey(soundName))
                 return;
-                
+
             try
             {
                 var data = clipData[soundName];
                 var source = data.preferredSource ?? uiAudioSource;
-                
+
                 source.clip = data.clip;
                 source.volume = masterVolume * data.volume * volumeMultiplier;
                 source.pitch = data.pitch * pitchMultiplier;
                 source.loop = data.loop;
                 source.Play();
-                
+
                 // Only log in debug builds or for important sounds
                 // GungeonTogether.Logging.Debug.Log($"[UIAudio] Playing sound: {soundName}");
             }
@@ -168,7 +168,7 @@ namespace GungeonTogether.UI
                 GungeonTogether.Logging.Debug.LogError($"[UIAudio] Failed to play sound {soundName}: {ex.Message}");
             }
         }
-        
+
         /// <summary>
         /// Play a sound with random pitch variation
         /// </summary>
@@ -177,7 +177,7 @@ namespace GungeonTogether.UI
             float randomPitch = 1f + UnityEngine.Random.Range(-pitchVariation, pitchVariation);
             PlaySound(soundName, volumeMultiplier, randomPitch);
         }
-        
+
         /// <summary>
         /// Stop all UI sounds
         /// </summary>
@@ -187,7 +187,7 @@ namespace GungeonTogether.UI
             notificationAudioSource.Stop();
             ambientAudioSource.Stop();
         }
-        
+
         /// <summary>
         /// Set master volume
         /// </summary>
@@ -198,7 +198,7 @@ namespace GungeonTogether.UI
             notificationAudioSource.volume = masterVolume * 0.8f;
             ambientAudioSource.volume = masterVolume * 0.3f;
         }
-        
+
         /// <summary>
         /// Enable or disable sound effects
         /// </summary>
@@ -206,9 +206,9 @@ namespace GungeonTogether.UI
         {
             enableSoundEffects = enabled;
         }
-        
+
         // Procedural Audio Generation Methods
-        
+
         private enum NotificationTone
         {
             Info,
@@ -218,7 +218,7 @@ namespace GungeonTogether.UI
             Steam,
             Multiplayer
         }
-        
+
         /// <summary>
         /// Generate a click sound
         /// </summary>
@@ -226,7 +226,7 @@ namespace GungeonTogether.UI
         {
             return GenerateTone(800f, 0.1f, ToneType.Square, 0.5f);
         }
-        
+
         /// <summary>
         /// Generate a hover sound
         /// </summary>
@@ -234,7 +234,7 @@ namespace GungeonTogether.UI
         {
             return GenerateTone(600f, 0.05f, ToneType.Sine, 0.3f);
         }
-        
+
         /// <summary>
         /// Generate an open sound
         /// </summary>
@@ -242,7 +242,7 @@ namespace GungeonTogether.UI
         {
             return GenerateChord(new float[] { 400f, 600f, 800f }, 0.3f, ToneType.Sine, 0.6f);
         }
-        
+
         /// <summary>
         /// Generate a close sound
         /// </summary>
@@ -250,7 +250,7 @@ namespace GungeonTogether.UI
         {
             return GenerateChord(new float[] { 800f, 600f, 400f }, 0.25f, ToneType.Sine, 0.5f);
         }
-        
+
         /// <summary>
         /// Generate a success sound
         /// </summary>
@@ -258,7 +258,7 @@ namespace GungeonTogether.UI
         {
             return GenerateChord(new float[] { 523f, 659f, 784f }, 0.4f, ToneType.Sine, 0.7f); // C-E-G major chord
         }
-        
+
         /// <summary>
         /// Generate an error sound
         /// </summary>
@@ -266,7 +266,7 @@ namespace GungeonTogether.UI
         {
             return GenerateTone(200f, 0.5f, ToneType.Sawtooth, 0.8f);
         }
-        
+
         /// <summary>
         /// Generate a warning sound
         /// </summary>
@@ -274,7 +274,7 @@ namespace GungeonTogether.UI
         {
             return GenerateChord(new float[] { 440f, 440f, 440f }, 0.2f, ToneType.Triangle, 0.6f); // Triple A note
         }
-        
+
         /// <summary>
         /// Generate connect sound
         /// </summary>
@@ -282,7 +282,7 @@ namespace GungeonTogether.UI
         {
             return GenerateChord(new float[] { 330f, 415f, 523f }, 0.6f, ToneType.Sine, 0.7f); // Ascending connection
         }
-        
+
         /// <summary>
         /// Generate disconnect sound
         /// </summary>
@@ -290,7 +290,7 @@ namespace GungeonTogether.UI
         {
             return GenerateChord(new float[] { 523f, 415f, 330f }, 0.5f, ToneType.Sine, 0.6f); // Descending disconnection
         }
-        
+
         /// <summary>
         /// Generate host found sound
         /// </summary>
@@ -298,7 +298,7 @@ namespace GungeonTogether.UI
         {
             return GenerateTone(880f, 0.15f, ToneType.Sine, 0.5f);
         }
-        
+
         /// <summary>
         /// Generate player joined sound
         /// </summary>
@@ -306,7 +306,7 @@ namespace GungeonTogether.UI
         {
             return GenerateChord(new float[] { 440f, 554f, 659f }, 0.3f, ToneType.Sine, 0.6f);
         }
-        
+
         /// <summary>
         /// Generate player left sound
         /// </summary>
@@ -314,7 +314,7 @@ namespace GungeonTogether.UI
         {
             return GenerateChord(new float[] { 659f, 554f, 440f }, 0.25f, ToneType.Sine, 0.5f);
         }
-        
+
         /// <summary>
         /// Generate notification sound based on type
         /// </summary>
@@ -338,7 +338,7 @@ namespace GungeonTogether.UI
                     return GenerateTone(500f, 0.2f, ToneType.Sine, 0.4f);
             }
         }
-        
+
         /// <summary>
         /// Generate Steam overlay sound
         /// </summary>
@@ -346,7 +346,7 @@ namespace GungeonTogether.UI
         {
             return GenerateChord(new float[] { 261f, 329f, 392f, 523f }, 0.4f, ToneType.Sine, 0.4f);
         }
-        
+
         /// <summary>
         /// Generate friend online sound
         /// </summary>
@@ -354,9 +354,9 @@ namespace GungeonTogether.UI
         {
             return GenerateTone(1000f, 0.1f, ToneType.Sine, 0.3f);
         }
-        
+
         // Core Audio Generation Methods
-        
+
         private enum ToneType
         {
             Sine,
@@ -364,7 +364,7 @@ namespace GungeonTogether.UI
             Triangle,
             Sawtooth
         }
-        
+
         /// <summary>
         /// Generate a single tone
         /// </summary>
@@ -372,24 +372,24 @@ namespace GungeonTogether.UI
         {
             int sampleRate = 44100;
             int sampleCount = Mathf.RoundToInt(duration * sampleRate);
-            
+
             var clip = AudioClip.Create("GeneratedTone", sampleCount, 1, sampleRate, false);
             var samples = new float[sampleCount];
-            
+
             for (int i = 0; i < sampleCount; i++)
             {
                 float time = (float)i / sampleRate;
                 float value = GenerateWaveform(time, frequency, toneType);
-                
+
                 // Apply envelope (fade in/out)
                 float envelope = CalculateEnvelope(time, duration);
                 samples[i] = value * amplitude * envelope;
             }
-            
+
             clip.SetData(samples, 0);
             return clip;
         }
-        
+
         /// <summary>
         /// Generate a chord (multiple tones)
         /// </summary>
@@ -397,40 +397,40 @@ namespace GungeonTogether.UI
         {
             int sampleRate = 44100;
             int sampleCount = Mathf.RoundToInt(duration * sampleRate);
-            
+
             var clip = AudioClip.Create("GeneratedChord", sampleCount, 1, sampleRate, false);
             var samples = new float[sampleCount];
-            
+
             for (int i = 0; i < sampleCount; i++)
             {
                 float time = (float)i / sampleRate;
                 float value = 0f;
-                
+
                 // Sum all frequencies
                 foreach (float freq in frequencies)
                 {
                     value += GenerateWaveform(time, freq, toneType);
                 }
-                
+
                 // Normalize by number of frequencies
                 value /= frequencies.Length;
-                
+
                 // Apply envelope
                 float envelope = CalculateEnvelope(time, duration);
                 samples[i] = value * amplitude * envelope;
             }
-            
+
             clip.SetData(samples, 0);
             return clip;
         }
-        
+
         /// <summary>
         /// Generate waveform based on type
         /// </summary>
         private float GenerateWaveform(float time, float frequency, ToneType toneType)
         {
             float phase = time * frequency * 2f * Mathf.PI;
-            
+
             switch (toneType)
             {
                 case ToneType.Sine:
@@ -445,14 +445,14 @@ namespace GungeonTogether.UI
                     return Mathf.Sin(phase);
             }
         }
-        
+
         /// <summary>
         /// Calculate envelope for smooth fade in/out
         /// </summary>
         private float CalculateEnvelope(float time, float duration)
         {
             float fadeTime = duration * 0.1f; // 10% fade in/out
-            
+
             if (time < fadeTime)
             {
                 // Fade in

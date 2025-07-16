@@ -1,6 +1,5 @@
 using System;
 using UnityEngine;
-using GungeonTogether.Steam;
 
 namespace GungeonTogether.Steam
 {
@@ -10,7 +9,7 @@ namespace GungeonTogether.Steam
         private ulong _hostSteamId;
         private ulong _clientSteamId;
         private bool _isConnected;
-        
+
         // Heartbeat timing
         private float _lastHeartbeatTime = 0f;
         private float _lastHeartbeatLogTime = 0f;
@@ -31,11 +30,11 @@ namespace GungeonTogether.Steam
                 // CRITICAL: For P2P to work, we need to SEND a packet to the host first
                 // This will initiate the P2P session from our side
                 GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager] Initiating P2P connection to host: {_hostSteamId}");
-                
+
                 // Send an initial packet to establish the P2P session
                 byte[] handshakeData = System.Text.Encoding.UTF8.GetBytes($"CLIENT_HANDSHAKE:{_clientSteamId}");
                 bool handshakeSent = SteamNetworkingSocketsHelper.SendP2PPacket(_hostSteamId, handshakeData);
-                
+
                 if (handshakeSent)
                 {
                     // Now accept the P2P session
@@ -44,7 +43,7 @@ namespace GungeonTogether.Steam
                     {
                         _isConnected = true;
                         GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager] Successfully connected to host: {_hostSteamId}");
-                        
+
                         // Send join packet
                         SendPlayerJoinPacket();
                     }
@@ -83,7 +82,7 @@ namespace GungeonTogether.Steam
                 GungeonTogether.Logging.Debug.LogError($"[SteamP2PClientManager][JOINER] Send packet error: {e.Message}");
             }
         }
-        
+
         public void SendToHost(NetworkPacket packet)
         {
             if (!_isConnected) return;
@@ -115,10 +114,10 @@ namespace GungeonTogether.Steam
                     SendHeartbeat();
                     _lastHeartbeatTime = UnityEngine.Time.time;
                 }
-                
+
                 // Use the new efficient packet polling method
                 var packets = SteamNetworkingSocketsHelper.PollIncomingPackets();
-                
+
                 foreach (var packet in packets)
                 {
                     if (packet.data.Length > 0 && packet.senderSteamId.Equals(_hostSteamId))
@@ -140,7 +139,7 @@ namespace GungeonTogether.Steam
                 GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][JOINER] Received packet from {senderSteamId}, bytes={data?.Length ?? 0}");
                 // Check if it's a special message
                 string message = System.Text.Encoding.UTF8.GetString(data);
-                
+
                 if (message.StartsWith("HEARTBEAT:"))
                 {
                     // Respond to heartbeat to keep connection alive
@@ -154,7 +153,7 @@ namespace GungeonTogether.Steam
                     byte[] ackData = System.Text.Encoding.UTF8.GetBytes($"WELCOME_ACK:{_clientSteamId}");
                     SteamNetworkingSocketsHelper.SendP2PPacket(_hostSteamId, ackData);
                     GungeonTogether.Logging.Debug.Log("[SteamP2PClientManager] Acknowledged host welcome");
-                    
+
                     // Notify NetworkManager that we've connected to host
                     if (!NetworkManager.Instance.IsHost())
                     {
@@ -187,7 +186,7 @@ namespace GungeonTogether.Steam
             try
             {
                 GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][DEBUG] SendPlayerJoinPacket called - Client SteamId: {_clientSteamId}, Host SteamId: {_hostSteamId}");
-                
+
                 var joinData = new PlayerPositionData
                 {
                     PlayerId = _clientSteamId,
@@ -197,7 +196,7 @@ namespace GungeonTogether.Steam
                     IsGrounded = true,
                     IsDodgeRolling = false
                 };
-                
+
                 var packet = new NetworkPacket(PacketType.PlayerJoin, _clientSteamId, PacketSerializer.SerializeObject(joinData));
                 GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][DEBUG] Created PlayerJoin packet, about to send to host");
                 SendToHost(packet);
@@ -221,9 +220,9 @@ namespace GungeonTogether.Steam
                     Data = new byte[0],
                     Timestamp = UnityEngine.Time.time
                 };
-                
+
                 SendToHost(heartbeatPacket);
-                
+
                 // More reliable logging - every 5 seconds
                 if (UnityEngine.Time.time - _lastHeartbeatLogTime > 5.0f)
                 {

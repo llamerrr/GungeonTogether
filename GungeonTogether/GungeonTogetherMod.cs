@@ -1,10 +1,10 @@
-using System;
-using System.Collections.Generic;
 using BepInEx;
-using UnityEngine;
 using GungeonTogether.Game;
 using GungeonTogether.Steam;
 using GungeonTogether.UI;
+using System;
+using System.Collections.Generic;
+using UnityEngine;
 
 namespace GungeonTogether
 {
@@ -22,21 +22,21 @@ namespace GungeonTogether
         public const string VERSION = "0.1.0"; // Updated version for networking release
         public static GungeonTogetherMod Instance { get; private set; }
         public SimpleSessionManager _sessionManager; // Made public for UI access
-        
+
         // Public property for UI access
         public SimpleSessionManager SessionManager => _sessionManager;
-        
+
         // UI System
         private bool uiInitialized = false;
-        
+
         // Networking and synchronization systems
         private bool networkingInitialized = false;
-        
+
         public void Awake()
         {
             Instance = this;
             Logger.LogInfo("GungeonTogether mod loading...");
-            
+
             try
             {
                 // CRITICAL: Initialize Steam callbacks IMMEDIATELY to catch early join requests
@@ -45,13 +45,13 @@ namespace GungeonTogether
                 {
                     // Initialize Steam reflection helper first
                     SteamReflectionHelper.InitializeSteamTypes();
-                    
+
                     // Initialize Steam callbacks as early as possible
                     SteamCallbackManager.InitializeSteamCallbacks();
-                    
+
                     // Initialize the simple Steam join system
                     SimpleSteamJoinSystem.Initialize();
-                    
+
                     // Initialize networking sockets helper
                     if (SteamNetworkingSocketsHelper.Initialize())
                     {
@@ -63,10 +63,10 @@ namespace GungeonTogether
                     {
                         Logger.LogWarning("Failed to initialize Steam Networking Sockets");
                     }
-                    
+
                     // Check command line arguments for Steam join requests
                     CheckSteamCommandLineArgs();
-                    
+
                     Logger.LogInfo("Early Steam initialization complete!");
                 }
                 catch (Exception steamEx)
@@ -74,10 +74,10 @@ namespace GungeonTogether
                     Logger.LogWarning($"Early Steam initialization failed: {steamEx.Message}");
                     Logger.LogInfo("Will retry Steam initialization later...");
                 }
-                
+
                 // Register event hooks
                 SetupEventHooks();
-                
+
                 Logger.LogInfo("GungeonTogether mod loaded successfully!");
                 Logger.LogInfo("Waiting for GameManager to be alive...");
             }
@@ -87,37 +87,38 @@ namespace GungeonTogether
                 Logger.LogError($"Stack trace: {e.StackTrace}");
             }
         }
-        
+
         public void Start()
         {
             Logger.LogInfo("Start() called, waiting for GameManager...");
             ETGModMainBehaviour.WaitForGameManagerStart(GMStart);
-        }        public void GMStart(GameManager gameManager)
+        }
+        public void GMStart(GameManager gameManager)
         {
             Logger.LogInfo("GameManager is alive! Initializing multiplayer systems...");
             Logger.LogInfo($"ETG GameManager type: {gameManager.GetType().Name}");
-            
+
             try
             {
                 // Check for Steam command line arguments for join requests
                 CheckSteamCommandLineArgs();
-                
+
                 Logger.LogInfo("Initializing SimpleSessionManager (bypassing BasicGameManager)...");
                 _sessionManager = new SimpleSessionManager();
                 Logger.LogInfo("SimpleSessionManager created successfully!");
-                
+
                 // Initialize UI System
                 InitializeUISystem();
-                
+
                 Logger.LogInfo("Setting up Steam integration...");
                 try
                 {
                     SteamSessionHelper.Initialize(_sessionManager);
-                    
+
                     // Subscribe to Steam overlay join events
                     ETGSteamP2PNetworking.OnOverlayJoinRequested += OnSteamOverlayJoinRequested;
                     Logger.LogInfo("Subscribed to Steam overlay 'Join Game' events");
-                    
+
                     Logger.LogInfo("Steam integration initialized!");
                 }
                 catch (Exception steamEx)
@@ -125,23 +126,24 @@ namespace GungeonTogether
                     Logger.LogWarning($"Steam integration failed: {steamEx.Message}");
                     Logger.LogInfo("Continuing without Steam features...");
                 }
-                
+
                 Logger.LogInfo("Setting up debug controls...");
                 SetupDebugControls();
-                
+
                 Logger.LogInfo("Initializing debugging systems...");
                 InitializeDebuggingSystem();
-                
+
                 // Initialize networking and synchronization systems
                 InitializeNetworking();
-                
-            Logger.LogInfo("GungeonTogether initialized successfully!!!!!!! YAY!!!!!!!!!!!!!!!!!!");
+
+                Logger.LogInfo("GungeonTogether initialized successfully!!!!!!! YAY!!!!!!!!!!!!!!!!!!");
             }
             catch (Exception e)
             {
                 Logger.LogError($"Failed to initialize GungeonTogether: {e.Message}");
                 Logger.LogError($"Stack trace: {e.StackTrace}");
-            }        }
+            }
+        }
 
         /// <summary>
         /// Initialize the modern UI system
@@ -151,17 +153,17 @@ namespace GungeonTogether
             try
             {
                 Logger.LogInfo("Initializing modern UI system...");
-                
+
                 // Initialize the MultiplayerUIManager first
                 MultiplayerUIManager.Initialize();
-                
+
                 // Create a GameObject for the modern menu
                 var modernMenuObject = new GameObject("ModernMultiplayerMenu");
                 UnityEngine.Object.DontDestroyOnLoad(modernMenuObject);
-                
+
                 // Add the ModernMultiplayerMenu component
                 var modernMenu = modernMenuObject.AddComponent<ModernMultiplayerMenu>();
-                
+
                 uiInitialized = true;
                 Logger.LogInfo("Modern UI system initialized successfully!");
                 Logger.LogInfo("====================================");
@@ -176,12 +178,12 @@ namespace GungeonTogether
                 uiInitialized = false;
             }
         }
-        
+
         private void SetupEventHooks()
         {
             Logger.LogDebug("Setting up ETGMod event hooks...");
-              // Hook into BepInEx event system - will use Update() and scene detection instead
-            
+            // Hook into BepInEx event system - will use Update() and scene detection instead
+
             Logger.LogDebug("Event hooks registered");
         }
 
@@ -190,12 +192,12 @@ namespace GungeonTogether
 
             // Update the session manager each frame (includes P2P networking and player sync)
             _sessionManager?.Update();
-            
+
             // Update networking systems
             if (networkingInitialized)
             {
                 NetworkManager.Instance.Update();
-                
+
                 if (_sessionManager is not null && _sessionManager.IsActive)
                 {
                     // Removed noisy log: PlayerSynchroniser.StaticUpdate() on HOST/JOINER
@@ -240,34 +242,21 @@ namespace GungeonTogether
                     Logger.LogWarning($"Error processing Steam callbacks: {e.Message}");
                 }
             }
-            
-            // Update the simple Steam join system
-            try
-            {
-                SimpleSteamJoinSystem.Update();
-            }
-            catch (Exception e)
-            {
-                // Only log errors occasionally
-                if (Time.frameCount % 300 == 0) // Every 5 seconds at 60fps
-                {
-                    Logger.LogWarning($"Error updating Steam join system: {e.Message}");
-                }
-            }
-            
+
+
             // CRITICAL: Prevent game pausing when hosting a multiplayer session
             if (_sessionManager is not null && _sessionManager.IsActive && _sessionManager.IsHost)
             {
                 PreventGamePauseWhenHosting();
             }
-            
+
             // Handle debug input
             HandleDebugInput();
-            
+
             // Handle UI input
             HandleUIInput();
         }
-        
+
         /// <summary>
         /// Prevent the game from pausing when hosting a multiplayer session
         /// This ensures the server continues running even when ESC is pressed or menus are opened
@@ -281,7 +270,7 @@ namespace GungeonTogether
                 {
                     Time.timeScale = 1.0f;
                 }
-                
+
                 // Try a safer approach using method invocation instead of property access
                 try
                 {
@@ -289,18 +278,18 @@ namespace GungeonTogether
                     if (gameManagerType is not null)
                     {
                         // Get the static Instance field instead of property to avoid reflection issues
-                        var instanceField = gameManagerType.GetField("Instance", 
+                        var instanceField = gameManagerType.GetField("Instance",
                             System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                        
+
                         if (instanceField is not null)
                         {
                             var gameManager = instanceField.GetValue(null);
                             if (gameManager is not null)
                             {
                                 // Try to find and manipulate pause-related fields only (avoiding properties)
-                                var isPausedField = gameManagerType.GetField("m_isPaused", 
+                                var isPausedField = gameManagerType.GetField("m_isPaused",
                                     System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                                
+
                                 if (isPausedField is not null)
                                 {
                                     var pausedValue = isPausedField.GetValue(gameManager);
@@ -310,11 +299,11 @@ namespace GungeonTogether
                                         Logger.LogInfo("[Multiplayer] Overrode GameManager pause state - server continues running");
                                     }
                                 }
-                                
+
                                 // Try alternative field names
-                                var pausedField = gameManagerType.GetField("IsPaused", 
+                                var pausedField = gameManagerType.GetField("IsPaused",
                                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                                
+
                                 if (pausedField is not null)
                                 {
                                     var pausedValue = pausedField.GetValue(gameManager);
@@ -329,21 +318,21 @@ namespace GungeonTogether
                 }
                 catch (System.Exception ex)
                 {                // Only log reflection errors once every 5 seconds to avoid spam
-                if (Time.frameCount % 300 == 0)
-                {
-                    Logger.LogWarning($"[Multiplayer] GameManager pause override failed (using timeScale fallback): {ex.Message}");
-                }
+                    if (Time.frameCount % 300 == 0)
+                    {
+                        Logger.LogWarning($"[Multiplayer] GameManager pause override failed (using timeScale fallback): {ex.Message}");
+                    }
                 }
             }
             catch (System.Exception e)
             {            // Fallback error handling
-            if (Time.frameCount % 300 == 0) // Log every ~5 seconds at 60fps
-            {
-                Logger.LogWarning($"[Multiplayer] Pause prevention error (timeScale fallback active): {e.Message}");
-            }
+                if (Time.frameCount % 300 == 0) // Log every ~5 seconds at 60fps
+                {
+                    Logger.LogWarning($"[Multiplayer] Pause prevention error (timeScale fallback active): {e.Message}");
+                }
             }
         }
-        
+
         /// <summary>
         /// Handle UI-specific input
         /// </summary>
@@ -353,7 +342,7 @@ namespace GungeonTogether
             {
                 // All UI input is now handled by ModernMultiplayerMenu (Ctrl+P)
                 // Legacy Ctrl+M support removed for unified experience
-                
+
                 // ESC key handling - intercept when hosting to inform user
                 if (Input.GetKeyDown(KeyCode.Escape))
                 {
@@ -377,7 +366,7 @@ namespace GungeonTogether
                         }
                     }
                 }
-                
+
                 // Ctrl+N to show notification test
                 if (Input.GetKeyDown(KeyCode.N) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)))
                 {
@@ -392,7 +381,7 @@ namespace GungeonTogether
                 Logger.LogError($"Error in UI input handling: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Handle debug input - only developer debugging keys remain
         /// All user functionality is now in the UI (Ctrl+P)
@@ -400,7 +389,7 @@ namespace GungeonTogether
         private void HandleDebugInput()
         {
             if (_sessionManager is null) return;
-            
+
             try
             {
                 // F1: Toggle comprehensive debug UI
@@ -409,33 +398,33 @@ namespace GungeonTogether
                     Logger.LogInfo("F1: Toggling comprehensive debug UI...");
                     DebugUIManager.ToggleVisibility();
                 }
-                
+
                 // Dungeon debugging controls
                 if (Input.GetKeyDown(KeyCode.F5))
                 {
                     Logger.LogInfo("F5: Loading saved dungeon...");
                     GungeonTogether.Debug.DungeonSaveLoad.LoadDungeon();
                 }
-                
+
                 if (Input.GetKeyDown(KeyCode.F6))
                 {
                     Logger.LogInfo("F6: Saving current dungeon...");
                     GungeonTogether.Debug.DungeonSaveLoad.SaveCurrentDungeon();
                 }
-                
+
                 if (Input.GetKeyDown(KeyCode.F7))
                 {
                     Logger.LogInfo("F7: Comparing current vs saved dungeon...");
                     GungeonTogether.Debug.DungeonSaveLoad.CompareDungeonWithSaved();
                 }
-                
+
                 // Keep F8 for developer debugging only
                 if (Input.GetKeyDown(KeyCode.F8))
                 {
                     Logger.LogInfo("F8: Developer debug - Showing friends playing GungeonTogether...");
                     ShowFriendsPlayingGame();
                 }
-                
+
                 // Keep F10 for Steam diagnostics (developer only)
                 if (Input.GetKeyDown(KeyCode.F10))
                 {
@@ -448,19 +437,19 @@ namespace GungeonTogether
                 Logger.LogError($"Error in debug input: {e.Message}");
             }
         }
-        
+
         // Event handlers
         private void OnGameStarted()
         {
             Logger.LogInfo("Game started event received");
             // Game has started, we can now safely interact with game systems
         }
-          private void OnMainMenuLoaded(MainMenuFoyerController menu)
+        private void OnMainMenuLoaded(MainMenuFoyerController menu)
         {
             Logger.LogInfo("Main menu loaded");
             // Main menu is loaded, we could add UI elements here in the future
         }
-        
+
         // Multiplayer API with UI integration
         public void StartHosting()
         {
@@ -470,13 +459,13 @@ namespace GungeonTogether
                 {
                     _sessionManager.StartSession();
                     Logger.LogInfo("StartSession called on SimpleSessionManager");
-                    
+
                     // Check if session actually started (could be blocked by location validation)
                     if (_sessionManager.IsActive)
                     {
                         Logger.LogInfo("Started hosting session with SimpleSessionManager!");
                         Logger.LogInfo($"Manager Active: {_sessionManager.IsActive}");
-                        
+
                         // Initialize NetworkManager as host
                         if (networkingInitialized)
                         {
@@ -485,14 +474,14 @@ namespace GungeonTogether
                             NetworkedDungeonManager.Instance.Initialize(true);
                             Logger.LogInfo("NetworkManager initialized as HOST");
                         }
-                        
+
                         // Notify UI and user about hosting status and pause prevention
                         if (uiInitialized)
                         {
                             MultiplayerUIManager.OnSessionStateChanged(true, true);
                             MultiplayerUIManager.ShowNotification("Hosting multiplayer server - game will not pause!", 5f);
                         }
-                        
+
                         Logger.LogInfo("[Multiplayer] Game pause prevention is now active - server will continue running even when menus are opened");
                     }
                     else
@@ -500,7 +489,7 @@ namespace GungeonTogether
                         // Session didn't start - likely due to location restriction
                         string status = _sessionManager.Status;
                         Logger.LogWarning($"Failed to start session: {status}");
-                        
+
                         if (uiInitialized)
                         {
                             if (status.Contains("Cannot start session from"))
@@ -532,7 +521,7 @@ namespace GungeonTogether
                 }
             }
         }
-        
+
         public void JoinSession(string steamIdString)
         {
             try
@@ -550,13 +539,13 @@ namespace GungeonTogether
                 if (ulong.TryParse(steamIdString, out ulong steamId))
                 {
                     Logger.LogInfo($"Join session called with Steam ID: {steamIdString}");
-                    
+
                     // Convert Steam ID to session format
                     string sessionId = $"steam_{steamIdString}";
-                    
+
                     Logger.LogInfo($"Attempting to join session: {sessionId}");
                     _sessionManager.JoinSession(sessionId);
-                    
+
                     // Check if join actually started (could be blocked by location validation)
                     if (_sessionManager.IsActive)
                     {
@@ -585,7 +574,7 @@ namespace GungeonTogether
                         // Join didn't start - likely due to location restriction
                         string status = _sessionManager.Status;
                         Logger.LogWarning($"Failed to join session: {status}");
-                        
+
                         if (uiInitialized)
                         {
                             if (status.Contains("Cannot join session from"))
@@ -617,7 +606,7 @@ namespace GungeonTogether
                 }
             }
         }
-        
+
         public void StopMultiplayer()
         {
             try
@@ -626,21 +615,21 @@ namespace GungeonTogether
                 {
                     _sessionManager.StopSession();
                     Logger.LogInfo("Stopped session with SimpleSessionManager!");
-                    
+
                     // Shutdown networking systems
                     if (networkingInitialized)
                     {
                         NetworkManager.Instance.Shutdown();
                         Logger.LogInfo("NetworkManager shutdown complete");
                     }
-                    
+
                     // Notify UI and user that hosting has stopped
                     if (uiInitialized)
                     {
                         MultiplayerUIManager.OnSessionStateChanged(false, false);
                         MultiplayerUIManager.ShowNotification("Multiplayer session ended - normal pause behavior restored", 3f);
                     }
-                    
+
                     Logger.LogInfo("[Multiplayer] Game pause prevention deactivated - normal pause behavior restored");
                 }
                 else
@@ -660,16 +649,17 @@ namespace GungeonTogether
                     MultiplayerUIManager.ShowNotification($"Failed to stop: {e.Message}", 3f);
                 }
             }
-        }        public void ShowStatus()
+        }
+        public void ShowStatus()
         {
             Logger.LogInfo("=== GungeonTogether Status ===");
-            
+
             if (_sessionManager is not null)
             {
                 Logger.LogInfo("Using: SimpleSessionManager with AUTOMATIC Steam Integration");
                 Logger.LogInfo($"Session Active: {_sessionManager.IsActive}");
                 Logger.LogInfo($"Status: {_sessionManager.Status}");
-                
+
                 // Show Steam ID and hosting info
                 try
                 {
@@ -678,7 +668,7 @@ namespace GungeonTogether
                     {
                         ulong mySteamId = steamNet.GetSteamID();
                         Logger.LogInfo($"Your Steam ID: {mySteamId}");
-                        
+
                         if (_sessionManager.IsActive && _sessionManager.IsHost)
                         {
                             Logger.LogInfo($"Server hosting!");
@@ -686,7 +676,7 @@ namespace GungeonTogether
                             Logger.LogInfo("  • Using Steam overlay 'Join Game'");
                             Logger.LogInfo("  • Opening the multiplayer menu (Ctrl+P) and joining your session");
                         }
-                        
+
                         // Show available hosts
                         ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
                         if (availableHosts.Length > 0)
@@ -702,7 +692,7 @@ namespace GungeonTogether
                         {
                             Logger.LogInfo("No available hosts found");
                         }
-                        
+
                         // Show last invite info if available
                         ulong lastInvite = ETGSteamP2PNetworking.GetLastInviterSteamId();
                         if (lastInvite > 0)
@@ -721,12 +711,13 @@ namespace GungeonTogether
                 Logger.LogInfo("Status: No manager initialized");
                 Logger.LogInfo("Error: Mod failed to initialize properly");
             }
-        }        private void ShowFriendsPlayingGame()
+        }
+        private void ShowFriendsPlayingGame()
         {
             try
             {
                 Logger.LogInfo("Getting friends playing GungeonTogether...");
-                
+
                 // Use the improved friends list functionality
                 var steamNet = ETGSteamP2PNetworking.Instance;
                 if (!ReferenceEquals(steamNet, null) && steamNet.IsAvailable())
@@ -738,10 +729,10 @@ namespace GungeonTogether
                 {
                     Logger.LogWarning("Steam networking not available for friends detection");
                 }
-                
+
                 // Also get the specific GungeonTogether friends info
                 string[] friends = SteamSessionHelper.GetFriendsPlayingGame();
-                
+
                 if (friends.Length == 0)
                 {
                     Logger.LogInfo("No friends currently playing GungeonTogether");
@@ -760,7 +751,7 @@ namespace GungeonTogether
                 Logger.LogError($"Failed to get friends list: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Event handler for Steam overlay "Join Game" requests
         /// This gets called automatically when someone clicks "Join Game" in the Steam overlay
@@ -770,13 +761,13 @@ namespace GungeonTogether
             try
             {
                 Logger.LogInfo($"'Join Game' event received for host: {hostSteamId}");
-                
+
                 // Notify UI
                 if (uiInitialized)
                 {
                     MultiplayerUIManager.OnSteamJoinRequested(hostSteamId);
                 }
-                
+
                 // Use the Steam session helper to handle the join
                 SteamSessionHelper.HandleJoinGameRequest($"steam_lobby_{hostSteamId}");
             }
@@ -789,7 +780,7 @@ namespace GungeonTogether
                 }
             }
         }
-        
+
         /// <summary>
         /// Handle Steam overlay "Join Game" requests
         /// </summary>
@@ -805,7 +796,7 @@ namespace GungeonTogether
                 Logger.LogError($"Failed to handle Steam join request: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Simulate Steam overlay "Join Game" functionality for testing
         /// In real implementation, this would be called by Steam callbacks
@@ -815,29 +806,29 @@ namespace GungeonTogether
             try
             {
                 Logger.LogInfo($"F9: Simulating Steam overlay 'Join Game' click...");
-                
+
                 // Test direct overlay join event firing
                 var steamNetwork = SteamNetworkingFactory.TryCreateSteamNetworking();
                 if (steamNetwork is not null && steamNetwork.IsAvailable())
                 {
                     ulong mySteamId = steamNetwork.GetSteamID();
-                    
+
                     // Check for available hosts first
                     ulong[] availableHosts = ETGSteamP2PNetworking.GetAvailableHosts();
-                    
+
                     if (availableHosts.Length > 0)
                     {
                         // Use the first available host for simulation
                         ulong simulatedHostSteamId = availableHosts[0];
                         Logger.LogInfo($"Found real host, simulating overlay invite from: {simulatedHostSteamId}");
-                        
+
                         // Set up the invite as if it came from Steam overlay
                         ETGSteamP2PNetworking.SetInviteInfo(simulatedHostSteamId, steamLobbyId);
-                        
+
                         // Fire the overlay join event directly using public method
                         Logger.LogInfo($"Firing OnOverlayJoinRequested event for Steam ID: {simulatedHostSteamId}");
                         ETGSteamP2PNetworking.TriggerOverlayJoinEvent(simulatedHostSteamId.ToString());
-                        
+
                         Logger.LogInfo("Steam overlay join simulation complete - check for join activity!");
                     }
                     else
@@ -855,7 +846,7 @@ namespace GungeonTogether
                 Logger.LogError($"Failed to simulate Steam overlay join: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Initialize networking and synchronization systems
         /// </summary>
@@ -864,21 +855,21 @@ namespace GungeonTogether
             try
             {
                 Logger.LogInfo("Initializing networking systems...");
-                
+
                 // Initialize packet serializer
                 PacketSerializer.Initialize();
-                
+
                 // Initialize game synchronizers
                 PlayerSynchroniser.StaticInitialize();
                 EnemySynchronizer.StaticInitialize();
                 ProjectileSynchronizer.StaticInitialize();
-                
+
                 // Initialize dungeon hooks
                 DungeonGenerationHook.InstallHooks();
-                
+
                 // Initialize networked dungeon manager
                 NetworkedDungeonManager.Instance.Initialize(false); // Will be set to true when hosting
-                
+
                 networkingInitialized = true;
                 Logger.LogInfo("Networking systems initialized successfully!");
             }
@@ -889,7 +880,7 @@ namespace GungeonTogether
                 networkingInitialized = false;
             }
         }
-        
+
         /// <summary>
         /// Check Steam command line arguments for join requests
         /// </summary>
@@ -928,7 +919,7 @@ namespace GungeonTogether
                     debugUIObj.AddComponent<DebugUIManager>();
                     DontDestroyOnLoad(debugUIObj);
                 }
-                
+
                 Logger.LogInfo("Debug controls setup complete");
             }
             catch (Exception e)
@@ -962,14 +953,14 @@ namespace GungeonTogether
             try
             {
                 Logger.LogInfo("Running Steam diagnostics...");
-                
+
                 if (SteamManager.Initialized)
                 {
                     Logger.LogInfo("✓ Steam is initialized");
-                    
+
                     var steamId = SteamReflectionHelper.GetLocalSteamId();
                     Logger.LogInfo($"✓ Steam ID: {steamId}");
-                    
+
                     // Check networking capabilities
                     if (SteamNetworkingSocketsHelper.IsInitialized)
                     {
@@ -990,7 +981,7 @@ namespace GungeonTogether
                 Logger.LogError($"Error running Steam diagnostics: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Run the comprehensive multiplayer test suite
         /// Call this method to validate all multiplayer systems
@@ -1007,7 +998,7 @@ namespace GungeonTogether
                 UnityEngine.Debug.LogError($"Failed to run multiplayer tests: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Get available hosts for joining
         /// </summary>
