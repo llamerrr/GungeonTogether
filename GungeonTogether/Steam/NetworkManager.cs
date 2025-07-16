@@ -143,11 +143,6 @@ namespace GungeonTogether.Steam
         /// </summary>
         public void Update()
         {
-            // Debug heartbeat every 5 seconds to confirm Update is being called
-            if (Time.frameCount % 300 == 0) // Every 5 seconds at 60fps
-            {
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] Update heartbeat - IsHost: {isHost}, IncomingPackets: {incomingPackets.Count}, OutgoingPackets: {outgoingPackets.Count}");
-            }
             
             if (isHost && !ReferenceEquals(hostManager, null))
             {
@@ -194,7 +189,6 @@ namespace GungeonTogether.Steam
         /// </summary>
         public void SendPlayerPositionWithMap(Vector2 position, Vector2 velocity, float rotation, bool isGrounded, bool isDodgeRolling, string mapName)
         {
-            GungeonTogether.Logging.Debug.Log($"[NetworkManager] SendPlayerPositionWithMap: pos={position} rot={rotation} map={mapName}");
             // TEMP: Per-frame debug log for testing packet send frequency
             //GungeonTogether.Logging.Debug.Log($"[NetworkManager][PER-FRAME] Sending player position: pos={position} rot={rotation} map={mapName}");
             // Only log player position sends every 10 seconds to reduce spam
@@ -444,6 +438,8 @@ namespace GungeonTogether.Steam
 
         private void HandlePlayerJoin(NetworkPacket packet)
         {
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] HandlePlayerJoin called - packet senderId: {packet.SenderId}, local SteamId: {localSteamId}, isHost: {isHost}");
+            
             if (!connectedPlayers.ContainsKey(packet.SenderId))
             {
                 connectedPlayers[packet.SenderId] = new PlayerInfo
@@ -455,6 +451,7 @@ namespace GungeonTogether.Steam
                     IsConnected = true
                 };
 
+                GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] Added player {packet.SenderId} to connectedPlayers. Total players: {connectedPlayers.Count}");
                 OnPlayerJoined?.Invoke(packet.SenderId);
                 GungeonTogether.Logging.Debug.Log($"[NetworkManager] Player joined: {packet.SenderId}");
                 // Send map sync to the new player
@@ -463,6 +460,10 @@ namespace GungeonTogether.Steam
                     GungeonTogether.Logging.Debug.Log($"[NetworkManager] Host sending map sync to new player {packet.SenderId}");
                     SendMapSync(packet.SenderId, UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
                 }
+            }
+            else
+            {
+                GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] Player {packet.SenderId} already exists in connectedPlayers");
             }
         }
 

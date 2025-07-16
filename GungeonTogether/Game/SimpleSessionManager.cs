@@ -118,6 +118,9 @@ namespace GungeonTogether.Game
         
         public void JoinSession(string sessionId)
         {
+            GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager][DEBUG] JoinSession called with sessionId: {sessionId}");
+            GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager][DEBUG] Before join - IsActive: {IsActive}, IsHost: {IsHost}");
+            
             if (!IsValidLocationForMultiplayer())
             {
                 string currentLocation = GetCurrentLocationName();
@@ -131,6 +134,8 @@ namespace GungeonTogether.Game
             Status = $"Connecting to Steam session: {sessionId}";
             currentHostId = sessionId;
             connectedPlayers.Clear();
+            
+            GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager][DEBUG] After setting flags - IsActive: {IsActive}, IsHost: {IsHost}, currentHostId: {currentHostId}");
             GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Location validated - joining multiplayer session");
             EnsureSteamNetworkingInitialized();
             if (!ReferenceEquals(steamNet, null) && steamNet.IsAvailable())

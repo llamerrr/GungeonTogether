@@ -187,11 +187,6 @@ namespace GungeonTogether
 
         void Update()
         {
-            // Throttle main update log to every 5 seconds (assuming 60fps)
-            if (Time.frameCount % 300 == 0)
-            {
-                Logger.LogInfo($"[GT Update] Frame {Time.frameCount} | networkingInitialized={networkingInitialized}, SessionManagerActive={_sessionManager?.IsActive}, IsHost={_sessionManager?.IsHost}, SessionManagerNull={_sessionManager == null}, SteamId={SteamReflectionHelper.GetLocalSteamId()}");
-            }
 
             // Update the session manager each frame (includes P2P networking and player sync)
             _sessionManager?.Update();
@@ -208,11 +203,6 @@ namespace GungeonTogether
                     EnemySynchronizer.StaticUpdate();
                     ProjectileSynchronizer.StaticUpdate();
                 }
-                else
-                {
-                    if (Time.frameCount % 300 == 0)
-                        Logger.LogInfo($"[GT Update] _sessionManager is null or not active");
-                }
             }
             else
             {
@@ -220,11 +210,6 @@ namespace GungeonTogether
                     Logger.LogInfo($"[GT Update] networkingInitialized is false");
             }
 
-            // Throttle fallback debug logs
-            if (Time.frameCount % 300 == 0)
-            {
-                Logger.LogInfo($"[GT Update][FALLBACK DEBUG] networkingInitialized={networkingInitialized}, _sessionManager==null:{_sessionManager==null}, _sessionManager?.IsHost={_sessionManager?.IsHost}");
-            }
 
             // FINAL FALLBACK: If networking is initialized and not host, always run synchronizers for joiner
             if (networkingInitialized && (_sessionManager == null || (_sessionManager != null && !_sessionManager.IsHost)))

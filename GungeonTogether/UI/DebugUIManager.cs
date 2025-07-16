@@ -369,6 +369,290 @@ namespace GungeonTogether.UI
                     GungeonTogether.Game.PlayerSynchroniser.OnAnyRemotePacketReceived(999999UL); // Fake remote Steam ID
                     UnityEngine.Debug.Log("[DebugUI] Manually triggered fake remote packet");
                 }
+                
+                // Test buttons for debugging
+                GUILayout.Space(10);
+                GUILayout.Label("Debug Test Controls:", GUILayout.ExpandWidth(true));
+                
+                if (GUILayout.Button("Test Remote Player Creation", GUILayout.Width(200)))
+                {
+                    GungeonTogether.Logging.Debug.Log("[DebugUI] Manual test: Creating test remote player");
+                    try
+                    {
+                        var testSteamId = 99999999UL; // Fake Steam ID for testing
+                        GungeonTogether.Game.PlayerSynchroniser.Instance.OnPlayerPositionReceived(new GungeonTogether.Steam.PlayerPositionData
+                        {
+                            PlayerId = testSteamId,
+                            Position = new Vector2(5, 5), // Visible position
+                            Velocity = Vector2.zero,
+                            Rotation = 0f,
+                            IsGrounded = true,
+                            IsDodgeRolling = false,
+                            MapName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name
+                        });
+                        GungeonTogether.Logging.Debug.Log("[DebugUI] Test remote player creation triggered");
+                    }
+                    catch (Exception e)
+                    {
+                        GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to create test remote player: {e.Message}");
+                    }
+                }
+                
+                if (GUILayout.Button("Force Set as Joiner", GUILayout.Width(200)))
+                {
+                    GungeonTogether.Logging.Debug.Log("[DebugUI] Manual test: Forcing session to joiner state");
+                    try
+                    {
+                        var sessionManager = GungeonTogether.GungeonTogetherMod.Instance?._sessionManager;
+                        if (sessionManager != null)
+                        {
+                            // Force joiner state
+                            var sessionType = sessionManager.GetType();
+                            var isActiveField = sessionType.GetField("IsActive", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                            var isHostField = sessionType.GetField("IsHost", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                            var currentHostIdField = sessionType.GetField("currentHostId", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                            
+                            if (isActiveField != null) isActiveField.SetValue(sessionManager, true);
+                            if (isHostField != null) isHostField.SetValue(sessionManager, false);
+                            if (currentHostIdField != null) currentHostIdField.SetValue(sessionManager, "test_host_123");
+                            
+                            GungeonTogether.Logging.Debug.Log("[DebugUI] Forced joiner state set");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to set joiner state: {e.Message}");
+                    }
+                }
+                
+                if (GUILayout.Button("Spawn Test Remote Player", GUILayout.Width(200)))
+                {
+                    GungeonTogether.Logging.Debug.Log("[DebugUI] Manual test: Spawning test remote player at visible location");
+                    try
+                    {
+                        var testSteamId = 12345678UL; // Different test ID
+                        var testPosition = new Vector3(38f, 20f, 20f); // Spawn near camera
+                        
+                        // Force create remote player directly using the correct method signature
+                        var playerSync = GungeonTogether.Game.PlayerSynchroniser.Instance;
+                        var createMethod = typeof(GungeonTogether.Game.PlayerSynchroniser).GetMethod("CreateRemotePlayer", 
+                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+                            null,
+                            new Type[] { typeof(ulong), typeof(string) },
+                            null);
+                        
+                        if (createMethod != null)
+                        {
+                            createMethod.Invoke(playerSync, new object[] { testSteamId, "TestMap" });
+                            GungeonTogether.Logging.Debug.Log($"[DebugUI] Test remote player spawned with ID {testSteamId} at position {testPosition}");
+                        }
+                        else
+                        {
+                            GungeonTogether.Logging.Debug.LogError("[DebugUI] Could not find CreateRemotePlayer method with correct signature");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to spawn test remote player: {e.Message}");
+                    }
+                }
+                
+                if (GUILayout.Button("Test Local Player Detection", GUILayout.Width(200)))
+                {
+                    GungeonTogether.Logging.Debug.Log("[DebugUI] Manual test: Testing local player detection");
+                    try
+                    {
+                        var gameManager = GameManager.Instance;
+                        var primaryPlayer = gameManager?.PrimaryPlayer;
+                        
+                        GungeonTogether.Logging.Debug.Log($"[DebugUI] GameManager.Instance: {(gameManager != null ? "Found" : "NULL")}");
+                        GungeonTogether.Logging.Debug.Log($"[DebugUI] PrimaryPlayer: {(primaryPlayer != null ? "Found" : "NULL")}");
+                        
+                        if (primaryPlayer != null)
+                        {
+                            GungeonTogether.Logging.Debug.Log($"[DebugUI] Player Position: {primaryPlayer.transform.position}");
+                            GungeonTogether.Logging.Debug.Log($"[DebugUI] Player Name: {primaryPlayer.name}");
+                            GungeonTogether.Logging.Debug.Log($"[DebugUI] Player ID: {primaryPlayer.PlayerIDX}");
+                        }
+                        
+                        // Try to force PlayerSynchroniser to re-initialize
+                        var playerSync = GungeonTogether.Game.PlayerSynchroniser.Instance;
+                        if (playerSync != null)
+                        {
+                            playerSync.Initialize();
+                            GungeonTogether.Logging.Debug.Log("[DebugUI] Forced PlayerSynchroniser re-initialization");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to test local player detection: {e.Message}");
+                    }
+                }
+                
+                if (GUILayout.Button("Create Simple Test GameObject", GUILayout.Width(200)))
+                {
+                    GungeonTogether.Logging.Debug.Log("[DebugUI] Manual test: Creating simple test GameObject");
+                    try
+                    {
+                        var testObj = new GameObject("DebugTestObject");
+                        var spriteRenderer = testObj.AddComponent<SpriteRenderer>();
+                        
+                        // Create a simple colored square
+                        var texture = new Texture2D(32, 32);
+                        for (int x = 0; x < 32; x++)
+                            for (int y = 0; y < 32; y++)
+                                texture.SetPixel(x, y, Color.green);
+                        texture.Apply();
+                        
+                        var sprite = Sprite.Create(texture, new Rect(0, 0, 32, 32), Vector2.one * 0.5f);
+                        spriteRenderer.sprite = sprite;
+                        spriteRenderer.color = Color.green;
+                        
+                        // Position it near the camera if available
+                        if (Camera.main != null)
+                        {
+                            testObj.transform.position = new Vector3(38f, 20f, 25f);
+                        }
+                        else
+                        {
+                            testObj.transform.position = new Vector3(38f, 20f, 25f);
+                        }
+                        
+                        GungeonTogether.Logging.Debug.Log($"[DebugUI] Created test GameObject at position: {testObj.transform.position}");
+                        
+                        // Auto-destroy after 5 seconds
+                        UnityEngine.Object.Destroy(testObj, 5f);
+                    }
+                    catch (Exception e)
+                    {
+                        GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to create test GameObject: {e.Message}");
+                    }
+                }
+                
+                if (GUILayout.Button("List All Remote Players", GUILayout.Width(200)))
+                {
+                    GungeonTogether.Logging.Debug.Log("[DebugUI] Manual test: Listing all remote player objects");
+                    try
+                    {
+                        // Find all GameObjects that might be remote players
+                        var allGameObjects = FindObjectsOfType<GameObject>();
+                        var remotePlayerObjects = allGameObjects.Where(obj => 
+                            obj.name.Contains("RemotePlayer") || 
+                            obj.name.Contains("DebugTestObject")).ToArray();
+                        
+                        GungeonTogether.Logging.Debug.Log($"[DebugUI] Found {remotePlayerObjects.Length} potential remote player objects:");
+                        
+                        foreach (var obj in remotePlayerObjects)
+                        {
+                            var position = obj.transform.position;
+                            var spriteRenderer = obj.GetComponent<SpriteRenderer>();
+                            var hasSprite = spriteRenderer != null && spriteRenderer.sprite != null;
+                            var isVisible = spriteRenderer != null && spriteRenderer.enabled;
+                            
+                            GungeonTogether.Logging.Debug.Log($"[DebugUI] - {obj.name} at {position}, HasSprite: {hasSprite}, Visible: {isVisible}, Active: {obj.activeInHierarchy}");
+                            
+                            if (spriteRenderer != null)
+                            {
+                                GungeonTogether.Logging.Debug.Log($"[DebugUI]   Sprite: {spriteRenderer.sprite?.name ?? "NULL"}, Color: {spriteRenderer.color}, Layer: {spriteRenderer.sortingLayerName}, Order: {spriteRenderer.sortingOrder}");
+                            }
+                        }
+                        
+                        // Also check PlayerSynchroniser's internal tracking
+                        var playerSync = GungeonTogether.Game.PlayerSynchroniser.Instance;
+                        if (playerSync != null)
+                        {
+                            var remotePlayersField = typeof(GungeonTogether.Game.PlayerSynchroniser).GetField("remotePlayers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                            var remotePlayerObjectsField = typeof(GungeonTogether.Game.PlayerSynchroniser).GetField("remotePlayerObjects", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                            
+                            if (remotePlayersField != null && remotePlayerObjectsField != null)
+                            {
+                                var remotePlayers = remotePlayersField.GetValue(playerSync);
+                                var remotePlayerObjectsDict = remotePlayerObjectsField.GetValue(playerSync);
+                                
+                                GungeonTogether.Logging.Debug.Log($"[DebugUI] PlayerSynchroniser tracking - remotePlayers: {remotePlayers}, remotePlayerObjects: {remotePlayerObjectsDict}");
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to list remote players: {e.Message}");
+                    }
+                }
+                
+                // Debug mode toggle button
+                GUILayout.BeginHorizontal();
+                var debugModeEnabled = GungeonTogether.Game.PlayerSynchroniser.DebugModeSimpleSquares;
+                var buttonText = debugModeEnabled ? "Disable Debug Squares" : "Enable Debug Squares";
+                var buttonColor = debugModeEnabled ? Color.red : Color.green;
+                
+                var originalColor = GUI.backgroundColor;
+                GUI.backgroundColor = buttonColor;
+                
+                if (GUILayout.Button(buttonText, GUILayout.Width(200)))
+                {
+                    GungeonTogether.Game.PlayerSynchroniser.DebugModeSimpleSquares = !debugModeEnabled;
+                    var newState = GungeonTogether.Game.PlayerSynchroniser.DebugModeSimpleSquares;
+                    GungeonTogether.Logging.Debug.Log($"[DebugUI] Debug squares mode toggled to: {newState}");
+                    
+                    if (newState)
+                    {
+                        GungeonTogether.Logging.Debug.Log("[DebugUI] Debug mode ENABLED - Remote players will be spawned as green squares");
+                    }
+                    else
+                    {
+                        GungeonTogether.Logging.Debug.Log("[DebugUI] Debug mode DISABLED - Remote players will use normal sprites");
+                    }
+                    
+                    // Recreate all existing remote players with the new debug mode setting
+                    try
+                    {
+                        GungeonTogether.Game.PlayerSynchroniser.Instance.RecreateAllRemotePlayers();
+                        GungeonTogether.Logging.Debug.Log("[DebugUI] Successfully recreated all remote players with new debug mode");
+                    }
+                    catch (Exception e)
+                    {
+                        GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to recreate remote players: {e.Message}");
+                    }
+                }
+                
+                GUI.backgroundColor = originalColor;
+                GUILayout.EndHorizontal();
+                
+                // Direct debug square creation button
+                if (GUILayout.Button("Create Persistent Debug Square", GUILayout.Width(200)))
+                {
+                    GungeonTogether.Logging.Debug.Log("[DebugUI] Creating persistent debug square directly");
+                    try
+                    {
+                        // Enable debug mode temporarily
+                        var wasDebugMode = GungeonTogether.Game.PlayerSynchroniser.DebugModeSimpleSquares;
+                        GungeonTogether.Game.PlayerSynchroniser.DebugModeSimpleSquares = true;
+                        
+                        // Create a debug remote player directly
+                        var testSteamId = 88888888UL; // Debug Steam ID
+                        var playerSync = GungeonTogether.Game.PlayerSynchroniser.Instance;
+                        
+                        // Force creation using the internal method
+                        var createMethod = typeof(GungeonTogether.Game.PlayerSynchroniser).GetMethod("CreateRemotePlayer", 
+                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+                            null,
+                            new Type[] { typeof(ulong), typeof(string) },
+                            null);
+                        
+                        if (createMethod != null)
+                        {
+                            createMethod.Invoke(playerSync, new object[] { testSteamId, "DebugMap" });
+                            GungeonTogether.Logging.Debug.Log($"[DebugUI] Created persistent debug square with ID {testSteamId}");
+                        }
+                        
+                        // Restore previous debug mode
+                        GungeonTogether.Game.PlayerSynchroniser.DebugModeSimpleSquares = wasDebugMode;
+                    }
+                    catch (Exception e)
+                    {
+                        GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to create persistent debug square: {e.Message}");
+                    }
+                }
             });
             
             var sessionManager = GungeonTogetherMod.Instance?._sessionManager;
@@ -389,6 +673,9 @@ namespace GungeonTogether.UI
                     DrawLabelValue("Is Joiner", (sessionManager.IsActive && !sessionManager.IsHost).ToString());
                     DrawLabelValue("Is Singleplayer", (!sessionManager.IsActive).ToString());
                     DrawLabelValue("Status", sessionManager.Status ?? "Unknown");
+                    
+                    // Add more detailed debug info
+                    DrawLabelValue("Current Host ID", sessionManager.currentHostId ?? "None");
                 }
                 else
                 {

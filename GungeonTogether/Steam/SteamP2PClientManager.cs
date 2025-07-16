@@ -186,6 +186,8 @@ namespace GungeonTogether.Steam
         {
             try
             {
+                GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][DEBUG] SendPlayerJoinPacket called - Client SteamId: {_clientSteamId}, Host SteamId: {_hostSteamId}");
+                
                 var joinData = new PlayerPositionData
                 {
                     PlayerId = _clientSteamId,
@@ -197,7 +199,9 @@ namespace GungeonTogether.Steam
                 };
                 
                 var packet = new NetworkPacket(PacketType.PlayerJoin, _clientSteamId, PacketSerializer.SerializeObject(joinData));
+                GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][DEBUG] Created PlayerJoin packet, about to send to host");
                 SendToHost(packet);
+                GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][DEBUG] PlayerJoin packet sent successfully");
             }
             catch (Exception e)
             {
