@@ -187,18 +187,20 @@ namespace GungeonTogether.Steam
             {
                 GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][DEBUG] SendPlayerJoinPacket called - Client SteamId: {_clientSteamId}, Host SteamId: {_hostSteamId}");
 
-                var joinData = new PlayerPositionData
+                var currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+                var localPlayer = GameManager.Instance?.PrimaryPlayer;
+                var currentPosition = localPlayer != null ? (Vector2)localPlayer.transform.position : Vector2.zero;
+
+                var joinData = new PlayerJoinData
                 {
                     PlayerId = _clientSteamId,
-                    Position = Vector2.zero,
-                    Velocity = Vector2.zero,
-                    Rotation = 0f,
-                    IsGrounded = true,
-                    IsDodgeRolling = false
+                    PlayerName = $"Player_{_clientSteamId}",
+                    Position = currentPosition,
+                    MapName = currentScene
                 };
 
                 var packet = new NetworkPacket(PacketType.PlayerJoin, _clientSteamId, PacketSerializer.SerializeObject(joinData));
-                GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][DEBUG] Created PlayerJoin packet, about to send to host");
+                GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][DEBUG] Created PlayerJoin packet with proper data, about to send to host");
                 SendToHost(packet);
                 GungeonTogether.Logging.Debug.Log($"[SteamP2PClientManager][DEBUG] PlayerJoin packet sent successfully");
             }

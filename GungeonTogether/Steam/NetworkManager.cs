@@ -43,7 +43,7 @@ namespace GungeonTogether.Steam
         private const float HEARTBEAT_INTERVAL = 1.0f;
         private const float PLAYER_UPDATE_INTERVAL = 0.05f; // 20 FPS for player updates
         private const float ENEMY_UPDATE_INTERVAL = 0.1f;   // 10 FPS for enemy updates
-        private const float TIMEOUT_MULTIPLIER = 12f; // 12x heartbeat interval = 12 seconds timeout (increased for debugging)
+        private const float TIMEOUT_MULTIPLIER = 30f; // 30x heartbeat interval = 30 seconds timeout (increased for stability)
 
         private float lastPlayerUpdateTime;
         private float lastEnemyUpdateTime;
@@ -77,7 +77,14 @@ namespace GungeonTogether.Steam
         /// </summary>
         public bool InitializeAsHost(ulong lobbyId)
         {
-            if (isInitialized) return true;
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] === INITIALIZING AS HOST ===");
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Host lobby ID: {lobbyId}, Local Steam ID: {localSteamId}");
+            
+            if (isInitialized) 
+            {
+                GungeonTogether.Logging.Debug.Log("[NetworkManager] Already initialized as host");
+                return true;
+            }
 
             try
             {
@@ -95,7 +102,8 @@ namespace GungeonTogether.Steam
                 };
 
                 isInitialized = true;
-                GungeonTogether.Logging.Debug.Log("[NetworkManager] Initialized as HOST");
+                GungeonTogether.Logging.Debug.Log("[NetworkManager] Successfully initialized as HOST");
+                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Connected players: {connectedPlayers.Count} (including host)");
                 return true;
             }
             catch (Exception e)
@@ -106,11 +114,59 @@ namespace GungeonTogether.Steam
         }
 
         /// <summary>
+        /// Initialize as client using an existing SteamP2PClientManager
+        /// </summary>
+        public bool InitializeAsClientWithExistingManager(SteamP2PClientManager existingClientManager, ulong hostSteamId)
+        {
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] === INITIALIZING AS CLIENT (WITH EXISTING MANAGER) ===");
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Host Steam ID: {hostSteamId}, Local Steam ID: {localSteamId}");
+
+            if (isInitialized)
+            {
+                GungeonTogether.Logging.Debug.Log("[NetworkManager] Already initialized as client");
+                return true;
+            }
+
+            try
+            {
+                isHost = false;
+                clientManager = existingClientManager; // Use the existing manager instead of creating a new one
+
+                // Add ourselves as a player
+                connectedPlayers[localSteamId] = new PlayerInfo
+                {
+                    SteamId = localSteamId,
+                    Name = "Client",
+                    LastKnownPosition = Vector2.zero,
+                    LastUpdateTime = Time.time,
+                    IsConnected = true
+                };
+
+                isInitialized = true;
+                GungeonTogether.Logging.Debug.Log("[NetworkManager] Successfully initialized as CLIENT with existing manager");
+                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Connected to host: {hostSteamId}");
+                return true;
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Failed to initialize as client with existing manager: {e.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Initialize as client
         /// </summary>
         public bool InitializeAsClient(ulong hostSteamId)
         {
-            if (isInitialized) return true;
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] === INITIALIZING AS CLIENT ===");
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Host Steam ID: {hostSteamId}, Local Steam ID: {localSteamId}");
+            
+            if (isInitialized) 
+            {
+                GungeonTogether.Logging.Debug.Log("[NetworkManager] Already initialized as client");
+                return true;
+            }
 
             try
             {
@@ -128,7 +184,8 @@ namespace GungeonTogether.Steam
                 };
 
                 isInitialized = true;
-                GungeonTogether.Logging.Debug.Log("[NetworkManager] Initialized as CLIENT");
+                GungeonTogether.Logging.Debug.Log("[NetworkManager] Successfully initialized as CLIENT");
+                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Connected to host: {hostSteamId}");
                 return true;
             }
             catch (Exception e)
@@ -299,6 +356,81 @@ namespace GungeonTogether.Steam
         }
 
         /// <summary>
+        /// Send initial state sync to a new player (host only)
+        /// </summary>
+        public void SendInitialStateSync(ulong targetSteamId)
+        {
+            if (!isHost) return;
+
+            try
+            {
+                var currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+                var hostPlayer = GameManager.Instance?.PrimaryPlayer;
+                var hostPosition = hostPlayer != null ? (Vector2)hostPlayer.transform.position : Vector2.zero;
+
+                // Collect all connected players' current positions
+                var connectedPlayersList = new List<PlayerPositionData>();
+                foreach (var kvp in connectedPlayers)
+                {
+                    if (kvp.Key != targetSteamId) // Don't include the new player
+                    {
+                        connectedPlayersList.Add(new PlayerPositionData
+                        {
+                            PlayerId = kvp.Key,
+                            Position = kvp.Value.LastKnownPosition,
+                            Velocity = Vector2.zero,
+                            Rotation = 0f,
+                            IsGrounded = true,
+                            IsDodgeRolling = false,
+                            MapName = currentScene
+                        });
+                    }
+                }
+
+                var initialState = new InitialStateSyncData
+                {
+                    MapName = currentScene,
+                    HostPosition = hostPosition,
+                    ConnectedPlayers = connectedPlayersList.ToArray(),
+                    GameState = new GameStateSync
+                    {
+                        GameTime = Time.time,
+                        CurrentFloor = GameManager.Instance?.CurrentFloor ?? 1,
+                        CurrentRoomPosition = Vector2.zero,
+                        IsPaused = false
+                    }
+                };
+
+                var serializedData = PacketSerializer.SerializeObject(initialState);
+                SendToPlayer(targetSteamId, PacketType.InitialStateSync, serializedData);
+                
+                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Sent initial state sync to {targetSteamId}: Map={currentScene}, Host at {hostPosition}, {connectedPlayersList.Count} other players");
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error sending initial state sync: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Send join confirmation to a new player (host only)
+        /// </summary>
+        public void SendPlayerJoinConfirmation(ulong targetSteamId)
+        {
+            if (!isHost) return;
+
+            try
+            {
+                SendToPlayer(targetSteamId, PacketType.PlayerJoinConfirm, new byte[0]);
+                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Sent join confirmation to {targetSteamId}");
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error sending join confirmation: {e.Message}");
+            }
+        }
+
+        /// <summary>
         /// Send map synchronization packet
         /// </summary>
         public void SendMapSync(ulong targetSteamId, string mapName)
@@ -405,6 +537,12 @@ namespace GungeonTogether.Steam
                     case PacketType.HeartBeat:
                         HandleHeartbeat(packet);
                         break;
+                    case PacketType.InitialStateSync:
+                        HandleInitialStateSync(packet);
+                        break;
+                    case PacketType.PlayerJoinConfirm:
+                        HandlePlayerJoinConfirmation(packet);
+                        break;
                     case PacketType.MapSync:
                         GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] Received MapSync packet from {packet.SenderId}");
                         var mapName = System.Text.Encoding.UTF8.GetString(packet.Data);
@@ -433,28 +571,65 @@ namespace GungeonTogether.Steam
 
             if (!connectedPlayers.ContainsKey(packet.SenderId))
             {
-                connectedPlayers[packet.SenderId] = new PlayerInfo
+                // Parse the join data to get player info
+                try
                 {
-                    SteamId = packet.SenderId,
-                    Name = $"Player_{packet.SenderId}",
-                    LastKnownPosition = Vector2.zero,
-                    LastUpdateTime = Time.time,
-                    IsConnected = true
-                };
+                    var joinData = PacketSerializer.DeserializeObject<PlayerJoinData>(packet.Data);
+                    
+                    connectedPlayers[packet.SenderId] = new PlayerInfo
+                    {
+                        SteamId = packet.SenderId,
+                        Name = !string.IsNullOrEmpty(joinData.PlayerName) ? joinData.PlayerName : $"Player_{packet.SenderId}",
+                        LastKnownPosition = joinData.Position,
+                        LastUpdateTime = Time.time,
+                        IsConnected = true
+                    };
 
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] Added player {packet.SenderId} to connectedPlayers. Total players: {connectedPlayers.Count}");
-                OnPlayerJoined?.Invoke(packet.SenderId);
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Player joined: {packet.SenderId}");
-                // Send map sync to the new player
-                if (IsHost())
+                    GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] Added player {packet.SenderId} to connectedPlayers. Total players: {connectedPlayers.Count}");
+                    OnPlayerJoined?.Invoke(packet.SenderId);
+                    GungeonTogether.Logging.Debug.Log($"[NetworkManager] Player joined: {packet.SenderId} (Name: {joinData.PlayerName})");
+                    
+                    // Host sends initial state sync to the new player
+                    if (IsHost())
+                    {
+                        GungeonTogether.Logging.Debug.Log($"[NetworkManager] Host sending initial state sync to new player {packet.SenderId}");
+                        SendInitialStateSync(packet.SenderId);
+                        
+                        // Also send join confirmation
+                        SendPlayerJoinConfirmation(packet.SenderId);
+                    }
+                }
+                catch (Exception e)
                 {
-                    GungeonTogether.Logging.Debug.Log($"[NetworkManager] Host sending map sync to new player {packet.SenderId}");
-                    SendMapSync(packet.SenderId, UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
+                    GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error parsing player join data: {e.Message}");
+                    
+                    // Fallback to basic player info
+                    connectedPlayers[packet.SenderId] = new PlayerInfo
+                    {
+                        SteamId = packet.SenderId,
+                        Name = $"Player_{packet.SenderId}",
+                        LastKnownPosition = Vector2.zero,
+                        LastUpdateTime = Time.time,
+                        IsConnected = true
+                    };
+                    
+                    OnPlayerJoined?.Invoke(packet.SenderId);
+                    
+                    if (IsHost())
+                    {
+                        SendInitialStateSync(packet.SenderId);
+                        SendPlayerJoinConfirmation(packet.SenderId);
+                    }
                 }
             }
             else
             {
                 GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] Player {packet.SenderId} already exists in connectedPlayers");
+                // Update their last seen time
+                var playerInfo = connectedPlayers[packet.SenderId];
+                playerInfo.LastUpdateTime = Time.time;
+                playerInfo.IsConnected = true;
+                connectedPlayers[packet.SenderId] = playerInfo;
             }
         }
 
@@ -592,6 +767,53 @@ namespace GungeonTogether.Steam
             }
         }
 
+        private void HandleInitialStateSync(NetworkPacket packet)
+        {
+            try
+            {
+                var data = PacketSerializer.DeserializeObject<InitialStateSyncData>(packet.Data);
+                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Received initial state sync: Map={data.MapName}, Host at {data.HostPosition}, {data.ConnectedPlayers?.Length ?? 0} other players");
+
+                // Process connected players info
+                if (data.ConnectedPlayers != null)
+                {
+                    foreach (var playerData in data.ConnectedPlayers)
+                    {
+                        if (playerData.PlayerId != localSteamId) // Don't add ourselves
+                        {
+                            connectedPlayers[playerData.PlayerId] = new PlayerInfo
+                            {
+                                SteamId = playerData.PlayerId,
+                                Name = $"Player_{playerData.PlayerId}",
+                                LastKnownPosition = playerData.Position,
+                                LastUpdateTime = Time.time,
+                                IsConnected = true
+                            };
+                            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Added player from initial state: {playerData.PlayerId} at {playerData.Position}");
+                        }
+                    }
+                }
+
+                // Notify PlayerSynchroniser to spawn remote players
+                PlayerSynchroniser.Instance?.ProcessInitialStateSync(data);
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error handling initial state sync: {e.Message}");
+            }
+        }
+
+        private void HandlePlayerJoinConfirmation(NetworkPacket packet)
+        {
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Received join confirmation from host. Starting position updates...");
+            
+            // Now that we're confirmed as joined, start sending our position updates
+            if (!isHost)
+            {
+                PlayerSynchroniser.Instance?.StartSendingUpdates();
+            }
+        }
+
         #endregion
 
         #region Public Handlers for P2P Managers
@@ -704,10 +926,18 @@ namespace GungeonTogether.Steam
         private void CheckPlayerConnections()
         {
             var currentTime = Time.time;
-            var timeoutDuration = HEARTBEAT_INTERVAL * TIMEOUT_MULTIPLIER; // 12 seconds timeout
+            var timeoutDuration = HEARTBEAT_INTERVAL * TIMEOUT_MULTIPLIER; // 30 seconds timeout
 
             var playersToRemove = new List<ulong>();
             ulong localSteamId = LocalSteamId;
+            
+            // Log connection status periodically
+            if (currentTime - lastNetworkLogTime > NETWORK_LOG_THROTTLE)
+            {
+                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Connection check: {connectedPlayers.Count} total players, timeout threshold: {timeoutDuration:F1}s");
+                lastNetworkLogTime = currentTime;
+            }
+            
             foreach (var kvp in connectedPlayers)
             {
                 // Never timeout the local/host player
@@ -719,7 +949,11 @@ namespace GungeonTogether.Steam
                 if (kvp.Value.IsConnected && timeSinceLastUpdate > timeoutDuration)
                 {
                     playersToRemove.Add(kvp.Key);
-                    GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Player {kvp.Key} timed out: {timeSinceLastUpdate:F1}s since last update");
+                    GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Player {kvp.Key} timed out: {timeSinceLastUpdate:F1}s since last update (threshold: {timeoutDuration:F1}s)");
+                }
+                else if (currentTime - lastNetworkLogTime < 1f) // Log during the throttle period
+                {
+                    GungeonTogether.Logging.Debug.Log($"[NetworkManager] Player {kvp.Key}: {timeSinceLastUpdate:F1}s since last update (connected: {kvp.Value.IsConnected})");
                 }
             }
 
@@ -729,8 +963,25 @@ namespace GungeonTogether.Steam
                 playerInfo.IsConnected = false;
                 connectedPlayers[playerId] = playerInfo;
 
+                // Remove from connected players completely when they timeout
+                connectedPlayers.Remove(playerId);
+
                 OnPlayerLeft?.Invoke(playerId);
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Player {playerId} timed out");
+                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Player {playerId} timed out and removed from connected players");
+                
+                // If we're the host, close the P2P session with the timed out player
+                if (isHost && hostManager != null)
+                {
+                    try
+                    {
+                        SteamNetworkingSocketsHelper.CloseP2PSession(playerId);
+                        GungeonTogether.Logging.Debug.Log($"[NetworkManager] Closed P2P session with timed out player {playerId}");
+                    }
+                    catch (Exception e)
+                    {
+                        GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error closing P2P session with {playerId}: {e.Message}");
+                    }
+                }
             }
         }
 

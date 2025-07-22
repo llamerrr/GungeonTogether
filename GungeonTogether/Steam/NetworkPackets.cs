@@ -57,6 +57,8 @@ namespace GungeonTogether.Steam
         // Synchronization
         StateSync = 70,
         HeartBeat = 71,
+        InitialStateSync = 72,  // New: Send complete game state to new players
+        PlayerJoinConfirm = 73, // New: Confirm player joined successfully
 
         // Map/Scene sync
         MapSync = 100 // Add map/scene sync packet type
@@ -220,5 +222,23 @@ namespace GungeonTogether.Steam
         public int CurrentFloor;
         public Vector2 CurrentRoomPosition;
         public bool IsPaused;
+    }
+
+    [Serializable]
+    public struct InitialStateSyncData
+    {
+        public string MapName;
+        public Vector2 HostPosition;
+        public PlayerPositionData[] ConnectedPlayers;
+        public GameStateSync GameState;
+    }
+
+    [Serializable]
+    public struct PlayerJoinData
+    {
+        public ulong PlayerId;
+        public string PlayerName;
+        public Vector2 Position;
+        public string MapName;
     }
 }

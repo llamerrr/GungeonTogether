@@ -72,13 +72,62 @@ namespace GungeonTogether.Steam
                 }
             }
             GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] OnLobbyEnterInternal complete for lobby: {param.m_ulSteamIDLobby}");
-            // If not host, start P2P client manager
+            
+            // If not host, start P2P client manager AND initialize proper session
             if (!localSteamId.Equals(hostSteamId))
             {
                 GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] Initializing SteamP2PClientManager: host={hostSteamId}, local={localSteamId}");
                 _p2pClientManager = new SteamP2PClientManager(hostSteamId, localSteamId);
+                
+                // IMPORTANT: Initialize the session manager properly for Steam lobby joins
+                GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] Triggering proper session initialization for Steam lobby join");
+                TriggerSessionJoin(param.m_ulSteamIDLobby, hostSteamId);
             }
             OnLobbyEnter?.Invoke(param);
+        }
+
+        /// <summary>
+        /// Trigger proper session initialization when joining via Steam callback
+        /// </summary>
+        private void TriggerSessionJoin(ulong lobbyId, ulong hostSteamId)
+        {
+            try
+            {
+                // Find the SimpleSessionManager instance
+                var sessionManager = GungeonTogetherMod.Instance?.GetSessionManager();
+                if (sessionManager != null)
+                {
+                    // Check if session is already active to avoid double initialization
+                    if (!sessionManager.IsActive)
+                    {
+                        GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] Found session manager, triggering join for lobby_{lobbyId} with existing client manager");
+                        string sessionId = $"lobby_{lobbyId}";
+                        
+                        // Use the existing client manager we just created instead of creating a new one
+                        if (_p2pClientManager != null)
+                        {
+                            sessionManager.JoinSessionWithExistingClient(sessionId, _p2pClientManager, hostSteamId);
+                        }
+                        else
+                        {
+                            GungeonTogether.Logging.Debug.LogWarning($"[steamcallbackmanager] No client manager available, falling back to regular join");
+                            sessionManager.JoinSession(sessionId);
+                        }
+                    }
+                    else
+                    {
+                        GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] Session manager already active - skipping duplicate join");
+                    }
+                }
+                else
+                {
+                    GungeonTogether.Logging.Debug.LogError("[steamcallbackmanager] Could not find session manager - Steam lobby join will not be properly initialized");
+                }
+            }
+            catch (System.Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[steamcallbackmanager] Error triggering session join: {e.Message}");
+            }
         }
 
         private void OnLobbyDataUpdateInternal(LobbyDataUpdate_t param)

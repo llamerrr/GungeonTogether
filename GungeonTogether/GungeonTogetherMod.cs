@@ -650,6 +650,15 @@ namespace GungeonTogether
                 }
             }
         }
+
+        /// <summary>
+        /// Get the session manager instance for Steam callback integration
+        /// </summary>
+        public SimpleSessionManager GetSessionManager()
+        {
+            return _sessionManager;
+        }
+        
         public void ShowStatus()
         {
             Logger.LogInfo("=== GungeonTogether Status ===");

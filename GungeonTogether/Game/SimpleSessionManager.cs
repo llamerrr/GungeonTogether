@@ -94,6 +94,7 @@ namespace GungeonTogether.Game
                 IsHost = true;
                 Status = "Starting Steam session...";
                 connectedPlayers.Clear();
+                GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] === STARTING MULTIPLAYER SESSION AS HOST ===");
                 GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Location validated - starting multiplayer session");
                 EnsureSteamNetworkingInitialized();
                 SubscribeToSteamEvents();
@@ -116,8 +117,44 @@ namespace GungeonTogether.Game
 
         }
 
+        public void JoinSessionWithExistingClient(string sessionId, SteamP2PClientManager existingClientManager, ulong hostSteamId)
+        {
+            GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] === JOINING MULTIPLAYER SESSION (WITH EXISTING CLIENT) ===");
+            GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Session ID: {sessionId}, Host Steam ID: {hostSteamId}");
+
+            if (!IsValidLocationForMultiplayer())
+            {
+                string currentLocation = GetCurrentLocationName();
+                Status = $"Cannot join session from: {currentLocation}";
+                GungeonTogether.Logging.Debug.LogWarning($"[SimpleSessionManager] Cannot join multiplayer session from current location: {currentLocation}");
+                GungeonTogether.Logging.Debug.LogWarning("[SimpleSessionManager] Multiplayer can only be joined from Main Menu or Gungeon Foyer");
+                return;
+            }
+
+            IsActive = true;
+            IsHost = false;
+            Status = $"Connecting to Steam session: {sessionId}";
+            currentHostId = sessionId;
+            connectedPlayers.Clear();
+
+            GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Location validated - joining multiplayer session with existing client");
+            InitializePlayerSync();
+
+            // Initialize NetworkManager as client with existing manager
+            GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Attempting to initialize NetworkManager as client with existing manager");
+            if (NetworkManager.Instance.InitializeAsClientWithExistingManager(existingClientManager, hostSteamId))
+            {
+                GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] NetworkManager initialized as client with existing manager successfully");
+            }
+            else
+            {
+                GungeonTogether.Logging.Debug.LogError("[SimpleSessionManager] Failed to initialize NetworkManager as client with existing manager");
+            }
+        }
+
         public void JoinSession(string sessionId)
         {
+            GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] === JOINING MULTIPLAYER SESSION ===");
             GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager][DEBUG] JoinSession called with sessionId: {sessionId}");
             GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager][DEBUG] Before join - IsActive: {IsActive}, IsHost: {IsHost}");
 
