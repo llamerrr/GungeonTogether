@@ -284,7 +284,6 @@ namespace GungeonTogether.Debug
                 PassTest("Packet handling system available");
 
                 // Test that we can create position data structure
-                var testSteamId = 12345UL;
                 var testPosition = Vector2.one;
                 var testVelocity = Vector2.right;
 

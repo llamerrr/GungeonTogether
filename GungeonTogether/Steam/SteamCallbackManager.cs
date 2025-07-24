@@ -72,13 +72,13 @@ namespace GungeonTogether.Steam
                 }
             }
             GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] OnLobbyEnterInternal complete for lobby: {param.m_ulSteamIDLobby}");
-            
+
             // If not host, start P2P client manager AND initialize proper session
             if (!localSteamId.Equals(hostSteamId))
             {
                 GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] Initializing SteamP2PClientManager: host={hostSteamId}, local={localSteamId}");
                 _p2pClientManager = new SteamP2PClientManager(hostSteamId, localSteamId);
-                
+
                 // IMPORTANT: Initialize the session manager properly for Steam lobby joins
                 GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] Triggering proper session initialization for Steam lobby join");
                 TriggerSessionJoin(param.m_ulSteamIDLobby, hostSteamId);
@@ -102,7 +102,7 @@ namespace GungeonTogether.Steam
                     {
                         GungeonTogether.Logging.Debug.Log($"[steamcallbackmanager] Found session manager, triggering join for lobby_{lobbyId} with existing client manager");
                         string sessionId = $"lobby_{lobbyId}";
-                        
+
                         // Use the existing client manager we just created instead of creating a new one
                         if (_p2pClientManager != null)
                         {

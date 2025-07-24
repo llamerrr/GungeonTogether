@@ -79,8 +79,8 @@ namespace GungeonTogether.Steam
         {
             GungeonTogether.Logging.Debug.Log($"[NetworkManager] === INITIALIZING AS HOST ===");
             GungeonTogether.Logging.Debug.Log($"[NetworkManager] Host lobby ID: {lobbyId}, Local Steam ID: {localSteamId}");
-            
-            if (isInitialized) 
+
+            if (isInitialized)
             {
                 GungeonTogether.Logging.Debug.Log("[NetworkManager] Already initialized as host");
                 return true;
@@ -161,8 +161,8 @@ namespace GungeonTogether.Steam
         {
             GungeonTogether.Logging.Debug.Log($"[NetworkManager] === INITIALIZING AS CLIENT ===");
             GungeonTogether.Logging.Debug.Log($"[NetworkManager] Host Steam ID: {hostSteamId}, Local Steam ID: {localSteamId}");
-            
-            if (isInitialized) 
+
+            if (isInitialized)
             {
                 GungeonTogether.Logging.Debug.Log("[NetworkManager] Already initialized as client");
                 return true;
@@ -242,10 +242,60 @@ namespace GungeonTogether.Steam
         }
 
         /// <summary>
+        /// Send player position update (efficient - without character data)
+        /// </summary>
+        public void RegularPlayerPacket(Vector2 position, Vector2 velocity, float rotation, bool isGrounded, bool isDodgeRolling, string mapName, PlayerAnimationState animationState = PlayerAnimationState.Idle, Vector2 movementDirection = default, bool isRunning = false, bool isFalling = false, bool isTakingDamage = false, bool isDead = false, string currentAnimationName = "")
+        {
+            // Get current character info instead of using placeholders
+            var characterInfo = PlayerSynchroniser.Instance.GetCurrentPlayerCharacter();
+
+            // Debug logging to track character data being sent
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] SendPlayerPositionOnly: Got character info: {characterInfo.CharacterName} (ID: {characterInfo.CharacterId})");
+
+            var data = new PlayerPositionData
+            {
+                PlayerId = LocalSteamId,
+                Position = position,
+                Velocity = velocity,
+                Rotation = rotation,
+                IsGrounded = isGrounded,
+                IsDodgeRolling = isDodgeRolling,
+                MapName = mapName,
+                CharacterId = characterInfo.CharacterId,
+                CharacterName = characterInfo.CharacterName,
+                
+                // Animation state data
+                AnimationState = animationState,
+                MovementDirection = movementDirection,
+                IsRunning = isRunning,
+                IsFalling = isFalling,
+                IsTakingDamage = isTakingDamage,
+                IsDead = isDead,
+                CurrentAnimationName = currentAnimationName
+            };
+
+            // Debug what's actually in the data structure before serialization
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Data structure before serialization: CharacterName='{data.CharacterName}', CharacterId={data.CharacterId}, PlayerId={data.PlayerId}, AnimState={data.AnimationState}");
+
+            var serializedData = PacketSerializer.SerializeObject(data);
+
+            // Debug the serialized data size
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Serialized data size: {serializedData?.Length ?? 0} bytes");
+
+            SendToAll(PacketType.PlayerPosition, serializedData);
+        }
+
+        /// <summary>
         /// Send player position update
         /// </summary>
-        public void SendPlayerPositionWithMap(Vector2 position, Vector2 velocity, float rotation, bool isGrounded, bool isDodgeRolling, string mapName)
+        public void OpeningPlayerPacket(Vector2 position, Vector2 velocity, float rotation, bool isGrounded, bool isDodgeRolling, string mapName, int characterId = 0, string characterName = "PlayerRogue", PlayerAnimationState animationState = PlayerAnimationState.Idle, Vector2 movementDirection = default, bool isRunning = false, bool isFalling = false, bool isTakingDamage = false, bool isDead = false, string currentAnimationName = "")
         {
+            // Always get current character info instead of using defaults
+            var characterInfo = PlayerSynchroniser.Instance.GetCurrentPlayerCharacter();
+
+            // Debug logging to track character data being sent
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] SendPlayerPositionWithMap: Got character info: {characterInfo.CharacterName} (ID: {characterInfo.CharacterId}) [original params were: {characterName}/{characterId}]");
+
             var data = new PlayerPositionData
             {
                 PlayerId = localSteamId,
@@ -254,9 +304,28 @@ namespace GungeonTogether.Steam
                 Rotation = rotation,
                 IsGrounded = isGrounded,
                 IsDodgeRolling = isDodgeRolling,
-                MapName = mapName
+                MapName = mapName,
+                CharacterId = characterInfo.CharacterId,
+                CharacterName = characterInfo.CharacterName,
+                
+                // Animation state data
+                AnimationState = animationState,
+                MovementDirection = movementDirection,
+                IsRunning = isRunning,
+                IsFalling = isFalling,
+                IsTakingDamage = isTakingDamage,
+                IsDead = isDead,
+                CurrentAnimationName = currentAnimationName
             };
+
+            // Debug what's actually in the data structure before serialization
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Data structure before serialization: CharacterName='{data.CharacterName}', CharacterId={data.CharacterId}, PlayerId={data.PlayerId}, AnimState={data.AnimationState}");
+
             var serializedData = PacketSerializer.SerializeObject(data);
+
+            // Debug the serialized data size
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Serialized data size: {serializedData?.Length ?? 0} bytes");
+
             SendToAll(PacketType.PlayerPosition, serializedData);
         }
 
@@ -265,7 +334,9 @@ namespace GungeonTogether.Steam
         /// </summary>
         public void SendPlayerPosition(Vector2 position, Vector2 velocity, float rotation, bool isGrounded, bool isDodgeRolling)
         {
-            SendPlayerPositionWithMap(position, velocity, rotation, isGrounded, isDodgeRolling, SceneManager.GetActiveScene().name);
+            // Get actual character information instead of defaulting to PlayerRogue
+            var characterInfo = PlayerSynchroniser.Instance.GetCurrentPlayerCharacter();
+            OpeningPlayerPacket(position, velocity, rotation, isGrounded, isDodgeRolling, SceneManager.GetActiveScene().name, characterInfo.CharacterId, characterInfo.CharacterName);
         }
 
         /// <summary>
@@ -403,7 +474,7 @@ namespace GungeonTogether.Steam
 
                 var serializedData = PacketSerializer.SerializeObject(initialState);
                 SendToPlayer(targetSteamId, PacketType.InitialStateSync, serializedData);
-                
+
                 GungeonTogether.Logging.Debug.Log($"[NetworkManager] Sent initial state sync to {targetSteamId}: Map={currentScene}, Host at {hostPosition}, {connectedPlayersList.Count} other players");
             }
             catch (Exception e)
@@ -446,15 +517,16 @@ namespace GungeonTogether.Steam
 
         private void ProcessIncomingPackets()
         {
+            // Only log if there are many packets to process (potential performance issue)
             int packetCount = incomingPackets.Count;
-            if (packetCount > 0)
+            if (packetCount > 10)
             {
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] Processing {packetCount} incoming packets");
+                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Processing large packet batch: {packetCount} packets");
             }
+
             while (incomingPackets.Count > 0)
             {
                 var packet = incomingPackets.Dequeue();
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] Processing packet type {packet.Type} from {packet.SenderId}");
                 HandlePacket(packet);
             }
         }
@@ -515,11 +587,9 @@ namespace GungeonTogether.Steam
                         HandlePlayerLeave(packet);
                         break;
                     case PacketType.PlayerPosition:
-                        GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] Received PlayerPosition packet from {packet.SenderId}");
                         HandlePlayerPosition(packet);
                         break;
                     case PacketType.PlayerShooting:
-                        GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] Received PlayerShooting packet from {packet.SenderId}");
                         HandlePlayerShooting(packet);
                         break;
                     case PacketType.EnemyPosition:
@@ -544,7 +614,6 @@ namespace GungeonTogether.Steam
                         HandlePlayerJoinConfirmation(packet);
                         break;
                     case PacketType.MapSync:
-                        GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] Received MapSync packet from {packet.SenderId}");
                         var mapName = System.Text.Encoding.UTF8.GetString(packet.Data);
                         PlayerSynchroniser.Instance.OnMapSyncReceived(mapName, packet.SenderId);
                         break;
@@ -575,7 +644,7 @@ namespace GungeonTogether.Steam
                 try
                 {
                     var joinData = PacketSerializer.DeserializeObject<PlayerJoinData>(packet.Data);
-                    
+
                     connectedPlayers[packet.SenderId] = new PlayerInfo
                     {
                         SteamId = packet.SenderId,
@@ -588,13 +657,13 @@ namespace GungeonTogether.Steam
                     GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] Added player {packet.SenderId} to connectedPlayers. Total players: {connectedPlayers.Count}");
                     OnPlayerJoined?.Invoke(packet.SenderId);
                     GungeonTogether.Logging.Debug.Log($"[NetworkManager] Player joined: {packet.SenderId} (Name: {joinData.PlayerName})");
-                    
+
                     // Host sends initial state sync to the new player
                     if (IsHost())
                     {
                         GungeonTogether.Logging.Debug.Log($"[NetworkManager] Host sending initial state sync to new player {packet.SenderId}");
                         SendInitialStateSync(packet.SenderId);
-                        
+
                         // Also send join confirmation
                         SendPlayerJoinConfirmation(packet.SenderId);
                     }
@@ -602,7 +671,7 @@ namespace GungeonTogether.Steam
                 catch (Exception e)
                 {
                     GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error parsing player join data: {e.Message}");
-                    
+
                     // Fallback to basic player info
                     connectedPlayers[packet.SenderId] = new PlayerInfo
                     {
@@ -612,9 +681,9 @@ namespace GungeonTogether.Steam
                         LastUpdateTime = Time.time,
                         IsConnected = true
                     };
-                    
+
                     OnPlayerJoined?.Invoke(packet.SenderId);
-                    
+
                     if (IsHost())
                     {
                         SendInitialStateSync(packet.SenderId);
@@ -651,7 +720,12 @@ namespace GungeonTogether.Steam
             try
             {
                 var data = PacketSerializer.DeserializeObject<PlayerPositionData>(packet.Data);
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Received player position from {data.PlayerId}: {data.Position} (map={data.MapName})");
+
+                // Only log position updates occasionally to avoid spam
+                if (Time.time - lastNetworkLogTime > NETWORK_LOG_THROTTLE)
+                {
+                    GungeonTogether.Logging.Debug.Log($"[NetworkManager] Received player position from {data.PlayerId}: {data.Position} (map={data.MapName}, char={data.CharacterName})");
+                }
 
                 if (connectedPlayers.ContainsKey(data.PlayerId))
                 {
@@ -675,7 +749,11 @@ namespace GungeonTogether.Steam
             try
             {
                 var data = PacketSerializer.DeserializeObject<PlayerShootingData>(packet.Data);
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Received player shooting from {data.PlayerId}");
+                // Only log shooting events occasionally to avoid spam
+                if (Time.time - lastNetworkLogTime > NETWORK_LOG_THROTTLE)
+                {
+                    GungeonTogether.Logging.Debug.Log($"[NetworkManager] Received player shooting from {data.PlayerId}");
+                }
                 PlayerSynchroniser.Instance.OnPlayerShootingReceived(data);
             }
             catch (Exception e)
@@ -806,7 +884,7 @@ namespace GungeonTogether.Steam
         private void HandlePlayerJoinConfirmation(NetworkPacket packet)
         {
             GungeonTogether.Logging.Debug.Log($"[NetworkManager] Received join confirmation from host. Starting position updates...");
-            
+
             // Now that we're confirmed as joined, start sending our position updates
             if (!isHost)
             {
@@ -861,12 +939,6 @@ namespace GungeonTogether.Steam
                 lastHeartbeatTime = currentTime;
             }
 
-            // Send player updates
-            if (currentTime - lastPlayerUpdateTime >= PLAYER_UPDATE_INTERVAL)
-            {
-                SendPlayerUpdates();
-                lastPlayerUpdateTime = currentTime;
-            }
 
             // Send enemy updates (host only)
             if (isHost && currentTime - lastEnemyUpdateTime >= ENEMY_UPDATE_INTERVAL)
@@ -930,14 +1002,14 @@ namespace GungeonTogether.Steam
 
             var playersToRemove = new List<ulong>();
             ulong localSteamId = LocalSteamId;
-            
+
             // Log connection status periodically
             if (currentTime - lastNetworkLogTime > NETWORK_LOG_THROTTLE)
             {
                 GungeonTogether.Logging.Debug.Log($"[NetworkManager] Connection check: {connectedPlayers.Count} total players, timeout threshold: {timeoutDuration:F1}s");
                 lastNetworkLogTime = currentTime;
             }
-            
+
             foreach (var kvp in connectedPlayers)
             {
                 // Never timeout the local/host player
@@ -968,7 +1040,7 @@ namespace GungeonTogether.Steam
 
                 OnPlayerLeft?.Invoke(playerId);
                 GungeonTogether.Logging.Debug.Log($"[NetworkManager] Player {playerId} timed out and removed from connected players");
-                
+
                 // If we're the host, close the P2P session with the timed out player
                 if (isHost && hostManager != null)
                 {
@@ -992,7 +1064,11 @@ namespace GungeonTogether.Steam
         /// </summary>
         public void QueueIncomingPacket(NetworkPacket packet)
         {
-            GungeonTogether.Logging.Debug.Log($"[NetworkManager][DEBUG] QueueIncomingPacket: type={packet.Type}, sender={packet.SenderId}, dataSize={packet.Data?.Length ?? 0}");
+            // Only log non-routine packets to avoid spam
+            if (packet.Type != PacketType.PlayerPosition && packet.Type != PacketType.HeartBeat)
+            {
+                GungeonTogether.Logging.Debug.Log($"[NetworkManager] QueueIncomingPacket: type={packet.Type}, sender={packet.SenderId}");
+            }
             incomingPackets.Enqueue(packet);
         }
 

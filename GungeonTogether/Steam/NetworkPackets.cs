@@ -93,6 +93,32 @@ namespace GungeonTogether.Steam
         public bool IsGrounded;
         public bool IsDodgeRolling;
         public string MapName; // Add map/scene name for sync
+        public int CharacterId; // Character selection (maps to PlayableCharacters enum)
+        public string CharacterName; // Character prefab name for sprite loading
+        
+        // Animation state data
+        public PlayerAnimationState AnimationState;
+        public Vector2 MovementDirection; // Normalized movement direction for directional animations
+        public bool IsRunning; // Running vs walking
+        public bool IsFalling; // Falling state
+        public bool IsTakingDamage; // Taking damage animation
+        public bool IsDead; // Death state
+        public string CurrentAnimationName; // Current animation clip name for debugging
+    }
+
+    [Serializable]
+    public enum PlayerAnimationState : byte
+    {
+        Idle = 0,
+        Walking = 1,
+        Running = 2,
+        DodgeRolling = 3,
+        Falling = 4,
+        TakingDamage = 5,
+        Dead = 6,
+        Interacting = 7,
+        Shooting = 8,
+        Reloading = 9
     }
 
     [Serializable]

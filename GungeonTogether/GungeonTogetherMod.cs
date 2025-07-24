@@ -49,9 +49,6 @@ namespace GungeonTogether
                     // Initialize Steam callbacks as early as possible
                     SteamCallbackManager.InitializeSteamCallbacks();
 
-                    // Initialize the simple Steam join system
-                    SimpleSteamJoinSystem.Initialize();
-
                     // Initialize networking sockets helper
                     if (SteamNetworkingSocketsHelper.Initialize())
                     {
@@ -658,7 +655,7 @@ namespace GungeonTogether
         {
             return _sessionManager;
         }
-        
+
         public void ShowStatus()
         {
             Logger.LogInfo("=== GungeonTogether Status ===");

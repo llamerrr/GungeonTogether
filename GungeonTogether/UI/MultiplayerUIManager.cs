@@ -195,11 +195,13 @@ namespace GungeonTogether.UI
                 {
                     PlayUISound("mp_connect");
                     ShowNotification("🏠 Hosting session - Friends can now join!", 3f);
+                    ShowNotification("💡 Tip: Character selection is optional - players appear as placeholders until they select a character", 6f);
                 }
                 else
                 {
                     PlayUISound("mp_connect");
                     ShowNotification("🔗 Connected to multiplayer session!", 3f);
+                    ShowNotification("💡 Tip: You can join without selecting a character first - select one in the foyer to be visible to others", 6f);
                 }
             }
             else

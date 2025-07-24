@@ -95,6 +95,30 @@ namespace GungeonTogether.Game
                 Status = "Starting Steam session...";
                 connectedPlayers.Clear();
                 GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] === STARTING MULTIPLAYER SESSION AS HOST ===");
+
+                // Check if player has selected a character and inform about visibility
+                try
+                {
+                    var playerSync = PlayerSynchroniser.Instance;
+                    if (playerSync != null)
+                    {
+                        var characterInfo = playerSync.GetCurrentPlayerCharacter();
+                        if (characterInfo.CharacterId == -1 || characterInfo.CharacterName == "NoCharacterSelected")
+                        {
+                            GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Host has not selected a character - they will appear as a placeholder until character selection");
+                            UI.MultiplayerUIManager.ShowNotification("Hosting without character selection - you'll appear as a placeholder until you select a character", 5f);
+                        }
+                        else
+                        {
+                            GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Host character: {characterInfo.CharacterName}");
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    GungeonTogether.Logging.Debug.LogWarning($"[SimpleSessionManager] Could not check host character: {e.Message}");
+                }
+
                 GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Location validated - starting multiplayer session");
                 EnsureSteamNetworkingInitialized();
                 SubscribeToSteamEvents();
@@ -171,6 +195,29 @@ namespace GungeonTogether.Game
             Status = $"Connecting to Steam session: {sessionId}";
             currentHostId = sessionId;
             connectedPlayers.Clear();
+
+            // Check if player has selected a character and inform about visibility
+            try
+            {
+                var playerSync = PlayerSynchroniser.Instance;
+                if (playerSync != null)
+                {
+                    var characterInfo = playerSync.GetCurrentPlayerCharacter();
+                    if (characterInfo.CharacterId == -1 || characterInfo.CharacterName == "NoCharacterSelected")
+                    {
+                        GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Joiner has not selected a character - they will appear as a placeholder until character selection");
+                        UI.MultiplayerUIManager.ShowNotification("Joining without character selection - you'll appear as a placeholder until you select a character", 5f);
+                    }
+                    else
+                    {
+                        GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Joiner character: {characterInfo.CharacterName}");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogWarning($"[SimpleSessionManager] Could not check joiner character: {e.Message}");
+            }
 
             GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager][DEBUG] After setting flags - IsActive: {IsActive}, IsHost: {IsHost}, currentHostId: {currentHostId}");
             GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Location validated - joining multiplayer session");
@@ -310,6 +357,19 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Initializing player synchronization...");
                 playerSync = PlayerSynchroniser.Instance;
                 playerSync.Initialize(); // Explicitly call Initialize
+
+                // Schedule a single delayed broadcast to ensure network connection is established
+                // This is more efficient than multiple immediate broadcasts
+                try
+                {
+                    GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Scheduling character info broadcast for session start...");
+                    playerSync.ScheduleCharacterInfoBroadcast();
+                }
+                catch (Exception broadcastEx)
+                {
+                    GungeonTogether.Logging.Debug.LogWarning($"[SimpleSessionManager] Could not broadcast initial character selection: {broadcastEx.Message}");
+                }
+
                 GungeonTogether.Logging.Debug.Log("[SimpleSessionManager] Player synchronization initialized successfully");
             }
             catch (Exception e)
@@ -383,14 +443,83 @@ namespace GungeonTogether.Game
 
         private bool IsValidLocationForMultiplayer()
         {
-            // Placeholder: always allow for now
-            return true;
+            try
+            {
+                // Get current scene name
+                string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+
+                // Allow multiplayer from main menu, foyer, and character select screens
+                var validScenes = new string[]
+                {
+                    "tt_main_menu",     // Main menu
+                    "tt_foyer",         // Foyer (character selection area)
+                    "MainMenu",         // Alternative main menu name
+                    "CharacterSelect",  // Character selection screen
+                    "Foyer"            // Alternative foyer name
+                };
+
+                foreach (var validScene in validScenes)
+                {
+                    if (currentScene.Equals(validScene, StringComparison.OrdinalIgnoreCase))
+                    {
+                        GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Location validation passed: {currentScene}");
+                        return true;
+                    }
+                }
+
+                // Also allow if scene name contains foyer or menu (case-insensitive)
+                string lowerScene = currentScene.ToLowerInvariant();
+                if (lowerScene.Contains("foyer") || lowerScene.Contains("menu") || lowerScene.Contains("main"))
+                {
+                    GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Location validation passed (contains valid keyword): {currentScene}");
+                    return true;
+                }
+
+                // Check if we're in a safe state (not in active run/dungeon)
+                if (GameManager.Instance != null)
+                {
+                    // If we're not in a run, allow multiplayer setup
+                    if (!GameManager.Instance.IsLoadingLevel && GameManager.Instance.Dungeon == null)
+                    {
+                        GungeonTogether.Logging.Debug.Log($"[SimpleSessionManager] Location validation passed (not in active run): {currentScene}");
+                        return true;
+                    }
+                }
+
+                GungeonTogether.Logging.Debug.LogWarning($"[SimpleSessionManager] Location validation failed: {currentScene}");
+                return false;
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[SimpleSessionManager] Error validating location: {e.Message}");
+                // If we can't determine location, err on the side of caution but allow for basic functionality
+                return true;
+            }
         }
 
         private string GetCurrentLocationName()
         {
-            // Placeholder: return dummy location
-            return "Main Menu";
+            try
+            {
+                string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+
+                // Map scene names to user-friendly names
+                if (currentScene.ToLowerInvariant().Contains("foyer"))
+                    return "Gungeon Foyer";
+                else if (currentScene.ToLowerInvariant().Contains("menu") || currentScene.ToLowerInvariant().Contains("main"))
+                    return "Main Menu";
+                else if (currentScene.ToLowerInvariant().Contains("character"))
+                    return "Character Selection";
+                else if (GameManager.Instance?.Dungeon != null)
+                    return "In Dungeon";
+                else
+                    return currentScene;
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[SimpleSessionManager] Error getting location name: {e.Message}");
+                return "Unknown Location";
+            }
         }
 
         /// <summary>

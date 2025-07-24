@@ -116,6 +116,21 @@ namespace GungeonTogether.Steam
                 writer.Write(data.Rotation);
                 writer.Write(data.IsGrounded);
                 writer.Write(data.IsDodgeRolling);
+
+                // Serialize the missing fields: MapName, CharacterId, CharacterName
+                writer.Write(data.MapName ?? "");
+                writer.Write(data.CharacterId);
+                writer.Write(data.CharacterName ?? "");
+                
+                // Serialize animation state data
+                writer.Write((byte)data.AnimationState);
+                writer.Write(data.MovementDirection.x);
+                writer.Write(data.MovementDirection.y);
+                writer.Write(data.IsRunning);
+                writer.Write(data.IsFalling);
+                writer.Write(data.IsTakingDamage);
+                writer.Write(data.IsDead);
+                writer.Write(data.CurrentAnimationName ?? "");
             }
             else if (type.Equals(typeof(PlayerShootingData)))
             {
@@ -185,7 +200,21 @@ namespace GungeonTogether.Steam
                     Velocity = new Vector2(reader.ReadSingle(), reader.ReadSingle()),
                     Rotation = reader.ReadSingle(),
                     IsGrounded = reader.ReadBoolean(),
-                    IsDodgeRolling = reader.ReadBoolean()
+                    IsDodgeRolling = reader.ReadBoolean(),
+
+                    // Deserialize the missing fields: MapName, CharacterId, CharacterName
+                    MapName = reader.ReadString(),
+                    CharacterId = reader.ReadInt32(),
+                    CharacterName = reader.ReadString(),
+                    
+                    // Deserialize animation state data
+                    AnimationState = (PlayerAnimationState)reader.ReadByte(),
+                    MovementDirection = new Vector2(reader.ReadSingle(), reader.ReadSingle()),
+                    IsRunning = reader.ReadBoolean(),
+                    IsFalling = reader.ReadBoolean(),
+                    IsTakingDamage = reader.ReadBoolean(),
+                    IsDead = reader.ReadBoolean(),
+                    CurrentAnimationName = reader.ReadString()
                 };
                 return (T)(object)data;
             }
