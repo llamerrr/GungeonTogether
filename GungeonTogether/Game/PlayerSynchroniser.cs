@@ -1862,11 +1862,15 @@ namespace GungeonTogether.Game
                     var playerObject = remotePlayerObjectsSnapshot[steamId];
                     if (playerObject != null)
                     {
-                        // Handle position interpolation directly (consolidated from RemotePlayerBehavior)
+                        // Handle position interpolation - do NOT apply flip compensation here
+                        // because flip compensation is already applied in ApplyAnimationState
                         var currentPos = playerObject.transform.position;
                         var targetPos = playerState.TargetPosition;
                         var newPos = Vector2.Lerp(currentPos, targetPos, Time.deltaTime * playerState.InterpolationSpeed);
-                        playerObject.transform.position = newPos;
+                        
+                        // Direct position assignment - compensation already applied to TargetPosition
+                        playerObject.transform.position = new Vector3(newPos.x, newPos.y, playerObject.transform.position.z);
+                        
                         playerObject.transform.rotation = Quaternion.Euler(0, 0, playerState.Rotation);
                     }
                 }
@@ -2480,10 +2484,10 @@ namespace GungeonTogether.Game
         /// 
         /// The issue: When tk2d sprites are flipped (FlipX = true), the visual sprite position
         /// shifts relative to the transform position. This causes networked players to appear
-        /// to "teleport" by their bounding box width when changing direction.
+        /// to "teleport" when changing direction.
         /// 
-        /// The fix: When a sprite is flipped, we adjust the transform position to compensate
-        /// for the visual shift, keeping the sprite centered on the network position.
+        /// The fix: When a sprite is flipped (facing left), move the visual sprite 1 unit to the right
+        /// to compensate for the visual shift.
         /// </summary>
         private void SetSpritePositionCentered(GameObject spriteObject, Vector3 targetPosition)
         {
@@ -2491,8 +2495,28 @@ namespace GungeonTogether.Game
 
             try
             {
-                // Direct positioning - flip compensation is now handled at the caller level
-                spriteObject.transform.position = targetPosition;
+                var tk2dSprite = spriteObject.GetComponent<tk2dSprite>();
+                if (tk2dSprite != null)
+                {
+                    // Simple 1-unit offset when facing left (FlipX = true)
+                    Vector3 adjustedPosition = targetPosition;
+                    
+                    if (tk2dSprite.FlipX)
+                    {
+                        // When facing left (FlipX = true), move the sprite 1 unit to the right
+                        // to compensate for the visual shift caused by sprite flipping
+                        adjustedPosition.x += 1.3f;
+                        
+                        GungeonTogether.Logging.Debug.Log($"[PlayerSync][FlipFix] Applied 1-unit right offset for left-facing sprite: original={targetPosition.x:F2}, adjusted={adjustedPosition.x:F2}");
+                    }
+                    
+                    spriteObject.transform.position = adjustedPosition;
+                }
+                else
+                {
+                    // For Unity sprites or when tk2d sprite is not available, use direct positioning
+                    spriteObject.transform.position = targetPosition;
+                }
 
             }
             catch (Exception ex)
@@ -2856,6 +2880,18 @@ namespace GungeonTogether.Game
                     // This ensures the visual position matches the network position
                     Vector3 targetNetworkPosition = new Vector3(state.Position.x, state.Position.y, playerObj.transform.position.z);
                     SetSpritePositionCentered(playerObj, targetNetworkPosition);
+                    
+                    // Update the TargetPosition in the state to the compensated position for interpolation
+                    // This ensures UpdateRemotePlayers interpolates towards the correct visual position
+                    lock (collectionLock)
+                    {
+                        if (remotePlayers.ContainsKey(playerId))
+                        {
+                            var updatedState = remotePlayers[playerId];
+                            updatedState.TargetPosition = new Vector2(playerObj.transform.position.x, playerObj.transform.position.y);
+                            remotePlayers[playerId] = updatedState;
+                        }
+                    }
                 }
 
                 // Apply damage visual effects

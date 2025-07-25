@@ -200,7 +200,34 @@ namespace GungeonTogether.Game
             if (debugCharacter == null) return;
             
             // Use the exact same positioning system as PlayerSynchroniser.SetSpritePositionCentered
-            debugCharacter.transform.position = targetPosition;
+            // to replicate potential issues for testing
+            if (debugSprite != null)
+            {
+                Vector3 adjustedPosition = targetPosition;
+                
+                if (debugSprite.FlipX)
+                {
+                    try
+                    {
+                        var bounds = debugSprite.GetUntrimmedBounds();
+                        float spriteWidth = bounds.size.x;
+                        float flipOffset = spriteWidth * 0.5f; // Same compensation as networked players
+                        adjustedPosition.x += flipOffset;
+                        
+                        GungeonTogether.Logging.Debug.Log($"[DebugChar][FlipFix] Applied flip compensation: spriteWidth={spriteWidth:F2}, flipOffset={flipOffset:F2}, adjusted={adjustedPosition.x:F2}");
+                    }
+                    catch (Exception ex)
+                    {
+                        GungeonTogether.Logging.Debug.LogWarning($"[DebugChar][FlipFix] Could not compensate for flip: {ex.Message}");
+                    }
+                }
+                
+                debugCharacter.transform.position = adjustedPosition;
+            }
+            else
+            {
+                debugCharacter.transform.position = targetPosition;
+            }
         }
         
         /// <summary>

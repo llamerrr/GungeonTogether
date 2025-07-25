@@ -7,6 +7,16 @@ param(
 $Configuration = if ($Release) { "Release" } else { "Debug" }
 $PluginsPath = "$GamePath\BepInEx\plugins"
 
+# Kill ETG.exe if running
+$etgProcess = Get-Process -Name "ETG" -ErrorAction SilentlyContinue
+if ($etgProcess) {
+    Write-Host "ETG.exe is running, attempting to close it..." -ForegroundColor Yellow
+    Stop-Process -Id $etgProcess.Id -Force
+    Start-Sleep -Seconds 2
+} else {
+    Write-Host "ETG.exe is not running." -ForegroundColor Green
+}
+
 # Check if we are using the gale mod manager
 $HarmonyDLLPath = "$env:APPDATA\com.kesomannen.gale\enter-the-gungeon\profiles\Default\BepInEx\"
 $HarmonyDLL = "core\0Harmony.dll"
