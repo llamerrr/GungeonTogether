@@ -641,6 +641,46 @@ namespace GungeonTogether.UI
                         GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to create persistent debug square: {e.Message}");
                     }
                 }
+                
+                // Debug character controls for offline testing
+                GUILayout.BeginHorizontal();
+                var hasDebugChar = GungeonTogether.Game.PlayerSynchroniser.Instance.HasDebugCharacter();
+                var debugCharButtonText = hasDebugChar ? "Remove Debug Character" : "Create Debug Character";
+                var debugCharButtonColor = hasDebugChar ? Color.red : Color.cyan;
+
+                GUI.backgroundColor = debugCharButtonColor;
+                
+                if (GUILayout.Button(debugCharButtonText, GUILayout.Width(200)))
+                {
+                    try
+                    {
+                        if (hasDebugChar)
+                        {
+                            GungeonTogether.Game.PlayerSynchroniser.Instance.DestroyDebugCharacter();
+                            GungeonTogether.Logging.Debug.Log("[DebugUI] Debug character removed");
+                        }
+                        else
+                        {
+                            GungeonTogether.Game.PlayerSynchroniser.Instance.CreateDebugCharacter();
+                            GungeonTogether.Logging.Debug.Log("[DebugUI] Debug character created for offline testing");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        GungeonTogether.Logging.Debug.LogError($"[DebugUI] Failed to toggle debug character: {e.Message}");
+                    }
+                }
+                
+                GUI.backgroundColor = originalColor;
+                GUILayout.EndHorizontal();
+                
+                // Show debug character info if it exists
+                if (hasDebugChar)
+                {
+                    GUILayout.Label("Debug Character Info:");
+                    var debugInfo = GungeonTogether.Game.PlayerSynchroniser.Instance.GetDebugCharacterInfo();
+                    GUILayout.TextArea(debugInfo, GUILayout.Height(40));
+                }
             });
 
             var sessionManager = GungeonTogetherMod.Instance?._sessionManager;

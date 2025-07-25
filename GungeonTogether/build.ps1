@@ -15,6 +15,13 @@ if (Test-Path -Path (Join-Path $HarmonyDLLPath $HarmonyDLL)) {
     $PluginsPath = Join-Path $HarmonyDLLPath "plugins"
 }
 
+# check if we are using r2Modman (check appdata for r2Modman)
+$r2ModmanPath = "$env:APPDATA\r2modmanPlus-local\ETG\profiles\a\BepInEx\plugins"
+if (Test-Path -Path $r2ModmanPath) {
+    Write-Host "r2Modman found, using new mod path: $r2ModmanPath" -ForegroundColor Green
+    $PluginsPath = $r2ModmanPath
+}
+
 Write-Host "Building GungeonTogether ($Configuration)..." -ForegroundColor Green
 
 # Build the project

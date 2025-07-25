@@ -71,6 +71,9 @@ namespace GungeonTogether.Game
 
         // Add a field to track the current map/scene for both local and remote players
         private string localMapName;
+        
+        // Debug character for offline testing
+        private DebugCharacterController debugCharacterController = null;
 
         // Debug counters for networking
         public static int LastUpdateSentFrame = -1;
@@ -2566,6 +2569,14 @@ namespace GungeonTogether.Game
 
         /// <summary>
         /// Sets the position of a sprite with center-anchor compensation for both Unity and tk2d sprites
+        /// Accounts for position offset that occurs when tk2d sprites are flipped
+        /// 
+        /// The issue: When tk2d sprites are flipped (FlipX = true), the visual sprite position
+        /// shifts relative to the transform position. This causes networked players to appear
+        /// to "teleport" by their bounding box width when changing direction.
+        /// 
+        /// The fix: When a sprite is flipped, we adjust the transform position to compensate
+        /// for the visual shift, keeping the sprite centered on the network position.
         /// </summary>
         private void SetSpritePositionCentered(GameObject spriteObject, Vector3 targetPosition)
         {
@@ -2573,11 +2584,9 @@ namespace GungeonTogether.Game
 
             try
             {
-                // Simplified approach - just set position directly
-                // Unity sprites are already center-anchored, and tk2d sprites will work fine with direct positioning
+                // Direct positioning - flip compensation is now handled at the caller level
                 spriteObject.transform.position = targetPosition;
-                
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync][SimplePos] Sprite positioned directly: {targetPosition}");
+                GungeonTogether.Logging.Debug.Log($"[PlayerSync][Position] Sprite positioned at: {targetPosition}");
             }
             catch (Exception ex)
             {
@@ -2946,15 +2955,15 @@ namespace GungeonTogether.Game
                     
                     GungeonTogether.Logging.Debug.Log($"[PlayerSync][FlipDebug] Player {playerId} (tk2d): shouldFaceLeft={currentFacingLeft}, currentlyFlipped={isCurrentlyFlipped}");
                     
+                    // Apply flip FIRST, before positioning
                     if (isCurrentlyFlipped != currentFacingLeft)
                     {
-                        // Apply flip using tk2d's system
                         tk2dSprite.FlipX = currentFacingLeft;
-                        
                         GungeonTogether.Logging.Debug.Log($"[PlayerSync][FlipFix] Applied tk2d sprite flip to player {playerId}: FlipX = {currentFacingLeft}");
                     }
                     
-                    // Use centralized positioning function that handles center anchoring
+                    // THEN set position after flip is applied
+                    // This ensures the visual position matches the network position
                     Vector3 targetNetworkPosition = new Vector3(state.Position.x, state.Position.y, playerObj.transform.position.z);
                     SetSpritePositionCentered(playerObj, targetNetworkPosition);
                 }
@@ -3469,5 +3478,102 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Sent immediate position update: {currentPosition} in map {localMapName}");
             }
         }
+        
+        #region Debug Character Methods
+        
+        /// <summary>
+        /// Create a debug character that mirrors local player movement using networked rendering system
+        /// This allows offline testing of the positioning and rendering differences
+        /// </summary>
+        public void CreateDebugCharacter()
+        {
+            if (localPlayer == null)
+            {
+                GungeonTogether.Logging.Debug.LogWarning("[PlayerSync] Cannot create debug character - no local player found");
+                return;
+            }
+            
+            if (debugCharacterController != null)
+            {
+                GungeonTogether.Logging.Debug.Log("[PlayerSync] Debug character already exists, removing old one first");
+                DestroyDebugCharacter();
+            }
+            
+            try
+            {
+                // Create a GameObject to hold the debug character controller
+                var debugManagerObj = new GameObject("DebugCharacterManager");
+                UnityEngine.Object.DontDestroyOnLoad(debugManagerObj);
+                
+                // Add the debug character controller component
+                debugCharacterController = debugManagerObj.AddComponent<DebugCharacterController>();
+                
+                // Initialize it with the local player
+                debugCharacterController.Initialize(localPlayer);
+                
+                GungeonTogether.Logging.Debug.Log("[PlayerSync] Debug character created successfully");
+                UI.MultiplayerUIManager.ShowNotification("Debug character created! Red player shows networked rendering", 5f);
+            }
+            catch (Exception ex)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error creating debug character: {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Destroy the debug character
+        /// </summary>
+        public void DestroyDebugCharacter()
+        {
+            if (debugCharacterController != null)
+            {
+                debugCharacterController.Cleanup();
+                if (debugCharacterController.gameObject != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(debugCharacterController.gameObject);
+                }
+                debugCharacterController = null;
+                
+                GungeonTogether.Logging.Debug.Log("[PlayerSync] Debug character destroyed");
+                UI.MultiplayerUIManager.ShowNotification("Debug character removed", 3f);
+            }
+        }
+        
+        /// <summary>
+        /// Toggle debug character visibility
+        /// </summary>
+        public void ToggleDebugCharacter()
+        {
+            if (debugCharacterController != null)
+            {
+                debugCharacterController.ToggleVisibility();
+            }
+            else
+            {
+                CreateDebugCharacter();
+            }
+        }
+        
+        /// <summary>
+        /// Get debug information about positioning differences
+        /// </summary>
+        public string GetDebugCharacterInfo()
+        {
+            if (debugCharacterController != null)
+            {
+                return debugCharacterController.GetDebugInfo();
+            }
+            return "No debug character active";
+        }
+        
+        /// <summary>
+        /// Check if debug character exists
+        /// </summary>
+        public bool HasDebugCharacter()
+        {
+            return debugCharacterController != null;
+        }
+        
+        #endregion
     }
 }
