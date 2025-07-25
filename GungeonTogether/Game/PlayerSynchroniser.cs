@@ -3207,7 +3207,6 @@ namespace GungeonTogether.Game
         /// </summary>
         public void ProcessInitialStateSync(InitialStateSyncData data)
         {
-            GungeonTogether.Logging.Debug.Log($"[PlayerSync] Processing initial state sync: Map={data.MapName}, {data.ConnectedPlayers?.Length ?? 0} players");
 
             try
             {

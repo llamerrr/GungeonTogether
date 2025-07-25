@@ -303,7 +303,6 @@ namespace GungeonTogether.Game
                 // TODO: Implement actual networking to send data
                 // For now, we'll serialize the data and log it
                 string serializedData = SerializeDungeonData(data);
-                UnityEngine.Debug.Log($"[DungeonSync] SERVER: Serialized dungeon data ({serializedData.Length} chars)");
 
                 // In a real implementation, this would send over Steam P2P:
                 // steamNetworking.SendToAll("DUNGEON_DATA", serializedData);
