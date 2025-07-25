@@ -984,10 +984,16 @@ namespace GungeonTogether.Steam
         }
 
         /// <summary>
-        /// Cleanup and shutdown
+        /// Cleanup and shutdown (enhanced with persistence)
         /// </summary>
         public void Shutdown()
         {
+            // Shutdown persistence manager first
+            if (PlayerPersistenceManager.Instance != null)
+            {
+                PlayerPersistenceManager.Instance.Shutdown();
+            }
+
             isInitialized = false;
             hostManager = null;
             clientManager = null;

@@ -558,6 +558,11 @@ namespace GungeonTogether
                         PlayerSynchroniser.StaticInitialize();
                         EnemySynchronizer.StaticInitialize();
                         ProjectileSynchronizer.StaticInitialize();
+                        
+                        // Initialize player persistence manager for joiners
+                        PlayerPersistenceManager.Instance.Initialize();
+                        Logger.LogInfo("[JOINER] Player persistence manager initialized");
+                        
                         DungeonGenerationHook.InstallHooks();
                         NetworkedDungeonManager.Instance.Initialize(false);
                         // Notify UI
@@ -618,6 +623,10 @@ namespace GungeonTogether
                     {
                         NetworkManager.Instance.Shutdown();
                         Logger.LogInfo("NetworkManager shutdown complete");
+                        
+                        // Shutdown persistence manager
+                        PlayerPersistenceManager.Instance.Shutdown();
+                        Logger.LogInfo("PlayerPersistenceManager shutdown complete");
                     }
 
                     // Notify UI and user that hosting has stopped
@@ -869,6 +878,9 @@ namespace GungeonTogether
                 PlayerSynchroniser.StaticInitialize();
                 EnemySynchronizer.StaticInitialize();
                 ProjectileSynchronizer.StaticInitialize();
+
+                // Initialize player persistence manager
+                PlayerPersistenceManager.Instance.Initialize();
 
                 // Initialize dungeon hooks
                 DungeonGenerationHook.InstallHooks();

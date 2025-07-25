@@ -124,6 +124,9 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync][INIT] Called for SteamId={localSteamId}, IsHost={isHost}");
                 GungeonTogether.Logging.Debug.Log("[PlayerSync] Starting PlayerSynchroniser initialization...");
 
+                // Initialize persistence manager
+                PlayerPersistenceManager.Instance.Initialize();
+
                 // Try immediate initialization
                 if (TryInitializePlayer())
                 {
@@ -2031,8 +2034,14 @@ namespace GungeonTogether.Game
             spriteRenderer.color = new Color(1.0f, 0.8f, 0.2f, 0.8f); // Yellow/orange with transparency
             spriteRenderer.sortingLayerName = "FG_Critical";
             spriteRenderer.sortingOrder = 10;
+        }
 
-            GungeonTogether.Logging.Debug.Log("[PlayerSync] Created 'no character selected' yellow sprite for remote player");
+        /// <summary>
+        /// Create remote player visual (used by persistence manager)
+        /// </summary>
+        public GameObject CreateRemotePlayerVisual(ulong steamId, string characterName)
+        {
+            return CreatePlaceholderRemotePlayer(steamId, characterName);
         }
 
         /// <summary>
@@ -2564,6 +2573,12 @@ namespace GungeonTogether.Game
 
                         remotePlayers[data.PlayerId] = playerState;
 
+                        // Update persistence manager data (without triggering persistence events)
+                        if (PlayerPersistenceManager.Instance != null)
+                        {
+                            PlayerPersistenceManager.Instance.UpdatePlayerData(data.PlayerId, playerState);
+                        }
+
                         // Update character appearance if it changed
                         if (characterChanged)
                         {
@@ -2639,6 +2654,12 @@ namespace GungeonTogether.Game
                             }
 
                             remotePlayers[data.PlayerId] = playerState;
+
+                            // Persist newly created player (this is always a new player so always persist)
+                            if (PlayerPersistenceManager.Instance != null)
+                            {
+                                PlayerPersistenceManager.Instance.PersistPlayer(data.PlayerId, playerState);
+                            }
 
                             // Apply animation state to the newly created remote player
                             ApplyAnimationState(data.PlayerId, playerState);
@@ -2925,10 +2946,84 @@ namespace GungeonTogether.Game
         }
 
         /// <summary>
-        /// Cleanup
+        /// Get remote player objects dictionary (for persistence manager)
+        /// </summary>
+        public Dictionary<ulong, GameObject> GetRemotePlayerObjects()
+        {
+            lock (collectionLock)
+            {
+                return new Dictionary<ulong, GameObject>(remotePlayerObjects);
+            }
+        }
+
+        /// <summary>
+        /// Update a remote player's state (used by persistence manager)
+        /// </summary>
+        public void UpdateRemotePlayerState(ulong steamId, RemotePlayerState newState)
+        {
+            lock (collectionLock)
+            {
+                if (remotePlayers.ContainsKey(steamId))
+                {
+                    remotePlayers[steamId] = newState;
+                }
+                else
+                {
+                    GungeonTogether.Logging.Debug.LogWarning($"[PlayerSync] Attempted to update non-existent player {steamId}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Create a remote player from persistent data (used after scene transitions)
+        /// </summary>
+        public void CreateRemotePlayerFromPersistentData(ulong steamId, RemotePlayerState persistentState)
+        {
+            try
+            {
+                // Store the persistent state
+                lock (collectionLock)
+                {
+                    remotePlayers[steamId] = persistentState;
+                }
+
+                // Create the visual representation
+                var remotePlayerObj = CreateRemotePlayerVisual(steamId, persistentState.CharacterName);
+                if (remotePlayerObj != null)
+                {
+                    lock (collectionLock)
+                    {
+                        remotePlayerObjects[steamId] = remotePlayerObj;
+                    }
+                    
+                    // Set initial position from persistent data
+                    SetSpritePositionCentered(remotePlayerObj, new Vector3(persistentState.Position.x, persistentState.Position.y, 0));
+                    
+                    // Make sure it persists across scene changes
+                    UnityEngine.Object.DontDestroyOnLoad(remotePlayerObj);
+                }
+                else
+                {
+                    GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Failed to create visual for persistent player {steamId}");
+                }
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error creating remote player from persistent data: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Cleanup (enhanced with persistence management)
         /// </summary>
         public void Cleanup()
         {
+            // Clean up persistence manager
+            if (PlayerPersistenceManager.Instance != null)
+            {
+                PlayerPersistenceManager.Instance.ClearAllPersistentData();
+            }
+
             lock (collectionLock)
             {
                 foreach (var kvp in remotePlayerObjects)
