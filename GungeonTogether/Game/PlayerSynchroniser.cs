@@ -2446,8 +2446,6 @@ namespace GungeonTogether.Game
                         // When facing left (FlipX = true), move the sprite 1 unit to the right
                         // to compensate for the visual shift caused by sprite flipping
                         adjustedPosition.x += 1.3f;
-                        
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync][FlipFix] Applied 1-unit right offset for left-facing sprite: original={targetPosition.x:F2}, adjusted={adjustedPosition.x:F2}");
                     }
                     
                     spriteObject.transform.position = adjustedPosition;
@@ -2805,13 +2803,11 @@ namespace GungeonTogether.Game
                     // Use tk2d's FlipX property for sprite flipping
                     bool isCurrentlyFlipped = tk2dSprite.FlipX;
                     
-                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][FlipDebug] Player {playerId} (tk2d): shouldFaceLeft={currentFacingLeft}, currentlyFlipped={isCurrentlyFlipped}");
                     
                     if (isCurrentlyFlipped != currentFacingLeft)
                     {
                         tk2dSprite.FlipX = currentFacingLeft;
                         
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync][FlipFix] Applied tk2d sprite flip to player {playerId}: FlipX = {currentFacingLeft}");
                     }
                     
                     // THEN set position after flip is applied
