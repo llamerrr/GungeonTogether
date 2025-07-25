@@ -867,25 +867,19 @@ namespace GungeonTogether.Game
                     // PlayableCharacters enum typically starts at 0, so negative values indicate no selection
                     if ((int)lastPlayedCharacter < 0)
                     {
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync] No character selected (negative ID: {(int)lastPlayedCharacter}), returning NoCharacterSelected");
                         return new CharacterInfo(-1, "NoCharacterSelected"); // Special value indicating no selection
                     }
 
                     var characterName = CharacterSelectController.GetCharacterPathFromIdentity(lastPlayedCharacter);
-                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] CharacterSelectController.GetCharacterPathFromIdentity({lastPlayedCharacter}) returned: '{characterName}'");
 
                     // If characterName is null or empty, use the ID to get the name
                     if (string.IsNullOrEmpty(characterName))
                     {
                         characterName = GetCharacterNameFromId((int)lastPlayedCharacter);
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync] Used fallback GetCharacterNameFromId({(int)lastPlayedCharacter}) = '{characterName}'");
+                      
                     }
 
                     var result = new CharacterInfo((int)lastPlayedCharacter, characterName);
-
-                    // Always log for debugging this specific issue
-                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] Final character result: {result.CharacterName} (ID: {result.CharacterId})");
-
                     return result;
                 }
                 else
@@ -900,7 +894,6 @@ namespace GungeonTogether.Game
 
             // Check if we're in a state where no character selection is expected (main menu, etc.)
             string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
-            GungeonTogether.Logging.Debug.Log($"[PlayerSync] Using fallback logic. Current scene: {currentScene}");
 
             if (currentScene.ToLowerInvariant().Contains("menu") && !currentScene.ToLowerInvariant().Contains("foyer"))
             {
@@ -947,43 +940,6 @@ namespace GungeonTogether.Game
             catch (Exception ex)
             {
                 GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Failed to create simple fallback sprite: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Create a text label showing character name for debugging
-        /// </summary>
-        private void CreateCharacterDebugLabel(GameObject playerObject, string characterName, int characterId)
-        {
-            try
-            {
-                // Create a child object for the text label
-                var labelObject = new GameObject("CharacterDebugLabel");
-                labelObject.transform.SetParent(playerObject.transform);
-                labelObject.transform.localPosition = new Vector3(0, 1.5f, 0); // Above the character
-
-                // Add TextMesh component for in-world text
-                var textMesh = labelObject.AddComponent<TextMesh>();
-                textMesh.text = $"{characterName}\n(ID: {characterId})";
-                textMesh.characterSize = 0.1f;
-                textMesh.fontSize = 10;
-                textMesh.anchor = TextAnchor.MiddleCenter;
-                textMesh.alignment = TextAlignment.Center;
-                textMesh.color = Color.white;
-
-                // Make sure it renders on top
-                var renderer = textMesh.GetComponent<MeshRenderer>();
-                if (renderer != null)
-                {
-                    renderer.sortingLayerName = "FG_Critical";
-                    renderer.sortingOrder = 100;
-                }
-
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Created debug label for {characterName} (ID: {characterId})");
-            }
-            catch (Exception ex)
-            {
-                GungeonTogether.Logging.Debug.LogWarning($"[PlayerSync] Failed to create character debug label: {ex.Message}");
             }
         }
 
@@ -1267,9 +1223,6 @@ namespace GungeonTogether.Game
                 {
                     currentPosition = localPlayer.transform.position;
                 }
-
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Sending character info broadcast: {characterInfo.CharacterName} (ID: {characterInfo.CharacterId}) in scene {currentScene}");
-
                 NetworkManager.Instance.OpeningPlayerPacket(
                     currentPosition,
                     Vector2.zero, // No velocity when just broadcasting character info
@@ -1296,7 +1249,6 @@ namespace GungeonTogether.Game
         {
             try
             {
-                GungeonTogether.Logging.Debug.Log("[PlayerSync] Character selection changed - broadcasting update");
                 SendCharacterInfo();
 
                 // Show notification to user
@@ -1328,7 +1280,6 @@ namespace GungeonTogether.Game
                 // Check if character ID has changed since last broadcast
                 if (characterInfo.CharacterId != lastBroadcastCharacterId)
                 {
-                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] Character change detected: {lastBroadcastCharacterId} -> {characterInfo.CharacterId} ({characterInfo.CharacterName})");
                     lastBroadcastCharacterId = characterInfo.CharacterId;
 
                     // Immediately broadcast the change
@@ -1375,8 +1326,6 @@ namespace GungeonTogether.Game
                 {
                     // Monitor gun firing - we'll check this in Update instead of hooking directly
                 }
-
-                GungeonTogether.Logging.Debug.Log("[PlayerSync] Player events hooked successfully");
             }
             catch (Exception e)
             {
@@ -1428,7 +1377,6 @@ namespace GungeonTogether.Game
                                 localAnimator = child.GetComponent<tk2dSpriteAnimator>();
                                 if (localAnimator != null)
                                 {
-                                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Found player animator on child: {child.name}");
                                     break;
                                 }
                             }
@@ -1462,14 +1410,12 @@ namespace GungeonTogether.Game
                                 if (hasPlayerAnims)
                                 {
                                     localAnimator = anim;
-                                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Found player animator with player animations: {anim.gameObject.name}");
+                
                                     break;
                                 }
                             }
                         }
                     }
-                    
-                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Found animator: {localAnimator != null}");
                 }
                 
                 if (localAnimator != null)
@@ -1478,7 +1424,6 @@ namespace GungeonTogether.Game
                     if (localAnimator.CurrentClip != null)
                     {
                         currentAnimationName = localAnimator.CurrentClip.name;
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Got animation from CurrentClip: '{currentAnimationName}'");
                     }
                     else
                     {
@@ -1503,8 +1448,6 @@ namespace GungeonTogether.Game
                                     var currentClipField = animatorType.GetField("currentClip", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                                     var clipTimeProperty = animatorType.GetProperty("ClipTime");
                                     
-                                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Reflection check - CurrentClip prop: {currentClipProperty != null}, currentClip field: {currentClipField != null}, ClipTime: {clipTimeProperty != null}");
-                                    
                                     // Try to get the actual playing clip through different means
                                     if (currentClipField != null)
                                     {
@@ -1521,7 +1464,6 @@ namespace GungeonTogether.Game
                                                 {
                                                     currentAnimationName = clipName;
                                                     foundCurrentAnimation = true;
-                                                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Found current animation via reflection: '{currentAnimationName}'");
                                                 }
                                             }
                                         }
@@ -1539,8 +1481,7 @@ namespace GungeonTogether.Game
                                 // Log available clips for debugging
                                 if (localAnimator.Library != null && localAnimator.Library.clips != null)
                                 {
-                                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Available clips in library: {localAnimator.Library.clips.Length}");
-                                    
+                                   
                                     // Get all clip names for debugging
                                     var allClipNames = new List<string>();
                                     for (int i = 0; i < localAnimator.Library.clips.Length; i++)
@@ -1551,9 +1492,6 @@ namespace GungeonTogether.Game
                                         }
                                     }
                                     
-                                    // Log first 20 clip names to see what we're working with
-                                    var firstClips = allClipNames.Take(20).ToArray();
-                                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] First 20 clips: {string.Join(", ", firstClips)}");
                                     
                                     // Try to determine current animation by checking player state against available clips
                                     if (localPlayer.IsDodgeRolling)
@@ -1563,7 +1501,6 @@ namespace GungeonTogether.Game
                                         if (dodgeClips.Length > 0)
                                         {
                                             currentAnimationName = dodgeClips[0]; // Use first dodge animation found
-                                            GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Found dodge animation: '{currentAnimationName}' from {dodgeClips.Length} dodge clips");
                                         }
                                         else
                                         {
@@ -1577,7 +1514,6 @@ namespace GungeonTogether.Game
                                         if (fallClips.Length > 0)
                                         {
                                             currentAnimationName = fallClips[0];
-                                            GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Found fall animation: '{currentAnimationName}' from {fallClips.Length} fall clips");
                                         }
                                         else
                                         {
@@ -1614,7 +1550,6 @@ namespace GungeonTogether.Game
                                             if (directionClips.Length > 0)
                                             {
                                                 currentAnimationName = directionClips[0];
-                                                GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Found directional run animation: '{currentAnimationName}' from {directionClips.Length} {directionPattern} clips");
                                             }
                                             else
                                             {
@@ -1623,12 +1558,12 @@ namespace GungeonTogether.Game
                                                 if (runClips.Length > 0)
                                                 {
                                                     currentAnimationName = runClips[0];
-                                                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Using first run animation: '{currentAnimationName}' from {runClips.Length} run clips");
+                                                    
                                                 }
                                                 else
                                                 {
                                                     // Log all available animations to see what we actually have
-                                                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] No run animations found! Available animations: {string.Join(", ", allClipNames.Take(20).ToArray())}");
+                                
                                                     currentAnimationName = "idle"; // Use idle instead of constructed name that doesn't exist
                                                 }
                                             }
@@ -1640,7 +1575,7 @@ namespace GungeonTogether.Game
                                             if (idleClips.Length > 0)
                                             {
                                                 currentAnimationName = idleClips[0];
-                                                GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Found idle animation: '{currentAnimationName}' from {idleClips.Length} idle clips");
+                                               
                                             }
                                             else
                                             {
@@ -1754,7 +1689,6 @@ namespace GungeonTogether.Game
                     string currentAnimationName;
                     var animationState = GetLocalPlayerAnimationState(out movementDirection, out isRunning, out isFalling, out isTakingDamage, out isDead, out currentAnimationName);
 
-                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Local player animation state: {animationState}, movement: {movementDirection}, running: {isRunning}, current anim: '{currentAnimationName}'");
 
                     // Check if character data has changed since last position update
                     var characterInfo = GetCurrentPlayerCharacter();
@@ -1763,10 +1697,6 @@ namespace GungeonTogether.Game
 
                     if (characterDataChanged)
                     {
-                        // Send position update WITH character data (character changed)
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync] Sending position update WITH character data: {characterInfo.CharacterName} (ID: {characterInfo.CharacterId}), AnimState: {animationState}");
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync][NetworkDebug] Animation data being sent: state={animationState}, direction={movementDirection}, running={isRunning}, anim='{currentAnimationName}'");
-                        
                         NetworkManager.Instance.OpeningPlayerPacket(
                             currentPosition,
                             localPlayer.specRigidbody?.Velocity ?? Vector2.zero,
@@ -1791,9 +1721,6 @@ namespace GungeonTogether.Game
                     }
                     else
                     {
-                        // Send efficient position-only update (no character data)
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync][NetworkDebug] Regular update - Animation data being sent: state={animationState}, direction={movementDirection}, running={isRunning}, anim='{currentAnimationName}'");
-                        
                         NetworkManager.Instance.RegularPlayerPacket(
                             currentPosition,
                             localPlayer.specRigidbody?.Velocity ?? Vector2.zero,
@@ -1922,7 +1849,6 @@ namespace GungeonTogether.Game
 
                 if (!isDebugFakePlayer && currentTime - playerState.LastUpdateTime > timeoutDuration)
                 {
-                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] Timeout: Removing remote player {steamId} (last update: {playerState.LastUpdateTime}, now: {currentTime})");
                     playersToRemove.Add(steamId);
                     continue;
                 }
@@ -1954,8 +1880,6 @@ namespace GungeonTogether.Game
         {
             var localSteamId = GetLocalSteamId();
             GungeonTogether.Logging.Debug.Log($"[PlayerSync][DEBUG] OnPlayerJoined called - Remote SteamId: {steamId}, Local SteamId: {localSteamId}");
-            GungeonTogether.Logging.Debug.Log($"[PlayerSync][DEBUG] Current remote players: {remotePlayers.Count}, Current remote player objects: {remotePlayerObjects.Count}");
-
             if (steamId == localSteamId)
             {
                 GungeonTogether.Logging.Debug.Log("[PlayerSync][DEBUG] Skipping OnPlayerJoined for local player");
@@ -1967,15 +1891,12 @@ namespace GungeonTogether.Game
             // This is more efficient than immediate multiple broadcasts
             try
             {
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] New player {steamId} joined - scheduling character info broadcast");
                 ScheduleCharacterInfoBroadcast();
             }
             catch (Exception e)
             {
                 GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Failed to schedule character broadcast for new player {steamId}: {e.Message}");
             }
-
-            GungeonTogether.Logging.Debug.Log($"[PlayerSync][DEBUG] After CreateRemotePlayer - Remote players: {remotePlayers.Count}, Remote player objects: {remotePlayerObjects.Count}");
         }
 
         private void OnPlayerLeft(ulong steamId)
@@ -1988,7 +1909,6 @@ namespace GungeonTogether.Game
         {
             ulong localSteamId = GetLocalSteamId();
             GungeonTogether.Logging.Debug.Log($"[PlayerSync] === CREATING REMOTE PLAYER ===");
-            GungeonTogether.Logging.Debug.Log($"[PlayerSync] CreateRemotePlayer called. Local SteamId: {localSteamId}, Remote SteamId: {steamId}, Map: {mapName}");
             if (steamId.Equals(localSteamId))
             {
                 GungeonTogether.Logging.Debug.Log("[PlayerSync] Skipping CreateRemotePlayer for local player.");
@@ -2000,7 +1920,6 @@ namespace GungeonTogether.Game
                 lock (collectionLock)
                 {
                     // DEBUG: Log all connected players for troubleshooting
-                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] Current remote players: {string.Join(", ", remotePlayers.Keys.Select(k => k.ToString()).ToArray())}");
                     GungeonTogether.Logging.Debug.Log($"[PlayerSync] Current remote objects: {string.Join(", ", remotePlayerObjects.Keys.Select(k => k.ToString()).ToArray())}");
 
                     if (remotePlayerObjects.ContainsKey(steamId))
@@ -2031,9 +1950,6 @@ namespace GungeonTogether.Game
                             CharacterId = -1, // Unknown character - will be updated when we receive position data
                             CharacterName = "Unknown" // Unknown character - will be updated when we receive position data
                         };
-
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync] Successfully created remote player object for {steamId} at position {remotePlayerObj.transform.position}");
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync] Total remote players: {remotePlayers.Count}, Total remote objects: {remotePlayerObjects.Count}");
                     }
                     else
                     {
@@ -2119,9 +2035,6 @@ namespace GungeonTogether.Game
                 
                 // Use centralized positioning for consistent center anchoring
                 SetSpritePositionCentered(remotePlayerObj, initialPosition);
-
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Positioned placeholder remote player {steamId} at {initialPosition}");
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Successfully created placeholder remote player for {steamId}");
                 return remotePlayerObj;
             }
             catch (Exception e)
@@ -2250,12 +2163,6 @@ namespace GungeonTogether.Game
                                 {
                                     GungeonTogether.Logging.Debug.Log($"[PlayerSync] Successfully updated character sprite for {steamId}");
                                 }
-
-                                // Always add debug label if enabled
-                                if (DebugModeShowCharacterLabels)
-                                {
-                                    CreateCharacterDebugLabel(playerObject, characterName, characterId);
-                                }
                             }
                         }
                     }
@@ -2302,7 +2209,7 @@ namespace GungeonTogether.Game
                         spriteRenderer.sprite = localSpriteRenderer.sprite;
                         spriteRenderer.sortingLayerName = localSpriteRenderer.sortingLayerName;
                         spriteRenderer.sortingOrder = localSpriteRenderer.sortingOrder;
-                        spriteRenderer.color = new Color(0.8f, 0.8f, 1.0f, 0.9f); // Slightly transparent and blue-tinted
+                        spriteRenderer.color = Color.white; // Use normal white color like local player
                         GungeonTogether.Logging.Debug.Log($"[PlayerSync] Copied sprite from local player - sprite: {spriteRenderer.sprite?.name}, layer: {spriteRenderer.sortingLayerName}, order: {spriteRenderer.sortingOrder}");
 
                         // Only add animator if we have a sprite and can copy from local player
@@ -2576,8 +2483,6 @@ namespace GungeonTogether.Game
                 // Simplified approach - just set position directly
                 // Unity sprites are already center-anchored, and tk2d sprites will work fine with direct positioning
                 spriteObject.transform.position = targetPosition;
-                
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync][SimplePos] Sprite positioned directly: {targetPosition}");
             }
             catch (Exception ex)
             {
@@ -2624,20 +2529,8 @@ namespace GungeonTogether.Game
 
             try
             {
-                // DEBUG: Log exactly what we received
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] === PACKET RECEIVED DEBUG ===");
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Received packet from {data.PlayerId}: CharacterName='{data.CharacterName}', CharacterId={data.CharacterId}");
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Position={data.Position}, Map='{data.MapName}'");
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync][ReceiveAnimDebug] Animation data received: state={data.AnimationState}, direction={data.MovementDirection}, running={data.IsRunning}, anim='{data.CurrentAnimationName}'");
-
                 // Track last update received (robust, never for self)
                 OnAnyRemotePacketReceived(data.PlayerId);
-
-                // Only log position updates occasionally to avoid spam
-                if (Time.time - lastLogTime > LOG_THROTTLE_INTERVAL)
-                {
-                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] Received position for remote player {data.PlayerId}: pos={data.Position} rot={data.Rotation} grounded={data.IsGrounded} dodge={data.IsDodgeRolling}");
-                }
 
                 lock (collectionLock)
                 {
@@ -2842,8 +2735,6 @@ namespace GungeonTogether.Game
         {
             try
             {
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync][AnimDebug] ApplyAnimationState called for player {playerId}, direct anim: '{state.CurrentAnimationName}'");
-
                 if (!remotePlayerObjects.ContainsKey(playerId))
                 {
                     GungeonTogether.Logging.Debug.Log($"[PlayerSync][AnimDebug] No player object found for {playerId}");
@@ -2879,9 +2770,6 @@ namespace GungeonTogether.Game
                 {
                     targetAnimationName = "idle";
                 }
-
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync][AnimDebug] Target animation: '{targetAnimationName}', current clip: '{animator.CurrentClip?.name ?? "null"}'");
-
                 // Only change animation if it's different
                 if (animator.CurrentClip?.name != targetAnimationName)
                 {
@@ -2943,15 +2831,12 @@ namespace GungeonTogether.Game
                 {
                     // Use tk2d's FlipX property for sprite flipping
                     bool isCurrentlyFlipped = tk2dSprite.FlipX;
-                    
-                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][FlipDebug] Player {playerId} (tk2d): shouldFaceLeft={currentFacingLeft}, currentlyFlipped={isCurrentlyFlipped}");
-                    
+
                     if (isCurrentlyFlipped != currentFacingLeft)
                     {
                         // Apply flip using tk2d's system
                         tk2dSprite.FlipX = currentFacingLeft;
                         
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync][FlipFix] Applied tk2d sprite flip to player {playerId}: FlipX = {currentFacingLeft}");
                     }
                     
                     // Use centralized positioning function that handles center anchoring
@@ -2987,7 +2872,6 @@ namespace GungeonTogether.Game
                     if (state.IsTakingDamage)
                     {
                         tk2dSprite.color = Color.red;
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync][VisualFX] Applied damage red tint to player {state.SteamId}");
                     }
                     else
                     {

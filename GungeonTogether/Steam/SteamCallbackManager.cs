@@ -168,7 +168,6 @@ namespace GungeonTogether.Steam
             if (!ReferenceEquals(_p2pHostManager, null))
             {
                 _p2pHostManager.ConnectClientsInLobby();
-                _p2pHostManager.SendTestMessageToAllClients("Test packet from host");
             }
             OnLobbyDataUpdate?.Invoke(param);
         }
