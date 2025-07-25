@@ -139,7 +139,7 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.LogError("[PlayerSync] Initialize error: " + e.Message);
             }
         }
-
+#region spriting
         /// <summary>
         /// Try to load character-specific sprite and animation data
         /// </summary>
@@ -160,7 +160,7 @@ namespace GungeonTogether.Game
                 }
                 
                 // Try to find actual PlayerController prefabs in the game scene
-                if (TryLoadFromGamePlayerPrefabs(spriteRenderer, out animator, characterName, characterId))
+                if (TryLoadFromCharacterPrefabAssembly(spriteRenderer, out animator, characterName, characterId))
                 {
                     GungeonTogether.Logging.Debug.Log($"[PlayerSync] Successfully loaded from game player prefabs");
                     return true;
@@ -175,7 +175,7 @@ namespace GungeonTogether.Game
                 return false;
             }
         }
-
+/*
         /// <summary>
         /// Try to find character sprites from existing PlayerController objects in the scene or loaded prefabs
         /// </summary>
@@ -246,7 +246,7 @@ namespace GungeonTogether.Game
                 return false;
             }
         }
-
+*/
         /// <summary>
         /// Scan loaded character prefabs in the assembly to find sprite locations
         /// </summary>
@@ -308,29 +308,18 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] === DEEP PREFAB ANALYSIS: {prefabName} ===");
                 
                 // Log the complete hierarchy
-                LogGameObjectHierarchy(prefab, 0, "");
+                //LogGameObjectHierarchy(prefab, 0, "");
                 
                 // Get all components in the entire prefab hierarchy
                 var allComponents = prefab.GetComponentsInChildren<Component>(true);
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Total components in prefab hierarchy: {allComponents.Length}");
                 
-                // Log component types and their game objects
-                var componentGroups = allComponents.GroupBy(c => c.GetType().Name).ToArray();
-                foreach (var group in componentGroups)
-                {
-                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] Component type '{group.Key}': {group.Count()} instances");
-                    foreach (var component in group.Take(3)) // Log first 3 instances
-                    {
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync]   - {component.GetType().Name} on '{component.gameObject.name}'");
-                    }
-                }
-                
                 // Look for sprite-related components
-                var spriteRenderers = prefab.GetComponentsInChildren<SpriteRenderer>(true);
-                var tk2dSprites = prefab.GetComponentsInChildren<tk2dSprite>(true);
-                var tk2dAnimators = prefab.GetComponentsInChildren<tk2dSpriteAnimator>(true);
+                //var spriteRenderers = prefab.GetComponentsInChildren<SpriteRenderer>(true);
+                //var tk2dSprites = prefab.GetComponentsInChildren<tk2dSprite>(true);
+                //var tk2dAnimators = prefab.GetComponentsInChildren<tk2dSpriteAnimator>(true);
                 
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Found components: {spriteRenderers.Length} SpriteRenderer, {tk2dSprites.Length} tk2dSprite, {tk2dAnimators.Length} tk2dSpriteAnimator");
+                //GungeonTogether.Logging.Debug.Log($"[PlayerSync] Found components: {spriteRenderers.Length} SpriteRenderer, {tk2dSprites.Length} tk2dSprite, {tk2dAnimators.Length} tk2dSpriteAnimator");
                 
                 // PRIORITY: Look for PlayerSprite child object specifically (this is where the main character sprite is!)
                 var playerSpriteChild = prefab.transform.Find("PlayerSprite");
@@ -402,20 +391,20 @@ namespace GungeonTogether.Game
                 return false;
             }
         }
-
+/*
         /// <summary>
         /// Log the complete GameObject hierarchy
         /// </summary>
         private void LogGameObjectHierarchy(GameObject obj, int depth, string prefix)
         {
             if (obj == null) return;
-            
+
             var indent = new string(' ', depth * 2);
             var components = obj.GetComponents<Component>();
             var componentNames = string.Join(", ", components.Select(c => c.GetType().Name).ToArray());
-            
+
             GungeonTogether.Logging.Debug.Log($"[PlayerSync] {indent}{prefix}{obj.name} [{componentNames}]");
-            
+
             if (depth < 3) // Limit depth to avoid spam
             {
                 for (int i = 0; i < obj.transform.childCount; i++)
@@ -428,7 +417,7 @@ namespace GungeonTogether.Game
                 }
             }
         }
-
+*/
         /// <summary>
         /// Get the full path to a GameObject in the hierarchy
         /// </summary>
@@ -447,12 +436,6 @@ namespace GungeonTogether.Game
             
             return path;
         }
-
-
-
-
-
-
 
         /// <summary>
         /// Try to copy tk2dSprite component directly instead of converting to Unity Sprite
@@ -611,10 +594,6 @@ namespace GungeonTogether.Game
             }
         }
 
-
-
-
-
         /// <summary>
         /// Check if a sprite is likely a valid player character sprite (not UI, particle effects, etc.)
         /// </summary>
@@ -767,7 +746,7 @@ namespace GungeonTogether.Game
                 CharacterName = name;
             }
         }
-
+#endregion
         /// <summary>
         /// Get the current player's character information, with proper handling for no character selected
         /// </summary>
@@ -904,43 +883,6 @@ namespace GungeonTogether.Game
             // Fallback to Pilot (default character) only if we're in a context where a character is expected
             GungeonTogether.Logging.Debug.Log($"[PlayerSync] Using final fallback character: PlayerRogue (ID: 0)");
             return new CharacterInfo(0, "PlayerRogue"); // PlayableCharacters.Pilot = 0, PlayerRogue is the Pilot prefab
-        }
-
-        /// <summary>
-        /// Creates a simple colored sprite as a fallback when character loading fails
-        /// </summary>
-        private void CreateSimpleFallbackSprite(SpriteRenderer spriteRenderer, string characterName)
-        {
-            try
-            {
-                // Create a simple 16x16 pixel texture with a character-specific color
-                var texture = new Texture2D(16, 16, TextureFormat.RGBA32, false);
-
-                // Choose color based on character name
-                Color characterColor = GetCharacterColor(characterName);
-
-                // Fill the texture with the character color
-                var pixels = new Color[16 * 16];
-                for (int i = 0; i < pixels.Length; i++)
-                {
-                    pixels[i] = characterColor;
-                }
-                texture.SetPixels(pixels);
-                texture.Apply();
-
-                // Create sprite from texture
-                var sprite = Sprite.Create(texture, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f), 16);
-                spriteRenderer.sprite = sprite;
-                spriteRenderer.sortingLayerName = "FG_Critical";
-                spriteRenderer.sortingOrder = 10;
-                spriteRenderer.color = Color.white;
-
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Created simple fallback sprite for {characterName} with color {characterColor}");
-            }
-            catch (Exception ex)
-            {
-                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Failed to create simple fallback sprite: {ex.Message}");
-            }
         }
 
         /// <summary>
@@ -2155,9 +2097,7 @@ namespace GungeonTogether.Game
 
                                 if (!characterSpriteLoaded)
                                 {
-                                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] Character-specific sprite loading failed or skipped for {steamId}, using simple fallback");
-                                    // Create a simple colored square as a fallback to prevent sprite blob
-                                    CreateSimpleFallbackSprite(spriteRenderer, characterName);
+                                    GungeonTogether.Logging.Debug.LogError("!!!!!!!!!!!!!!!!!!!!!!!!!!!!PLEASE REPORT THIS TO DEVS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
                                 }
                                 else
                                 {
@@ -2777,13 +2717,11 @@ namespace GungeonTogether.Game
                     {
                         // Check if the animation exists in the library
                         var clipId = animator.GetClipIdByName(targetAnimationName);
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync][AnimDebug] Clip ID for '{targetAnimationName}': {clipId}");
 
                         if (clipId >= 0)
                         {
-                            // Play the animation directly - no complex state management
+                            // Play the animation directly from local files
                             animator.Play(targetAnimationName);
-                            GungeonTogether.Logging.Debug.Log($"[PlayerSync] Playing direct animation '{targetAnimationName}' for player {playerId}");
                         }
                         else
                         {

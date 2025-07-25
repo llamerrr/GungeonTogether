@@ -447,10 +447,6 @@ namespace GungeonTogether.Steam
         {
             // Only log if there are many packets to process (potential performance issue)
             int packetCount = incomingPackets.Count;
-            if (packetCount > 10)
-            {
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Processing large packet batch: {packetCount} packets");
-            }
 
             while (incomingPackets.Count > 0)
             {
@@ -648,12 +644,6 @@ namespace GungeonTogether.Steam
             try
             {
                 var data = PacketSerializer.DeserializeObject<PlayerPositionData>(packet.Data);
-
-                // Only log position updates occasionally to avoid spam
-                if (Time.time - lastNetworkLogTime > NETWORK_LOG_THROTTLE)
-                {
-                    GungeonTogether.Logging.Debug.Log($"[NetworkManager] Received player position from {data.PlayerId}: {data.Position} (map={data.MapName}, char={data.CharacterName})");
-                }
 
                 if (connectedPlayers.ContainsKey(data.PlayerId))
                 {
@@ -982,11 +972,6 @@ namespace GungeonTogether.Steam
         /// </summary>
         public void QueueIncomingPacket(NetworkPacket packet)
         {
-            // Only log non-routine packets to avoid spam
-            if (packet.Type != PacketType.PlayerPosition && packet.Type != PacketType.HeartBeat)
-            {
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager] QueueIncomingPacket: type={packet.Type}, sender={packet.SenderId}");
-            }
             incomingPackets.Enqueue(packet);
         }
 
