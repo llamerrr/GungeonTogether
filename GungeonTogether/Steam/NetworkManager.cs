@@ -114,53 +114,13 @@ namespace GungeonTogether.Steam
         }
 
         /// <summary>
-        /// Initialize as client using an existing SteamP2PClientManager
-        /// </summary>
-        public bool InitializeAsClientWithExistingManager(SteamP2PClientManager existingClientManager, ulong hostSteamId)
-        {
-            GungeonTogether.Logging.Debug.Log($"[NetworkManager] === INITIALIZING AS CLIENT (WITH EXISTING MANAGER) ===");
-            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Host Steam ID: {hostSteamId}, Local Steam ID: {localSteamId}");
-
-            if (isInitialized)
-            {
-                GungeonTogether.Logging.Debug.Log("[NetworkManager] Already initialized as client");
-                return true;
-            }
-
-            try
-            {
-                isHost = false;
-                clientManager = existingClientManager; // Use the existing manager instead of creating a new one
-
-                // Add ourselves as a player
-                connectedPlayers[localSteamId] = new PlayerInfo
-                {
-                    SteamId = localSteamId,
-                    Name = "Client",
-                    LastKnownPosition = Vector2.zero,
-                    LastUpdateTime = Time.time,
-                    IsConnected = true
-                };
-
-                isInitialized = true;
-                GungeonTogether.Logging.Debug.Log("[NetworkManager] Successfully initialized as CLIENT with existing manager");
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Connected to host: {hostSteamId}");
-                return true;
-            }
-            catch (Exception e)
-            {
-                GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Failed to initialize as client with existing manager: {e.Message}");
-                return false;
-            }
-        }
-
-        /// <summary>
         /// Initialize as client
         /// </summary>
-        public bool InitializeAsClient(ulong hostSteamId)
+        public bool InitializeAsClient(ulong hostSteamId, SteamP2PClientManager existingClientManager = null)
         {
             GungeonTogether.Logging.Debug.Log($"[NetworkManager] === INITIALIZING AS CLIENT ===");
             GungeonTogether.Logging.Debug.Log($"[NetworkManager] Host Steam ID: {hostSteamId}, Local Steam ID: {localSteamId}");
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Using existing manager: {existingClientManager != null}");
 
             if (isInitialized)
             {
@@ -171,7 +131,9 @@ namespace GungeonTogether.Steam
             try
             {
                 isHost = false;
-                clientManager = new SteamP2PClientManager(hostSteamId, localSteamId);
+                
+                // Use existing manager if provided, otherwise create a new one
+                clientManager = existingClientManager ?? new SteamP2PClientManager(hostSteamId, localSteamId);
 
                 // Add ourselves as a player
                 connectedPlayers[localSteamId] = new PlayerInfo
@@ -193,6 +155,14 @@ namespace GungeonTogether.Steam
                 GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Failed to initialize as client: {e.Message}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Initialize as client using an existing SteamP2PClientManager (backward compatibility wrapper)
+        /// </summary>
+        public bool InitializeAsClientWithExistingManager(SteamP2PClientManager existingClientManager, ulong hostSteamId)
+        {
+            return InitializeAsClient(hostSteamId, existingClientManager);
         }
 
         /// <summary>
@@ -242,15 +212,16 @@ namespace GungeonTogether.Steam
         }
 
         /// <summary>
-        /// Send player position update (efficient - without character data)
+        /// <summary>
+        /// Send player position update with full animation state
         /// </summary>
-        public void RegularPlayerPacket(Vector2 position, Vector2 velocity, float rotation, bool isGrounded, bool isDodgeRolling, string mapName, PlayerAnimationState animationState = PlayerAnimationState.Idle, Vector2 movementDirection = default, bool isRunning = false, bool isFalling = false, bool isTakingDamage = false, bool isDead = false, string currentAnimationName = "")
+        public void SendPlayerPositionUpdate(Vector2 position, Vector2 velocity, float rotation, bool isGrounded, bool isDodgeRolling, string mapName, PlayerAnimationState animationState = PlayerAnimationState.Idle, Vector2 movementDirection = default, bool isRunning = false, bool isFalling = false, bool isTakingDamage = false, bool isDead = false, string currentAnimationName = "")
         {
             // Get current character info instead of using placeholders
             var characterInfo = PlayerSynchroniser.Instance.GetCurrentPlayerCharacter();
 
             // Debug logging to track character data being sent
-            GungeonTogether.Logging.Debug.Log($"[NetworkManager] SendPlayerPositionOnly: Got character info: {characterInfo.CharacterName} (ID: {characterInfo.CharacterId})");
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] SendPlayerPositionUpdate: Got character info: {characterInfo.CharacterName} (ID: {characterInfo.CharacterId})");
 
             var data = new PlayerPositionData
             {
@@ -286,57 +257,27 @@ namespace GungeonTogether.Steam
         }
 
         /// <summary>
-        /// Send player position update
-        /// </summary>
-        public void OpeningPlayerPacket(Vector2 position, Vector2 velocity, float rotation, bool isGrounded, bool isDodgeRolling, string mapName, int characterId = 0, string characterName = "PlayerRogue", PlayerAnimationState animationState = PlayerAnimationState.Idle, Vector2 movementDirection = default, bool isRunning = false, bool isFalling = false, bool isTakingDamage = false, bool isDead = false, string currentAnimationName = "")
-        {
-            // Always get current character info instead of using defaults
-            var characterInfo = PlayerSynchroniser.Instance.GetCurrentPlayerCharacter();
-
-            // Debug logging to track character data being sent
-            GungeonTogether.Logging.Debug.Log($"[NetworkManager] SendPlayerPositionWithMap: Got character info: {characterInfo.CharacterName} (ID: {characterInfo.CharacterId}) [original params were: {characterName}/{characterId}]");
-
-            var data = new PlayerPositionData
-            {
-                PlayerId = localSteamId,
-                Position = position,
-                Velocity = velocity,
-                Rotation = rotation,
-                IsGrounded = isGrounded,
-                IsDodgeRolling = isDodgeRolling,
-                MapName = mapName,
-                CharacterId = characterInfo.CharacterId,
-                CharacterName = characterInfo.CharacterName,
-                
-                // Animation state data
-                AnimationState = animationState,
-                MovementDirection = movementDirection,
-                IsRunning = isRunning,
-                IsFalling = isFalling,
-                IsTakingDamage = isTakingDamage,
-                IsDead = isDead,
-                CurrentAnimationName = currentAnimationName
-            };
-
-            // Debug what's actually in the data structure before serialization
-            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Data structure before serialization: CharacterName='{data.CharacterName}', CharacterId={data.CharacterId}, PlayerId={data.PlayerId}, AnimState={data.AnimationState}");
-
-            var serializedData = PacketSerializer.SerializeObject(data);
-
-            // Debug the serialized data size
-            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Serialized data size: {serializedData?.Length ?? 0} bytes");
-
-            SendToAll(PacketType.PlayerPosition, serializedData);
-        }
-
-        /// <summary>
-        /// Send player position update (backward compatibility)
+        /// Send player position update (backward compatibility wrapper)
         /// </summary>
         public void SendPlayerPosition(Vector2 position, Vector2 velocity, float rotation, bool isGrounded, bool isDodgeRolling)
         {
-            // Get actual character information instead of defaulting to PlayerRogue
-            var characterInfo = PlayerSynchroniser.Instance.GetCurrentPlayerCharacter();
-            OpeningPlayerPacket(position, velocity, rotation, isGrounded, isDodgeRolling, SceneManager.GetActiveScene().name, characterInfo.CharacterId, characterInfo.CharacterName);
+            SendPlayerPositionUpdate(position, velocity, rotation, isGrounded, isDodgeRolling, SceneManager.GetActiveScene().name);
+        }
+
+        /// <summary>
+        /// Send player position update (legacy method name - use SendPlayerPositionUpdate instead)
+        /// </summary>
+        public void OpeningPlayerPacket(Vector2 position, Vector2 velocity, float rotation, bool isGrounded, bool isDodgeRolling, string mapName, int characterId = 0, string characterName = "PlayerRogue", PlayerAnimationState animationState = PlayerAnimationState.Idle, Vector2 movementDirection = default, bool isRunning = false, bool isFalling = false, bool isTakingDamage = false, bool isDead = false, string currentAnimationName = "")
+        {
+            SendPlayerPositionUpdate(position, velocity, rotation, isGrounded, isDodgeRolling, mapName, animationState, movementDirection, isRunning, isFalling, isTakingDamage, isDead, currentAnimationName);
+        }
+
+        /// <summary>
+        /// Send player position update (legacy method name - use SendPlayerPositionUpdate instead)
+        /// </summary>
+        public void RegularPlayerPacket(Vector2 position, Vector2 velocity, float rotation, bool isGrounded, bool isDodgeRolling, string mapName, PlayerAnimationState animationState = PlayerAnimationState.Idle, Vector2 movementDirection = default, bool isRunning = false, bool isFalling = false, bool isTakingDamage = false, bool isDead = false, string currentAnimationName = "")
+        {
+            SendPlayerPositionUpdate(position, velocity, rotation, isGrounded, isDodgeRolling, mapName, animationState, movementDirection, isRunning, isFalling, isTakingDamage, isDead, currentAnimationName);
         }
 
         /// <summary>
