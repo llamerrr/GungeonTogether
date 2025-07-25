@@ -191,7 +191,6 @@ namespace GungeonTogether.UI
 
                 CreateUICanvas();
                 CreateMainPanel();
-                CreateStatusIndicator();
                 SetupEventHandlers();
 
                 // Initially hide the UI
@@ -418,48 +417,6 @@ namespace GungeonTogether.UI
             scrollRect.vertical = true;
 
             GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Host list panel created");
-        }
-
-        /// <summary>
-        /// Create the status indicator (small persistent UI element)
-        /// </summary>
-        private void CreateStatusIndicator()
-        {
-            if (ReferenceEquals(statusIndicator, null) && !ReferenceEquals(uiCanvas, null))
-            {
-                statusIndicator = CreateUIPanel(uiCanvas.transform, "StatusIndicator", new Vector2(200, 50));
-
-                var statusRect = statusIndicator.GetComponent<RectTransform>();
-                statusRect.anchorMin = new Vector2(1, 1);
-                statusRect.anchorMax = new Vector2(1, 1);
-                statusRect.anchoredPosition = new Vector2(-110, -30);
-
-                // Status background
-                var statusImage = statusIndicator.GetComponent<UnityEngine.UI.Image>();
-                if (statusImage)
-                {
-                    statusImage.color = new Color(0.1f, 0.1f, 0.1f, 0.8f);
-                }
-
-                // Status icon
-                var iconObj = new GameObject("StatusIcon");
-                iconObj.transform.SetParent(statusIndicator.transform);
-                statusIcon = iconObj.AddComponent<UnityEngine.UI.Image>();
-
-                var iconRect = iconObj.GetComponent<RectTransform>();
-                iconRect.anchorMin = new Vector2(0, 0.5f);
-                iconRect.anchorMax = new Vector2(0, 0.5f);
-                iconRect.sizeDelta = new Vector2(20, 20);
-                iconRect.anchoredPosition = new Vector2(25, 0);
-
-                statusIcon.color = DisconnectedColor;
-
-                // Status label
-                statusLabel = CreateUIText(statusIndicator.transform, "StatusLabel", "Disconnected",
-                                         new Vector2(40, 0), new Vector2(150, 40), 12, TextAnchor.MiddleLeft).GetComponent<UnityEngine.UI.Text>();
-
-                GungeonTogether.Logging.Debug.Log("[MultiplayerUI] Status indicator created");
-            }
         }
 
         /// <summary>

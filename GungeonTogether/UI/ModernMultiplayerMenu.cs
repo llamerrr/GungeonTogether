@@ -353,23 +353,7 @@ namespace GungeonTogether.UI
 
             // Add layout element for status text
             var statusLayoutElement = statusTextObj.AddComponent<LayoutElement>();
-            statusLayoutElement.preferredHeight = 25f;
-
-            // Steam ID text with better wrapping
-            var steamIdObj = new GameObject("SteamIdText");
-            steamIdObj.transform.SetParent(statusObj.transform, false);
-            steamIdText = steamIdObj.AddComponent<Text>();
-            steamIdText.text = "Steam: Not connected";
-            steamIdText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            steamIdText.fontSize = 10; // Slightly smaller font to prevent clipping
-            steamIdText.color = Color.gray;
-            steamIdText.alignment = TextAnchor.MiddleLeft;
-            steamIdText.horizontalOverflow = HorizontalWrapMode.Wrap; // Enable text wrapping
-            steamIdText.verticalOverflow = VerticalWrapMode.Truncate; // Truncate if too tall
-
-            // Add layout element for Steam ID text
-            var steamIdLayoutElement = steamIdObj.AddComponent<LayoutElement>();
-            steamIdLayoutElement.preferredHeight = 30f; // Increased height for potential wrapping
+            statusLayoutElement.preferredHeight = 30f;
         }
 
         /// <summary>
@@ -850,67 +834,6 @@ namespace GungeonTogether.UI
                     {
                         statusText.text = "Status: Session manager not available";
                         statusText.color = Color.red;
-                    }
-                }
-
-                // Update Steam ID text (cached to prevent log spam)
-                if (!ReferenceEquals(steamIdText, null))
-                {
-                    // Only check Steam ID once per second to prevent spam
-                    if (!steamIdCached || Time.time - lastSteamIdCheck > 1.0f)
-                    {
-                        try
-                        {
-                            // Try to get Steam networking instance if we don't have it
-                            if (ReferenceEquals(steamNetworking, null))
-                            {
-                                steamNetworking = ETGSteamP2PNetworking.Instance;
-                            }
-
-                            // Try to get Steam ID directly from reflection helper (more reliable)
-                            ulong steamId = 0;
-
-                            if (!ReferenceEquals(steamNetworking, null))
-                            {
-                                steamId = steamNetworking.GetSteamID();
-                            }
-                            else
-                            {
-                                // Fallback: try direct Steam reflection helper
-                                steamId = SteamReflectionHelper.GetSteamID();
-                            }
-
-                            if (steamId > 0)
-                            {
-                                cachedSteamId = steamId;
-                                steamIdCached = true;
-                            }
-                            else
-                            {
-                                // Only mark as unavailable if we actually get 0 back
-                                cachedSteamId = 0;
-                                steamIdCached = false;
-                            }
-                        }
-                        catch (Exception steamEx)
-                        {
-                            GungeonTogether.Logging.Debug.LogWarning($"[ModernMultiplayerMenu] Failed to get Steam ID: {steamEx.Message}");
-                            cachedSteamId = 0;
-                            steamIdCached = false;
-                        }
-                        lastSteamIdCheck = Time.time;
-                    }
-
-                    // Update UI with cached value
-                    if (steamIdCached && cachedSteamId > 0)
-                    {
-                        steamIdText.text = $"Steam: {cachedSteamId}";
-                        steamIdText.color = Color.cyan;
-                    }
-                    else
-                    {
-                        steamIdText.text = "Steam: Not available";
-                        steamIdText.color = Color.red;
                     }
                 }
 
