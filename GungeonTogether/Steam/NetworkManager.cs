@@ -220,9 +220,6 @@ namespace GungeonTogether.Steam
             // Get current character info instead of using placeholders
             var characterInfo = PlayerSynchroniser.Instance.GetCurrentPlayerCharacter();
 
-            // Debug logging to track character data being sent
-            GungeonTogether.Logging.Debug.Log($"[NetworkManager] SendPlayerPositionUpdate: Got character info: {characterInfo.CharacterName} (ID: {characterInfo.CharacterId})");
-
             var data = new PlayerPositionData
             {
                 PlayerId = LocalSteamId,
@@ -244,15 +241,7 @@ namespace GungeonTogether.Steam
                 IsDead = isDead,
                 CurrentAnimationName = currentAnimationName
             };
-
-            // Debug what's actually in the data structure before serialization
-            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Data structure before serialization: CharacterName='{data.CharacterName}', CharacterId={data.CharacterId}, PlayerId={data.PlayerId}, AnimState={data.AnimationState}");
-
             var serializedData = PacketSerializer.SerializeObject(data);
-
-            // Debug the serialized data size
-            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Serialized data size: {serializedData?.Length ?? 0} bytes");
-
             SendToAll(PacketType.PlayerPosition, serializedData);
         }
 
@@ -415,8 +404,6 @@ namespace GungeonTogether.Steam
 
                 var serializedData = PacketSerializer.SerializeObject(initialState);
                 SendToPlayer(targetSteamId, PacketType.InitialStateSync, serializedData);
-
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Sent initial state sync to {targetSteamId}: Map={currentScene}, Host at {hostPosition}, {connectedPlayersList.Count} other players");
             }
             catch (Exception e)
             {
@@ -776,7 +763,6 @@ namespace GungeonTogether.Steam
                 // More frequent logging for debugging
                 if (Time.time - lastHeartbeatLogTime > 3.0f) // Log every 3 seconds instead of 10
                 {
-                    GungeonTogether.Logging.Debug.Log($"[NetworkManager] Heartbeat received from {packet.SenderId}, last update: {playerInfo.LastUpdateTime:F1}s (was {oldUpdateTime:F1}s)");
                     lastHeartbeatLogTime = Time.time;
                 }
             }
@@ -791,8 +777,6 @@ namespace GungeonTogether.Steam
             try
             {
                 var data = PacketSerializer.DeserializeObject<InitialStateSyncData>(packet.Data);
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Received initial state sync: Map={data.MapName}, Host at {data.HostPosition}, {data.ConnectedPlayers?.Length ?? 0} other players");
-
                 // Process connected players info
                 if (data.ConnectedPlayers != null)
                 {
@@ -943,13 +927,6 @@ namespace GungeonTogether.Steam
 
             var playersToRemove = new List<ulong>();
             ulong localSteamId = LocalSteamId;
-
-            // Log connection status periodically
-            if (currentTime - lastNetworkLogTime > NETWORK_LOG_THROTTLE)
-            {
-                GungeonTogether.Logging.Debug.Log($"[NetworkManager] Connection check: {connectedPlayers.Count} total players, timeout threshold: {timeoutDuration:F1}s");
-                lastNetworkLogTime = currentTime;
-            }
 
             foreach (var kvp in connectedPlayers)
             {

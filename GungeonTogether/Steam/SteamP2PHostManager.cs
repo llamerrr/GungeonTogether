@@ -64,8 +64,6 @@ namespace GungeonTogether.Steam
             object csteamLobbyId = Activator.CreateInstance(csteamIdType, _lobbyId);
             int memberCount = (int)getNumLobbyMembers.Invoke(null, new object[] { csteamLobbyId });
 
-            GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Checking {memberCount} lobby members for P2P connections");
-
             for (int i = 0; i < memberCount; i++)
             {
                 object memberIdObj = getLobbyMemberByIndex.Invoke(null, new object[] { csteamLobbyId, i });
@@ -120,13 +118,6 @@ namespace GungeonTogether.Steam
             }
         }
 
-        public void SendTestMessageToAllClients(string message)
-        {
-            byte[] data = Encoding.UTF8.GetBytes(message);
-            SendToAllClients(data);
-            GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Sent test message to all clients: {message}");
-        }
-
         public void ReceiveMessages()
         {
             try
@@ -138,7 +129,6 @@ namespace GungeonTogether.Steam
                 {
                     if (packet.data.Length > 0)
                     {
-                        GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Received P2P packet from {packet.senderSteamId}: {packet.data.Length} bytes");
                         ProcessReceivedPacket(packet.data, packet.senderSteamId);
                     }
                 }
@@ -175,25 +165,13 @@ namespace GungeonTogether.Steam
                         }
                     }
                 }
-                else if (dataStr.StartsWith("HEARTBEAT_ACK:"))
-                {
-                    // Client responded to heartbeat - just log it, no action needed
-                    GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Received heartbeat ack from client: {senderSteamId}");
-                }
-                else if (dataStr.StartsWith("WELCOME_ACK:"))
-                {
-                    // Client acknowledged our welcome
-                    GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Client acknowledged welcome: {senderSteamId}");
-                }
                 else
                 {
                     // Try to process as network packet
                     var packet = PacketSerializer.DeserializePacket(data);
                     if (packet.HasValue)
                     {
-                        GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Deserialized network packet: type={packet.Value.Type}, sender={senderSteamId}, bytes={data.Length}");
                         NetworkManager.Instance.QueueIncomingPacket(packet.Value);
-                        GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Processed network packet: {packet.Value.Type} from {senderSteamId}");
                     }
                     else
                     {
@@ -241,7 +219,6 @@ namespace GungeonTogether.Steam
                 string heartbeatMessage = $"HEARTBEAT:{UnityEngine.Time.time}";
                 byte[] heartbeatData = Encoding.UTF8.GetBytes(heartbeatMessage);
                 SendToAllClients(heartbeatData);
-                GungeonTogether.Logging.Debug.Log($"[SteamP2PHostManager] Sent heartbeat to {_clientConnections.Count} clients");
             }
             else
             {
