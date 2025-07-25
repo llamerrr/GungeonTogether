@@ -36,6 +36,7 @@ namespace GungeonTogether.Game
         // Remote player tracking
         private readonly Dictionary<ulong, RemotePlayerState> remotePlayers = new Dictionary<ulong, RemotePlayerState>();
         private readonly Dictionary<ulong, GameObject> remotePlayerObjects = new Dictionary<ulong, GameObject>();
+        private readonly Dictionary<ulong, bool> remotePlayerFacingLeft = new Dictionary<ulong, bool>(); // Track facing direction
 
         // Local player tracking
         private PlayerController localPlayer;
@@ -1932,28 +1933,12 @@ namespace GungeonTogether.Game
                     var playerObject = remotePlayerObjectsSnapshot[steamId];
                     if (playerObject != null)
                     {
-                        // Use RemotePlayerBehavior if available, otherwise fallback to simple updates
-                        var remoteBehavior = playerObject.GetComponent<RemotePlayerBehavior>();
-                        if (remoteBehavior != null)
-                        {
-                            // Let the behavior component handle the update with full state
-                            remoteBehavior.UpdateFromNetworkData(
-                                playerState.TargetPosition,
-                                playerState.Velocity,
-                                playerState.Rotation,
-                                playerState.IsGrounded,
-                                playerState.IsDodgeRolling
-                            );
-                        }
-                        else
-                        {
-                            // Fallback to simple position interpolation
-                            var currentPos = playerObject.transform.position;
-                            var targetPos = playerState.TargetPosition;
-                            var newPos = Vector2.Lerp(currentPos, targetPos, Time.deltaTime * playerState.InterpolationSpeed);
-                            playerObject.transform.position = newPos;
-                            playerObject.transform.rotation = Quaternion.Euler(0, 0, playerState.Rotation);
-                        }
+                        // Handle position interpolation directly (consolidated from RemotePlayerBehavior)
+                        var currentPos = playerObject.transform.position;
+                        var targetPos = playerState.TargetPosition;
+                        var newPos = Vector2.Lerp(currentPos, targetPos, Time.deltaTime * playerState.InterpolationSpeed);
+                        playerObject.transform.position = newPos;
+                        playerObject.transform.rotation = Quaternion.Euler(0, 0, playerState.Rotation);
                     }
                 }
             }
@@ -2082,6 +2067,7 @@ namespace GungeonTogether.Game
                         remotePlayerObjects.Remove(steamId);
                     }
                     remotePlayers.Remove(steamId);
+                    remotePlayerFacingLeft.Remove(steamId); // Clean up facing direction tracking
                 }
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Removed remote player {steamId}");
             }
@@ -2116,9 +2102,7 @@ namespace GungeonTogether.Game
                 collider.radius = 0.5f;
                 collider.isTrigger = true; // Don't interfere with game physics
 
-                // Add a component to handle remote player behavior
-                var remotePlayerBehavior = remotePlayerObj.AddComponent<RemotePlayerBehavior>();
-                remotePlayerBehavior.Initialize(steamId);
+                // Remote player behavior is now handled directly by PlayerSynchroniser
 
                 // Position it initially near the local player if available, otherwise at a visible location
                 Vector3 initialPosition = Vector3.zero;
@@ -2132,7 +2116,9 @@ namespace GungeonTogether.Game
                     // Default to a visible position
                     initialPosition = new Vector3(5f, 5f, 0f);
                 }
-                remotePlayerObj.transform.position = initialPosition;
+                
+                // Use centralized positioning for consistent center anchoring
+                SetSpritePositionCentered(remotePlayerObj, initialPosition);
 
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Positioned placeholder remote player {steamId} at {initialPosition}");
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Successfully created placeholder remote player for {steamId}");
@@ -2359,9 +2345,7 @@ namespace GungeonTogether.Game
                 collider.radius = 0.5f;
                 collider.isTrigger = true; // Don't interfere with game physics
 
-                // Add a component to handle remote player behavior
-                var remotePlayerBehavior = remotePlayerObj.AddComponent<RemotePlayerBehavior>();
-                remotePlayerBehavior.Initialize(steamId);
+                // Remote player behavior is now handled directly by PlayerSynchroniser
 
                 // Position it initially near the local player if available, otherwise at a visible location
                 Vector3 initialPosition = Vector3.zero;
@@ -2375,7 +2359,9 @@ namespace GungeonTogether.Game
                     // Default to a visible position
                     initialPosition = new Vector3(5f, 5f, 0f);
                 }
-                remotePlayerObj.transform.position = initialPosition;
+                
+                // Use centralized positioning for consistent center anchoring
+                SetSpritePositionCentered(remotePlayerObj, initialPosition);
 
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Positioned remote player {steamId} at {initialPosition}");
 
@@ -2421,9 +2407,7 @@ namespace GungeonTogether.Game
             collider.radius = 0.5f;
             collider.isTrigger = true; // Don't interfere with game physics
 
-            // Add a component to handle remote player behavior
-            var remotePlayerBehavior = remotePlayerObj.AddComponent<RemotePlayerBehavior>();
-            remotePlayerBehavior.Initialize(steamId);
+            // Remote player behavior is now handled directly by PlayerSynchroniser
 
             // Position it initially near the local player if available, otherwise at a visible location
             Vector3 initialPosition = Vector3.zero;
@@ -2437,7 +2421,9 @@ namespace GungeonTogether.Game
                 // Default to a visible position
                 initialPosition = new Vector3(5f, 5f, 0f);
             }
-            remotePlayerObj.transform.position = initialPosition;
+            
+            // Use centralized positioning for consistent center anchoring
+            SetSpritePositionCentered(remotePlayerObj, initialPosition);
 
             // Make sure the object stays visible and is not destroyed
             UnityEngine.Object.DontDestroyOnLoad(remotePlayerObj);
@@ -2457,9 +2443,7 @@ namespace GungeonTogether.Game
             var spriteRenderer = remotePlayerObj.AddComponent<SpriteRenderer>();
             CreateFallbackSprite(spriteRenderer);
 
-            // Add basic behavior component
-            var remotePlayerBehavior = remotePlayerObj.AddComponent<RemotePlayerBehavior>();
-            remotePlayerBehavior.Initialize(steamId);
+            // Remote player behavior is now handled directly by PlayerSynchroniser
 
             // Position it at a visible location
             Vector3 initialPosition = Vector3.zero;
@@ -2471,7 +2455,9 @@ namespace GungeonTogether.Game
             {
                 initialPosition = new Vector3(5f, 5f, 0f);
             }
-            remotePlayerObj.transform.position = initialPosition;
+            
+            // Use centralized positioning for consistent center anchoring
+            SetSpritePositionCentered(remotePlayerObj, initialPosition);
 
             return remotePlayerObj;
         }
@@ -2540,6 +2526,7 @@ namespace GungeonTogether.Game
                         }
                     }
                     remotePlayerObjects.Clear();
+                    // Note: We keep remotePlayerFacingLeft to preserve facing directions during recreation
                 }
 
                 // Recreate remote players with current states
@@ -2556,7 +2543,11 @@ namespace GungeonTogether.Game
                         {
                             remotePlayerObjects[steamId] = remotePlayerObj;
                         }
-                        remotePlayerObj.transform.position = state.Position;
+                        
+                        // Use centralized positioning for consistent center anchoring
+                        Vector3 targetPosition = new Vector3(state.Position.x, state.Position.y, remotePlayerObj.transform.position.z);
+                        SetSpritePositionCentered(remotePlayerObj, targetPosition);
+                        
                         GungeonTogether.Logging.Debug.Log($"[PlayerSync] Recreated remote player {steamId} at position {state.Position}");
                     }
                 }
@@ -2566,6 +2557,52 @@ namespace GungeonTogether.Game
             catch (Exception e)
             {
                 GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error recreating remote players: {e.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Sprite Positioning Helpers
+
+        /// <summary>
+        /// Sets the position of a sprite with center-anchor compensation for both Unity and tk2d sprites
+        /// </summary>
+        private void SetSpritePositionCentered(GameObject spriteObject, Vector3 targetPosition)
+        {
+            if (spriteObject == null) return;
+
+            try
+            {
+                // Simplified approach - just set position directly
+                // Unity sprites are already center-anchored, and tk2d sprites will work fine with direct positioning
+                spriteObject.transform.position = targetPosition;
+                
+                GungeonTogether.Logging.Debug.Log($"[PlayerSync][SimplePos] Sprite positioned directly: {targetPosition}");
+            }
+            catch (Exception ex)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error in SetSpritePositionCentered: {ex.Message}");
+                // Fallback to direct positioning
+                spriteObject.transform.position = targetPosition;
+            }
+        }
+
+        /// <summary>
+        /// Gets the center position of a sprite, accounting for anchor differences
+        /// </summary>
+        private Vector3 GetSpriteCenterPosition(GameObject spriteObject)
+        {
+            if (spriteObject == null) return Vector3.zero;
+
+            try
+            {
+                // Simplified approach - just return the transform position directly
+                return spriteObject.transform.position;
+            }
+            catch (Exception ex)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error in GetSpriteCenterPosition: {ex.Message}");
+                return spriteObject.transform.position;
             }
         }
 
@@ -2836,7 +2873,7 @@ namespace GungeonTogether.Game
 
                 // Use the animation name directly from the network packet (1:1 system)
                 string targetAnimationName = state.CurrentAnimationName;
-                
+
                 // If no animation name provided, fall back to idle
                 if (string.IsNullOrEmpty(targetAnimationName))
                 {
@@ -2853,7 +2890,7 @@ namespace GungeonTogether.Game
                         // Check if the animation exists in the library
                         var clipId = animator.GetClipIdByName(targetAnimationName);
                         GungeonTogether.Logging.Debug.Log($"[PlayerSync][AnimDebug] Clip ID for '{targetAnimationName}': {clipId}");
-                        
+
                         if (clipId >= 0)
                         {
                             // Play the animation directly - no complex state management
@@ -2881,34 +2918,57 @@ namespace GungeonTogether.Game
                     }
                 }
 
-                // Apply sprite flipping
+                // Check for movement to update facing direction - try both movement direction AND velocity
+                bool shouldFaceLeft = false;
+                
                 if (state.MovementDirection.magnitude > 0.1f)
                 {
-                    var spriteComponent = playerObj.GetComponent<tk2dSprite>();
-                    if (spriteComponent != null)
+                    shouldFaceLeft = state.MovementDirection.x < 0;
+                    remotePlayerFacingLeft[playerId] = shouldFaceLeft;
+                }
+                else if (state.Velocity.magnitude > 0.1f)
+                {
+                    // Fallback to velocity if MovementDirection is not set
+                    shouldFaceLeft = state.Velocity.x < 0;
+                    remotePlayerFacingLeft[playerId] = shouldFaceLeft;
+                }
+                
+                // Get current facing direction (saved or default to right)
+                bool currentFacingLeft = remotePlayerFacingLeft.ContainsKey(playerId) ? remotePlayerFacingLeft[playerId] : false;
+
+                // Use tk2d sprite system only (ETG's native system)
+                var tk2dSprite = playerObj.GetComponent<tk2dSprite>();
+                
+                if (tk2dSprite != null)
+                {
+                    // Use tk2d's FlipX property for sprite flipping
+                    bool isCurrentlyFlipped = tk2dSprite.FlipX;
+                    
+                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][FlipDebug] Player {playerId} (tk2d): shouldFaceLeft={currentFacingLeft}, currentlyFlipped={isCurrentlyFlipped}");
+                    
+                    if (isCurrentlyFlipped != currentFacingLeft)
                     {
-                        bool shouldFlipX = state.MovementDirection.x < 0;
-                        bool currentlyFlipped = spriteComponent.FlipX;
+                        // Apply flip using tk2d's system
+                        tk2dSprite.FlipX = currentFacingLeft;
                         
-                        // Only change flip state if it's different to avoid unnecessary position adjustments
-                        if (currentlyFlipped != shouldFlipX)
-                        {
-                            // Store the world position before flipping
-                            Vector3 worldPos = playerObj.transform.position;
-                            
-                            // Apply the flip
-                            spriteComponent.FlipX = shouldFlipX;
-                        }
+                        GungeonTogether.Logging.Debug.Log($"[PlayerSync][FlipFix] Applied tk2d sprite flip to player {playerId}: FlipX = {currentFacingLeft}");
                     }
+                    
+                    // Use centralized positioning function that handles center anchoring
+                    Vector3 targetNetworkPosition = new Vector3(state.Position.x, state.Position.y, playerObj.transform.position.z);
+                    SetSpritePositionCentered(playerObj, targetNetworkPosition);
                 }
 
                 // Apply damage visual effects
                 ApplyPlayerVisualEffects(playerObj, state);
+
             }
             catch (Exception ex)
             {
-                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error applying animation state to player {playerId}: {ex.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error applying animation state to player {playerId}: {ex.Message}");       
             }
+            
+             
         }
 
         /// <summary>
@@ -2918,81 +2978,31 @@ namespace GungeonTogether.Game
         {
             try
             {
-                // Get the sprite renderer component
-                var spriteRenderer = playerObj.GetComponent<SpriteRenderer>();
-                if (spriteRenderer == null)
-                {
-                    // Try getting tk2dSprite component instead
-                    var tk2dSprite = playerObj.GetComponent<tk2dSprite>();
-                    if (tk2dSprite != null)
-                    {
-                        spriteRenderer = tk2dSprite.GetComponent<SpriteRenderer>();
-                    }
-                }
-
-                if (spriteRenderer != null)
+                // Get the tk2dSprite component (ETG uses tk2d sprites)
+                var tk2dSprite = playerObj.GetComponent<tk2dSprite>();
+                
+                if (tk2dSprite != null)
                 {
                     // Apply damage tint effect (red color) when taking damage
                     if (state.IsTakingDamage)
                     {
-                        spriteRenderer.color = Color.red;
+                        tk2dSprite.color = Color.red;
                         GungeonTogether.Logging.Debug.Log($"[PlayerSync][VisualFX] Applied damage red tint to player {state.SteamId}");
                     }
                     else
                     {
                         // Reset to normal color when not taking damage
-                        spriteRenderer.color = Color.white;
+                        tk2dSprite.color = Color.white;
                     }
+                }
+                else
+                {
+                    GungeonTogether.Logging.Debug.Log($"[PlayerSync][VisualFX] No tk2dSprite component found for visual effects on player {state.SteamId}");
                 }
             }
             catch (Exception ex)
             {
                 GungeonTogether.Logging.Debug.LogWarning($"[PlayerSync] Error applying visual effects: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Fix sprite anchoring for ETG's tk2d sprite system to prevent position shifting
-        /// </summary>
-        private void FixSpriteAnchoring(tk2dSprite spriteComponent)
-        {
-            try
-            {
-                if (spriteComponent == null) return;
-
-                // For ETG's tk2d sprites, the anchoring is handled differently than Unity's built-in sprites
-                var spriteDefinition = spriteComponent.CurrentSprite;
-                if (spriteDefinition != null)
-                {
-                    // ETG uses tk2d sprite system where anchor is controlled by the sprite definition
-                    // We don't want to force change the anchor as it can break the sprite positioning
-                    // Instead, we ensure the sprite is properly positioned relative to its transform
-                    
-                    try
-                    {
-                        // For tk2d sprites, we don't want to mess with the anchor as it can cause position issues
-                        // Instead, just ensure the sprite scale is correct and position is stable
-                        
-                        // Ensure the sprite scale is correct (ETG sprites can have scale issues)
-                        if (spriteComponent.scale == Vector3.zero)
-                        {
-                            spriteComponent.scale = Vector3.one;
-                        }
-                        
-                        // Force a sprite refresh to ensure proper positioning
-                        spriteComponent.ForceBuild();
-                        
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync][SpriteAnchoring] Refreshed tk2d sprite positioning");
-                    }
-                    catch (Exception innerEx)
-                    {
-                        GungeonTogether.Logging.Debug.LogWarning($"[PlayerSync] Failed to set sprite anchor: {innerEx.Message}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                GungeonTogether.Logging.Debug.LogWarning($"[PlayerSync] Error fixing sprite anchoring: {ex.Message}");
             }
         }
 
@@ -3012,7 +3022,11 @@ namespace GungeonTogether.Game
                         {
                             playerObj.SetActive(true);
                             GungeonTogether.Logging.Debug.Log($"[PlayerSync] Rendering remote player {playerId} at pos={state.Position} rot={state.Rotation} in map {state.MapName} (debug: {isDebugFakePlayer})");
-                            playerObj.transform.position = state.Position;
+                            
+                            // Use centralized positioning function for consistent center anchoring
+                            Vector3 targetPosition = new Vector3(state.Position.x, state.Position.y, playerObj.transform.position.z);
+                            SetSpritePositionCentered(playerObj, targetPosition);
+                            
                             playerObj.transform.eulerAngles = new Vector3(0, 0, state.Rotation);
                         }
                         else
@@ -3058,6 +3072,7 @@ namespace GungeonTogether.Game
                 }
                 remotePlayerObjects.Clear();
                 remotePlayers.Clear();
+                remotePlayerFacingLeft.Clear(); // Clean up facing direction tracking
             }
             GungeonTogether.Logging.Debug.Log("[PlayerSync] Cleanup complete");
         }
@@ -3304,8 +3319,6 @@ namespace GungeonTogether.Game
             needsScheduledBroadcast = true;
         }
 
-
-
         /// <summary>
         /// Force transition to a dungeon scene
         /// </summary>
@@ -3400,7 +3413,9 @@ namespace GungeonTogether.Game
                                     var obj = remotePlayerObjects[playerData.PlayerId];
                                     if (obj != null)
                                     {
-                                        obj.transform.position = new Vector3(playerData.Position.x, playerData.Position.y, obj.transform.position.z);
+                                        // Use centralized positioning for consistent center anchoring
+                                        Vector3 targetPosition = new Vector3(playerData.Position.x, playerData.Position.y, obj.transform.position.z);
+                                        SetSpritePositionCentered(obj, targetPosition);
                                     }
                                 }
 

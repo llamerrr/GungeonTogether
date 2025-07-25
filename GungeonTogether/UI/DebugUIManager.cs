@@ -61,13 +61,6 @@ namespace GungeonTogether.UI
                 UnityEngine.Debug.Log($"[DebugUIManager] Debug UI {(debugUIEnabled ? "enabled" : "disabled")}");
             }
 
-            // Handle multiplayer test trigger (F9)
-            if (Input.GetKeyDown(KeyCode.F9))
-            {
-                UnityEngine.Debug.Log("[DebugUIManager] Triggering multiplayer test suite...");
-                GungeonTogetherMod.RunMultiplayerTests();
-            }
-
             // Update network timer
             networkUpdateTimer += Time.unscaledDeltaTime;
         }
@@ -363,18 +356,7 @@ namespace GungeonTogether.UI
             // Test controls
             DrawInfoBox("Test Controls", () =>
             {
-                if (GUILayout.Button("Run Multiplayer Test Suite (F9)"))
-                {
-                    GungeonTogetherMod.RunMultiplayerTests();
-                }
                 GUILayout.Label("Tests will check Steam API, networking, player sync, and more.");
-
-                // Debug test for packet counters
-                if (GUILayout.Button("Test Packet Counter (Fake Remote Packet)"))
-                {
-                    GungeonTogether.Game.PlayerSynchroniser.OnAnyRemotePacketReceived(999999UL); // Fake remote Steam ID
-                    UnityEngine.Debug.Log("[DebugUI] Manually triggered fake remote packet");
-                }
 
                 // Test buttons for debugging
                 GUILayout.Space(10);

@@ -989,23 +989,6 @@ namespace GungeonTogether
         }
 
         /// <summary>
-        /// Run the comprehensive multiplayer test suite
-        /// Call this method to validate all multiplayer systems
-        /// </summary>
-        public static void RunMultiplayerTests()
-        {
-            UnityEngine.Debug.Log("Starting comprehensive multiplayer test suite...");
-            try
-            {
-                GungeonTogether.Debug.MultiplayerTestSuite.RunAllTests();
-            }
-            catch (Exception e)
-            {
-                UnityEngine.Debug.LogError($"Failed to run multiplayer tests: {e.Message}");
-            }
-        }
-
-        /// <summary>
         /// Get available hosts for joining
         /// </summary>
         public List<SteamHostManager.HostInfo> GetAvailableHosts()
