@@ -46,9 +46,10 @@ My paypal is llamerrr1@gmail.com if you actually want to (for some reason)
 
 ## Building
 This only applies to people who want to build from source, or if we forget to post builds :)
-1. Setup BepInExPack_ETG (not holding your hand, google it)
+1. Setup BepInExPack_ETG
 2. Run the build script `build.ps1` in the GungeonTogether folder
 3. Launch Enter the Gungeon
+4. pray it works because i honestly have no idea if it does
 
 ## Technical Details
 Built with BepInEx framework using Steam P2P networking for a seamless multiplayer experience.
