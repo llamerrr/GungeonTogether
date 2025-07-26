@@ -46,13 +46,18 @@ My paypal is llamerrr1@gmail.com if you actually want to (for some reason)
   - Projectiles
   - Dungeon
 - Debug controls for testing
+- Teammate DBNO system + revive mechanic
+- Spectate when dead
+- Enemy scaling (set difficulty in game)
   
 ## Planned for the future
+- EPIC GAMES SUPPORT
 - Unlimited players
 - EVERYTHING synced
 - Race mode (competing in identical dungeons, first player to finish wins)
 - Mirror mode (dupilcate dungeons, can't hurt one another but killing will cause an enemy to flip sides)
-- EPIC GAMES SUPPORT
+- Teammate revive items
+- Team based buffs and items
 
 ## Installation
 1. Install BepInEx for Enter the Gungeon
@@ -63,7 +68,8 @@ My paypal is llamerrr1@gmail.com if you actually want to (for some reason)
 This only applies to people who want to build from source, or if we forget to post builds :)
 1. You will need to setup BepInExPack_ETG (either with a mod manager like r2ModMan or manually)
 2. Run the build script `build.ps1` in the GungeonTogether folder
-3. Launch Enter the Gungeon
+3. Pray it works because honestly I have no idea if it does
+4. Launch Enter the Gungeon
 
 ## Technical Details
 Built with BepInEx framework using Steam P2P networking for a seamless multiplayer experience.
