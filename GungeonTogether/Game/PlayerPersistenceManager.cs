@@ -352,6 +352,9 @@ namespace GungeonTogether.Game
                 yield return new WaitForSeconds(0.1f);
             }
             
+            // Refresh outlines for all restored players
+            RemotePlayerOutlineManager.Instance.RefreshAllOutlines();
+            
             GungeonTogether.Logging.Debug.Log("[PlayerPersistence] Player restoration complete");
         }
 

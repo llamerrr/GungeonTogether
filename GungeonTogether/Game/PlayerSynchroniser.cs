@@ -352,30 +352,39 @@ namespace GungeonTogether.Game
                             {
                                 try
                                 {
-                                    animator = targetGameObject.AddComponent<tk2dSpriteAnimator>();
-                                    animator.Library = playerAnimator.Library;
-                                    
-                                    // Initialize the animator properly
-                                    if (animator.Library.clips != null && animator.Library.clips.Length > 0)
+                                    // First get the newly created tk2dSprite
+                                    var newTk2dSprite = targetGameObject.GetComponent<tk2dSprite>();
+                                    if (newTk2dSprite != null)
                                     {
-                                        // Try to find an idle animation
-                                        var idleClip = Array.Find(animator.Library.clips, clip => 
-                                            clip.name.ToLower().Contains("idle"));
+                                        animator = targetGameObject.AddComponent<tk2dSpriteAnimator>();
+                                        animator.Library = playerAnimator.Library;
                                         
-                                        if (idleClip != null)
+                                        // Initialize the animator properly
+                                        if (animator.Library.clips != null && animator.Library.clips.Length > 0)
                                         {
-                                            animator.DefaultClipId = animator.GetClipIdByName(idleClip.name);
-                                            animator.Play(idleClip.name);
-                                            GungeonTogether.Logging.Debug.Log($"[PlayerSync] Started idle animation: {idleClip.name}");
+                                            // Try to find an idle animation
+                                            var idleClip = Array.Find(animator.Library.clips, clip => 
+                                                clip.name.ToLower().Contains("idle"));
+                                            
+                                            if (idleClip != null)
+                                            {
+                                                animator.DefaultClipId = animator.GetClipIdByName(idleClip.name);
+                                                animator.Play(idleClip.name);
+                                                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Started idle animation: {idleClip.name}");
+                                            }
+                                            else
+                                            {
+                                                // Use first available clip
+                                                var firstClip = animator.Library.clips[0];
+                                                animator.DefaultClipId = animator.GetClipIdByName(firstClip.name);
+                                                animator.Play(firstClip.name);
+                                                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Started first animation: {firstClip.name}");
+                                            }
                                         }
-                                        else
-                                        {
-                                            // Use first available clip
-                                            var firstClip = animator.Library.clips[0];
-                                            animator.DefaultClipId = animator.GetClipIdByName(firstClip.name);
-                                            animator.Play(firstClip.name);
-                                            GungeonTogether.Logging.Debug.Log($"[PlayerSync] Started first animation: {firstClip.name}");
-                                        }
+                                    }
+                                    else
+                                    {
+                                        GungeonTogether.Logging.Debug.LogWarning($"[PlayerSync] Could not find tk2dSprite component for animator setup");
                                     }
                                 }
                                 catch (Exception ex)
@@ -536,8 +545,18 @@ namespace GungeonTogether.Game
                         
                         // Copy animation data
                         var localAnimator = localPlayer.GetComponent<tk2dSpriteAnimator>();
-                        if (localAnimator != null && localAnimator.Library != null)
+                        var localSprite = localPlayer.GetComponent<tk2dSprite>();
+                        if (localAnimator != null && localAnimator.Library != null && localSprite != null)
                         {
+                            // First add tk2dSprite component
+                            var tk2dSprite = spriteRenderer.gameObject.AddComponent<tk2dSprite>();
+                            if (localSprite.Collection != null)
+                            {
+                                tk2dSprite.Collection = localSprite.Collection;
+                                tk2dSprite.SetSprite(localSprite.spriteId);
+                            }
+                            
+                            // Then add animator which will work with the tk2dSprite
                             animator = spriteRenderer.gameObject.AddComponent<tk2dSpriteAnimator>();
                             animator.Library = localAnimator.Library;
                             TryStartIdleAnimation(animator);
@@ -1887,6 +1906,10 @@ namespace GungeonTogether.Game
                     if (remotePlayerObj != null)
                     {
                         remotePlayerObjects[steamId] = remotePlayerObj;
+                        
+                        // Add outline to make remote player stand out
+                        RemotePlayerOutlineManager.Instance.AddOutlineToPlayer(steamId, remotePlayerObj);
+                        
                         remotePlayers[steamId] = new RemotePlayerState
                         {
                             SteamId = steamId,
@@ -1937,6 +1960,9 @@ namespace GungeonTogether.Game
                     remotePlayers.Remove(steamId);
                     remotePlayerFacingLeft.Remove(steamId); // Clean up facing direction tracking
                 }
+                
+                // Remove outline when player is removed
+                RemotePlayerOutlineManager.Instance.RemoveOutlineFromPlayer(steamId);
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Removed remote player {steamId}");
             }
             catch (Exception e)
@@ -2118,6 +2144,9 @@ namespace GungeonTogether.Game
                                 else
                                 {
                                     GungeonTogether.Logging.Debug.Log($"[PlayerSync] Successfully updated character sprite for {steamId}");
+                                    
+                                    // Update outline to match new sprite
+                                    RemotePlayerOutlineManager.Instance.UpdatePlayerOutline(steamId, playerObject);
                                 }
                             }
                         }
@@ -2166,12 +2195,28 @@ namespace GungeonTogether.Game
                         spriteRenderer.sortingLayerName = localSpriteRenderer.sortingLayerName;
                         spriteRenderer.sortingOrder = localSpriteRenderer.sortingOrder;
                         spriteRenderer.color = Color.white; // Use normal white color like local player
+                        
+                        // Copy material to ensure same rendering
+                        if (localSpriteRenderer.material != null)
+                        {
+                            spriteRenderer.material = localSpriteRenderer.material;
+                        }
                         GungeonTogether.Logging.Debug.Log($"[PlayerSync] Copied sprite from local player - sprite: {spriteRenderer.sprite?.name}, layer: {spriteRenderer.sortingLayerName}, order: {spriteRenderer.sortingOrder}");
 
                         // Only add animator if we have a sprite and can copy from local player
                         var localAnimator = localPlayer.GetComponent<tk2dSpriteAnimator>();
-                        if (localAnimator != null && localAnimator.Library != null)
+                        var localSprite = localPlayer.GetComponent<tk2dSprite>();
+                        if (localAnimator != null && localAnimator.Library != null && localSprite != null)
                         {
+                            // First add tk2dSprite component
+                            var tk2dSprite = remotePlayerObj.AddComponent<tk2dSprite>();
+                            if (localSprite.Collection != null)
+                            {
+                                tk2dSprite.Collection = localSprite.Collection;
+                                tk2dSprite.SetSprite(localSprite.spriteId);
+                            }
+                            
+                            // Then add animator which will work with the tk2dSprite
                             animator = remotePlayerObj.AddComponent<tk2dSpriteAnimator>();
                             animator.Library = localAnimator.Library;
                             // Start with idle animation if available
@@ -2406,6 +2451,9 @@ namespace GungeonTogether.Game
                         {
                             remotePlayerObjects[steamId] = remotePlayerObj;
                         }
+                        
+                        // Add outline to make remote player stand out
+                        RemotePlayerOutlineManager.Instance.AddOutlineToPlayer(steamId, remotePlayerObj);
                         
                         // Use centralized positioning for consistent center anchoring
                         Vector3 targetPosition = new Vector3(state.Position.x, state.Position.y, remotePlayerObj.transform.position.z);
@@ -2996,6 +3044,9 @@ namespace GungeonTogether.Game
                         remotePlayerObjects[steamId] = remotePlayerObj;
                     }
                     
+                    // Add outline to make remote player stand out
+                    RemotePlayerOutlineManager.Instance.AddOutlineToPlayer(steamId, remotePlayerObj);
+                    
                     // Set initial position from persistent data
                     SetSpritePositionCentered(remotePlayerObj, new Vector3(persistentState.Position.x, persistentState.Position.y, 0));
                     
@@ -3018,6 +3069,9 @@ namespace GungeonTogether.Game
         /// </summary>
         public void Cleanup()
         {
+            // Clean up outline manager
+            RemotePlayerOutlineManager.Instance.RemoveAllOutlines();
+            
             // Clean up persistence manager
             if (PlayerPersistenceManager.Instance != null)
             {
