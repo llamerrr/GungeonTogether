@@ -1906,9 +1906,9 @@ namespace GungeonTogether.Game
                     if (remotePlayerObj != null)
                     {
                         remotePlayerObjects[steamId] = remotePlayerObj;
-                        
-                        // Add outline to make remote player stand out
-                        RemotePlayerOutlineManager.Instance.AddOutlineToPlayer(steamId, remotePlayerObj);
+
+                        // Add nametag to show player's Steam username
+                        PlayerNametagManager.Instance.AddNametagToPlayer(steamId, remotePlayerObj);
                         
                         remotePlayers[steamId] = new RemotePlayerState
                         {
@@ -1961,8 +1961,9 @@ namespace GungeonTogether.Game
                     remotePlayerFacingLeft.Remove(steamId); // Clean up facing direction tracking
                 }
                 
-                // Remove outline when player is removed
-                RemotePlayerOutlineManager.Instance.RemoveOutlineFromPlayer(steamId);
+                // Remove nametag when player is removed
+                PlayerNametagManager.Instance.RemoveNametagFromPlayer(steamId);
+                
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Removed remote player {steamId}");
             }
             catch (Exception e)
@@ -2144,9 +2145,6 @@ namespace GungeonTogether.Game
                                 else
                                 {
                                     GungeonTogether.Logging.Debug.Log($"[PlayerSync] Successfully updated character sprite for {steamId}");
-                                    
-                                    // Update outline to match new sprite
-                                    RemotePlayerOutlineManager.Instance.UpdatePlayerOutline(steamId, playerObject);
                                 }
                             }
                         }
@@ -2452,8 +2450,9 @@ namespace GungeonTogether.Game
                             remotePlayerObjects[steamId] = remotePlayerObj;
                         }
                         
-                        // Add outline to make remote player stand out
-                        RemotePlayerOutlineManager.Instance.AddOutlineToPlayer(steamId, remotePlayerObj);
+                        // Add nametag to show player's Steam username
+                        GungeonTogether.Logging.Debug.Log($"[PlayerSync] 🏷️ Adding nametag for player {steamId} in RecreateAllRemotePlayers");
+                        PlayerNametagManager.Instance.AddNametagToPlayer(steamId, remotePlayerObj);
                         
                         // Use centralized positioning for consistent center anchoring
                         Vector3 targetPosition = new Vector3(state.Position.x, state.Position.y, remotePlayerObj.transform.position.z);
@@ -3044,8 +3043,9 @@ namespace GungeonTogether.Game
                         remotePlayerObjects[steamId] = remotePlayerObj;
                     }
                     
-                    // Add outline to make remote player stand out
-                    RemotePlayerOutlineManager.Instance.AddOutlineToPlayer(steamId, remotePlayerObj);
+                    // Add nametag to show player's Steam username
+                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] 🏷️ Adding nametag for player {steamId} in CreateRemotePlayerFromPersistentData");
+                    PlayerNametagManager.Instance.AddNametagToPlayer(steamId, remotePlayerObj);
                     
                     // Set initial position from persistent data
                     SetSpritePositionCentered(remotePlayerObj, new Vector3(persistentState.Position.x, persistentState.Position.y, 0));
@@ -3069,8 +3069,8 @@ namespace GungeonTogether.Game
         /// </summary>
         public void Cleanup()
         {
-            // Clean up outline manager
-            RemotePlayerOutlineManager.Instance.RemoveAllOutlines();
+            // Clean up nametag manager
+            PlayerNametagManager.Instance.ClearAllNametags();
             
             // Clean up persistence manager
             if (PlayerPersistenceManager.Instance != null)
