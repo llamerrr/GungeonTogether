@@ -470,7 +470,7 @@ namespace GungeonTogether.Game
         // Position smoothing to ignore sprite flip jitter
         private Vector3 smoothedPosition;
         private bool hasInitialized = false;
-        private float smoothingFactor = 12f; // How fast to follow actual movement
+        private float smoothingFactor = 9f; // How fast to follow actual movement
         private float flipThreshold = 0.3f; // Ignore position changes smaller than this (sprite flips)
 
         /// <summary>
