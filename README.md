@@ -20,7 +20,6 @@ My paypal is llamerrr1@gmail.com if you actually want to (for some reason)
 <img height="100" alt="image" src="https://avatars.githubusercontent.com/u/88169809?v=4"/>
 </p>
 
-
 > [!NOTE]
 > As this mod runs through the steam network, it only works with the steam verison of the game as steamID is required
 
@@ -50,11 +49,12 @@ My paypal is llamerrr1@gmail.com if you actually want to (for some reason)
 - Enemy scaling (set difficulty in game)
   
 ## Planned for the future
-- EPIC GAMES SUPPORT
+- EPIC GAMES SUPPORT (EOS P2P)
 - Unlimited players
 - EVERYTHING synced
-- Race mode (competing in identical dungeons, first player to finish wins)
-- Mirror mode (dupilcate dungeons, can't hurt one another but killing will cause an enemy to flip sides)
+- Custom Game Modes
+  - Race mode (competing in identical dungeons, first player to finish wins)
+  - Mirror mode (identical dungeons, can hurt one another but can't see eachother, shooting is synced across dungeons)
 - Teammate revive items
 - Team based buffs and items
 

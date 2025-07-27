@@ -804,7 +804,7 @@ namespace GungeonTogether.Game
                 }
                 else
                 {
-                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] Local player is null");
+                    //GungeonTogether.Logging.Debug.Log($"[PlayerSync] Local player is null");
                 }
 
                 // Get character information from GameManager options
