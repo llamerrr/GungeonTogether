@@ -11,7 +11,6 @@ WIP WIP WIP WIP WIP WIP pls be nice
 <img height="320" alt="image" src="https://github.com/user-attachments/assets/6c485240-5e3c-44ee-93bb-747d27a0731e"/>
 </p>
 
-
 The mod is free (because I'm not weird). however I'm broke asf so feel free to donate for my INSANELY INTENSE AND HARD LABOUR (jk)
 My paypal is llamerrr1@gmail.com if you actually want to (for some reason)
 
@@ -75,5 +74,10 @@ This only applies to people who want to build from source, or if we forget to po
 Built with BepInEx framework using Steam P2P networking for a seamless multiplayer experience.
 Unfortunately if you play the game through epic or windows store this mod will not work, as it runs through steams p2p api only, which means you need a steamID for it to work. Sorry guys...
 (EPIC COMING SOON)
+
+> [!NOTE]
+> Wiki!!!
+> https://deepwiki.com/llamerrr/GungeonTogether
+> Thanks to https://github.com/TheExploration
 
 # 1.0 release coming one day!!!!!!
