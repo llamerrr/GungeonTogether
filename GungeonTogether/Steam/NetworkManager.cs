@@ -131,7 +131,7 @@ namespace GungeonTogether.Steam
             try
             {
                 isHost = false;
-                
+
                 // Use existing manager if provided, otherwise create a new one
                 clientManager = existingClientManager ?? new SteamP2PClientManager(hostSteamId, localSteamId);
 
