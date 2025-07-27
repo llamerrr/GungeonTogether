@@ -71,7 +71,7 @@ namespace GungeonTogether.Game
 
         // Add a field to track the current map/scene for both local and remote players
         private string localMapName;
-        
+
         // Debug character for offline testing
         private DebugCharacterController debugCharacterController = null;
 
@@ -95,7 +95,7 @@ namespace GungeonTogether.Game
             public string MapName; // Track the map/scene name
             public int CharacterId; // Character selection (maps to PlayableCharacters enum)
             public string CharacterName; // Character prefab name for sprite loading
-            
+
             // Animation state data
             public Steam.PlayerAnimationState AnimationState;
             public Vector2 MovementDirection; // Normalized movement direction for directional animations
@@ -145,7 +145,7 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.LogError("[PlayerSync] Initialize error: " + e.Message);
             }
         }
-#region spriting
+        #region spriting
         /// <summary>
         /// Try to load character-specific sprite and animation data
         /// </summary>
@@ -164,7 +164,7 @@ namespace GungeonTogether.Game
                     GungeonTogether.Logging.Debug.Log($"[PlayerSync] Successfully loaded from local player");
                     return true;
                 }
-                
+
                 // Try to find actual PlayerController prefabs in the game scene
                 if (TryLoadFromCharacterPrefabAssembly(spriteRenderer, out animator, characterName, characterId))
                 {
@@ -181,89 +181,89 @@ namespace GungeonTogether.Game
                 return false;
             }
         }
-/*
-        /// <summary>
-        /// Try to find character sprites from existing PlayerController objects in the scene or loaded prefabs
-        /// </summary>
-        private bool TryLoadFromGamePlayerPrefabs(SpriteRenderer spriteRenderer, out tk2dSpriteAnimator animator, string characterName, int characterId)
-        {
-            animator = null;
-            
-            try
-            {
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Searching for PlayerController objects in scene for {characterName}");
-                
-                // Find all PlayerController objects in the scene
-                var allPlayerControllers = UnityEngine.Object.FindObjectsOfType<PlayerController>();
-                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Found {allPlayerControllers.Length} PlayerController objects in scene");
-                
-                foreach (var controller in allPlayerControllers)
+        /*
+                /// <summary>
+                /// Try to find character sprites from existing PlayerController objects in the scene or loaded prefabs
+                /// </summary>
+                private bool TryLoadFromGamePlayerPrefabs(SpriteRenderer spriteRenderer, out tk2dSpriteAnimator animator, string characterName, int characterId)
                 {
-                    if (controller != null && controller.gameObject != null && controller != localPlayer)
+                    animator = null;
+
+                    try
                     {
-                        GungeonTogether.Logging.Debug.Log($"[PlayerSync] Checking PlayerController: {controller.name}");
-                        
-                        // Check if this PlayerController matches the character we're looking for
-                        var playerSprite = controller.GetComponent<SpriteRenderer>();
-                        if (playerSprite != null && playerSprite.sprite != null)
+                        GungeonTogether.Logging.Debug.Log($"[PlayerSync] Searching for PlayerController objects in scene for {characterName}");
+
+                        // Find all PlayerController objects in the scene
+                        var allPlayerControllers = UnityEngine.Object.FindObjectsOfType<PlayerController>();
+                        GungeonTogether.Logging.Debug.Log($"[PlayerSync] Found {allPlayerControllers.Length} PlayerController objects in scene");
+
+                        foreach (var controller in allPlayerControllers)
                         {
-                            var spriteName = playerSprite.sprite.name.ToLower();
-                            var characterNameLower = characterName.ToLower();
-                            var characterDisplayName = GetCharacterDisplayName(characterId).ToLower();
-                            
-                            GungeonTogether.Logging.Debug.Log($"[PlayerSync] PlayerController sprite: '{spriteName}'");
-                            
-                            // Check if this sprite belongs to our target character
-                            if (spriteName.Contains(characterNameLower.Replace("player", "")) || 
-                                spriteName.Contains(characterDisplayName) ||
-                                DoesSpriteBelongToCharacter(spriteName, characterId))
+                            if (controller != null && controller.gameObject != null && controller != localPlayer)
                             {
-                                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Found matching PlayerController sprite for {characterName}");
-                                
-                                // Copy the sprite
-                                spriteRenderer.sprite = playerSprite.sprite;
-                                spriteRenderer.sortingLayerName = playerSprite.sortingLayerName;
-                                spriteRenderer.sortingOrder = playerSprite.sortingOrder;
-                                spriteRenderer.color = new Color(1.0f, 0.9f, 1.0f, 0.95f); // Light purple tint
-                                
-                                // Copy the animator if available
-                                var playerAnimator = controller.GetComponent<tk2dSpriteAnimator>();
-                                if (playerAnimator != null && playerAnimator.Library != null)
+                                GungeonTogether.Logging.Debug.Log($"[PlayerSync] Checking PlayerController: {controller.name}");
+
+                                // Check if this PlayerController matches the character we're looking for
+                                var playerSprite = controller.GetComponent<SpriteRenderer>();
+                                if (playerSprite != null && playerSprite.sprite != null)
                                 {
-                                    animator = spriteRenderer.gameObject.AddComponent<tk2dSpriteAnimator>();
-                                    animator.Library = playerAnimator.Library;
-                                    TryStartIdleAnimation(animator);
-                                    
-                                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] Copied animator from PlayerController");
+                                    var spriteName = playerSprite.sprite.name.ToLower();
+                                    var characterNameLower = characterName.ToLower();
+                                    var characterDisplayName = GetCharacterDisplayName(characterId).ToLower();
+
+                                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] PlayerController sprite: '{spriteName}'");
+
+                                    // Check if this sprite belongs to our target character
+                                    if (spriteName.Contains(characterNameLower.Replace("player", "")) || 
+                                        spriteName.Contains(characterDisplayName) ||
+                                        DoesSpriteBelongToCharacter(spriteName, characterId))
+                                    {
+                                        GungeonTogether.Logging.Debug.Log($"[PlayerSync] Found matching PlayerController sprite for {characterName}");
+
+                                        // Copy the sprite
+                                        spriteRenderer.sprite = playerSprite.sprite;
+                                        spriteRenderer.sortingLayerName = playerSprite.sortingLayerName;
+                                        spriteRenderer.sortingOrder = playerSprite.sortingOrder;
+                                        spriteRenderer.color = new Color(1.0f, 0.9f, 1.0f, 0.95f); // Light purple tint
+
+                                        // Copy the animator if available
+                                        var playerAnimator = controller.GetComponent<tk2dSpriteAnimator>();
+                                        if (playerAnimator != null && playerAnimator.Library != null)
+                                        {
+                                            animator = spriteRenderer.gameObject.AddComponent<tk2dSpriteAnimator>();
+                                            animator.Library = playerAnimator.Library;
+                                            TryStartIdleAnimation(animator);
+
+                                            GungeonTogether.Logging.Debug.Log($"[PlayerSync] Copied animator from PlayerController");
+                                        }
+
+                                        return true;
+                                    }
                                 }
-                                
-                                return true;
                             }
                         }
+
+                        // If no matching PlayerControllers found, try loading character prefabs directly
+                        return TryLoadFromCharacterPrefabAssembly(spriteRenderer, out animator, characterName, characterId);
+                    }
+                    catch (Exception ex)
+                    {
+                        GungeonTogether.Logging.Debug.LogWarning($"[PlayerSync] Error searching for PlayerController objects: {ex.Message}");
+                        return false;
                     }
                 }
-                
-                // If no matching PlayerControllers found, try loading character prefabs directly
-                return TryLoadFromCharacterPrefabAssembly(spriteRenderer, out animator, characterName, characterId);
-            }
-            catch (Exception ex)
-            {
-                GungeonTogether.Logging.Debug.LogWarning($"[PlayerSync] Error searching for PlayerController objects: {ex.Message}");
-                return false;
-            }
-        }
-*/
+        */
         /// <summary>
         /// Scan loaded character prefabs in the assembly to find sprite locations
         /// </summary>
         private bool TryLoadFromCharacterPrefabAssembly(SpriteRenderer spriteRenderer, out tk2dSpriteAnimator animator, string characterName, int characterId)
         {
             animator = null;
-            
+
             try
             {
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Scanning assembly for character prefab structure: {characterName}");
-                
+
                 // Try to find character prefabs using BraveResources
                 var prefabNames = new string[]
                 {
@@ -271,28 +271,28 @@ namespace GungeonTogether.Game
                     characterName.Replace("Player", ""),
                     GetCharacterDisplayName(characterId)
                 };
-                
+
                 foreach (var prefabName in prefabNames)
                 {
                     if (string.IsNullOrEmpty(prefabName)) continue;
-                    
+
                     var characterPrefab = BraveResources.Load<GameObject>(prefabName, ".prefab");
                     if (characterPrefab == null)
                     {
                         characterPrefab = BraveResources.Load<GameObject>(prefabName);
                     }
-                    
+
                     if (characterPrefab != null)
                     {
                         GungeonTogether.Logging.Debug.Log($"[PlayerSync] Analyzing prefab structure for: {prefabName}");
-                        
+
                         if (AnalyzePrefabStructureAndExtractSprite(characterPrefab, spriteRenderer, out animator, prefabName))
                         {
                             return true;
                         }
                     }
                 }
-                
+
                 return false;
             }
             catch (Exception ex)
@@ -308,45 +308,45 @@ namespace GungeonTogether.Game
         private bool AnalyzePrefabStructureAndExtractSprite(GameObject prefab, SpriteRenderer spriteRenderer, out tk2dSpriteAnimator animator, string prefabName)
         {
             animator = null;
-            
+
             try
             {
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] === DEEP PREFAB ANALYSIS: {prefabName} ===");
-                
+
                 // Log the complete hierarchy
                 //LogGameObjectHierarchy(prefab, 0, "");
-                
+
                 // Get all components in the entire prefab hierarchy
                 var allComponents = prefab.GetComponentsInChildren<Component>(true);
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Total components in prefab hierarchy: {allComponents.Length}");
-                
+
                 // Look for sprite-related components
                 //var spriteRenderers = prefab.GetComponentsInChildren<SpriteRenderer>(true);
                 //var tk2dSprites = prefab.GetComponentsInChildren<tk2dSprite>(true);
                 //var tk2dAnimators = prefab.GetComponentsInChildren<tk2dSpriteAnimator>(true);
-                
+
                 //GungeonTogether.Logging.Debug.Log($"[PlayerSync] Found components: {spriteRenderers.Length} SpriteRenderer, {tk2dSprites.Length} tk2dSprite, {tk2dAnimators.Length} tk2dSpriteAnimator");
-                
+
                 // PRIORITY: Look for PlayerSprite child object specifically (this is where the main character sprite is!)
                 var playerSpriteChild = prefab.transform.Find("PlayerSprite");
                 if (playerSpriteChild != null)
                 {
                     GungeonTogether.Logging.Debug.Log($"[PlayerSync] Found PlayerSprite child object!");
-                    
+
                     var playerTk2dSprite = playerSpriteChild.GetComponent<tk2dSprite>();
                     var playerAnimator = playerSpriteChild.GetComponent<tk2dSpriteAnimator>();
-                    
+
                     if (playerTk2dSprite != null)
                     {
                         GungeonTogether.Logging.Debug.Log($"[PlayerSync] PlayerSprite has tk2dSprite component");
-                        
+
                         // Store the gameObject reference before potentially destroying the spriteRenderer
                         var targetGameObject = spriteRenderer.gameObject;
-                        
+
                         if (TryCreateSpriteFromTk2dSprite(playerTk2dSprite, spriteRenderer))
                         {
                             GungeonTogether.Logging.Debug.Log($"[PlayerSync] Successfully created sprite from PlayerSprite tk2dSprite");
-                            
+
                             // Try to copy animation from PlayerSprite
                             if (playerAnimator != null && playerAnimator.Library != null)
                             {
@@ -358,14 +358,14 @@ namespace GungeonTogether.Game
                                     {
                                         animator = targetGameObject.AddComponent<tk2dSpriteAnimator>();
                                         animator.Library = playerAnimator.Library;
-                                        
+
                                         // Initialize the animator properly
                                         if (animator.Library.clips != null && animator.Library.clips.Length > 0)
                                         {
                                             // Try to find an idle animation
-                                            var idleClip = Array.Find(animator.Library.clips, clip => 
+                                            var idleClip = Array.Find(animator.Library.clips, clip =>
                                                 clip.name.ToLower().Contains("idle"));
-                                            
+
                                             if (idleClip != null)
                                             {
                                                 animator.DefaultClipId = animator.GetClipIdByName(idleClip.name);
@@ -392,12 +392,12 @@ namespace GungeonTogether.Game
                                     GungeonTogether.Logging.Debug.LogWarning($"[PlayerSync] Error setting up PlayerSprite animator: {ex.Message}");
                                 }
                             }
-                            
+
                             return true;
                         }
                     }
                 }
-                
+
                 return false;
             }
             catch (Exception ex)
@@ -406,49 +406,49 @@ namespace GungeonTogether.Game
                 return false;
             }
         }
-/*
-        /// <summary>
-        /// Log the complete GameObject hierarchy
-        /// </summary>
-        private void LogGameObjectHierarchy(GameObject obj, int depth, string prefix)
-        {
-            if (obj == null) return;
-
-            var indent = new string(' ', depth * 2);
-            var components = obj.GetComponents<Component>();
-            var componentNames = string.Join(", ", components.Select(c => c.GetType().Name).ToArray());
-
-            GungeonTogether.Logging.Debug.Log($"[PlayerSync] {indent}{prefix}{obj.name} [{componentNames}]");
-
-            if (depth < 3) // Limit depth to avoid spam
-            {
-                for (int i = 0; i < obj.transform.childCount; i++)
+        /*
+                /// <summary>
+                /// Log the complete GameObject hierarchy
+                /// </summary>
+                private void LogGameObjectHierarchy(GameObject obj, int depth, string prefix)
                 {
-                    var child = obj.transform.GetChild(i);
-                    if (child != null)
+                    if (obj == null) return;
+
+                    var indent = new string(' ', depth * 2);
+                    var components = obj.GetComponents<Component>();
+                    var componentNames = string.Join(", ", components.Select(c => c.GetType().Name).ToArray());
+
+                    GungeonTogether.Logging.Debug.Log($"[PlayerSync] {indent}{prefix}{obj.name} [{componentNames}]");
+
+                    if (depth < 3) // Limit depth to avoid spam
                     {
-                        LogGameObjectHierarchy(child.gameObject, depth + 1, "└─ ");
+                        for (int i = 0; i < obj.transform.childCount; i++)
+                        {
+                            var child = obj.transform.GetChild(i);
+                            if (child != null)
+                            {
+                                LogGameObjectHierarchy(child.gameObject, depth + 1, "└─ ");
+                            }
+                        }
                     }
                 }
-            }
-        }
-*/
+        */
         /// <summary>
         /// Get the full path to a GameObject in the hierarchy
         /// </summary>
         private string GetGameObjectPath(GameObject obj)
         {
             if (obj == null) return "null";
-            
+
             var path = obj.name;
             var parent = obj.transform.parent;
-            
+
             while (parent != null && parent.parent != null) // Stop before root
             {
                 path = parent.name + "/" + path;
                 parent = parent.parent;
             }
-            
+
             return path;
         }
 
@@ -461,11 +461,11 @@ namespace GungeonTogether.Game
             {
                 // Instead of converting to Unity Sprite, let's add a tk2dSprite component to the remote player
                 var remotePlayerObject = spriteRenderer.gameObject;
-                
+
                 // IMPORTANT: Remove the SpriteRenderer first, as it conflicts with tk2dSprite (both are rendering components)
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Removing SpriteRenderer component to avoid conflict with tk2dSprite");
                 UnityEngine.Object.DestroyImmediate(spriteRenderer);
-                
+
                 // Remove any existing tk2dSprite component
                 var existingTk2dSprite = remotePlayerObject.GetComponent<tk2dSprite>();
                 if (existingTk2dSprite != null)
@@ -473,7 +473,7 @@ namespace GungeonTogether.Game
                     GungeonTogether.Logging.Debug.Log($"[PlayerSync] Removing existing tk2dSprite component");
                     UnityEngine.Object.DestroyImmediate(existingTk2dSprite);
                 }
-                
+
                 // Add tk2dSprite component
                 var newTk2dSprite = remotePlayerObject.AddComponent<tk2dSprite>();
                 if (newTk2dSprite == null)
@@ -481,28 +481,28 @@ namespace GungeonTogether.Game
                     GungeonTogether.Logging.Debug.LogWarning($"[PlayerSync] Failed to add tk2dSprite component");
                     return false;
                 }
-                
+
                 // Copy properties from source tk2dSprite
                 newTk2dSprite.Collection = sourceTk2dSprite.Collection;
                 newTk2dSprite.SetSprite(sourceTk2dSprite.spriteId);
-                
+
                 // Copy transform properties
                 newTk2dSprite.transform.localScale = sourceTk2dSprite.transform.localScale;
-                
+
                 // Set sorting
                 var meshRenderer = newTk2dSprite.GetComponent<MeshRenderer>();
                 if (meshRenderer != null)
                 {
                     meshRenderer.sortingLayerName = "FG_Critical";
                     meshRenderer.sortingOrder = 10;
-                    
+
                     // Apply tint
                     if (meshRenderer.material != null)
                     {
                         meshRenderer.material.color = new Color(1.0f, 0.9f, 1.0f, 0.95f);
                     }
                 }
-                
+
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Successfully copied tk2dSprite component (spriteId: {sourceTk2dSprite.spriteId})");
                 return true;
             }
@@ -519,20 +519,20 @@ namespace GungeonTogether.Game
         private bool TryLoadFromLocalPlayer(SpriteRenderer spriteRenderer, out tk2dSpriteAnimator animator, string characterName, int characterId)
         {
             animator = null;
-            
+
             try
             {
                 // Get local player's current character
                 var localCharacterInfo = GetCurrentPlayerCharacter();
-                
+
                 // Check if remote player has same character as local player
-                bool sameCharacter = (localCharacterInfo.CharacterId == characterId) || 
+                bool sameCharacter = (localCharacterInfo.CharacterId == characterId) ||
                                    (localCharacterInfo.CharacterName == characterName);
-                
+
                 if (sameCharacter)
                 {
                     GungeonTogether.Logging.Debug.Log($"[PlayerSync] Remote player has same character as local player, copying sprite data");
-                    
+
                     var localSpriteRenderer = localPlayer.GetComponent<SpriteRenderer>();
                     if (localSpriteRenderer != null && localSpriteRenderer.sprite != null)
                     {
@@ -540,9 +540,9 @@ namespace GungeonTogether.Game
                         spriteRenderer.sortingLayerName = localSpriteRenderer.sortingLayerName;
                         spriteRenderer.sortingOrder = localSpriteRenderer.sortingOrder;
                         spriteRenderer.color = new Color(0.8f, 1.0f, 0.8f, 0.95f); // Green tint for same character
-                        
+
                         GungeonTogether.Logging.Debug.Log($"[PlayerSync] Copied same character sprite from local player: {spriteRenderer.sprite.name}");
-                        
+
                         // Copy animation data
                         var localAnimator = localPlayer.GetComponent<tk2dSpriteAnimator>();
                         var localSprite = localPlayer.GetComponent<tk2dSprite>();
@@ -555,13 +555,13 @@ namespace GungeonTogether.Game
                                 tk2dSprite.Collection = localSprite.Collection;
                                 tk2dSprite.SetSprite(localSprite.spriteId);
                             }
-                            
+
                             // Then add animator which will work with the tk2dSprite
                             animator = spriteRenderer.gameObject.AddComponent<tk2dSpriteAnimator>();
                             animator.Library = localAnimator.Library;
                             TryStartIdleAnimation(animator);
                         }
-                        
+
                         return true;
                     }
                 }
@@ -574,7 +574,7 @@ namespace GungeonTogether.Game
             {
                 GungeonTogether.Logging.Debug.LogWarning($"[PlayerSync] Error checking local player character: {ex.Message}");
             }
-            
+
             return false;
         }
 
@@ -771,7 +771,7 @@ namespace GungeonTogether.Game
                 CharacterName = name;
             }
         }
-#endregion
+        #endregion
         /// <summary>
         /// Get the current player's character information, with proper handling for no character selected
         /// </summary>
@@ -880,7 +880,7 @@ namespace GungeonTogether.Game
                     if (string.IsNullOrEmpty(characterName))
                     {
                         characterName = GetCharacterNameFromId((int)lastPlayedCharacter);
-                      
+
                     }
 
                     var result = new CharacterInfo((int)lastPlayedCharacter, characterName);
@@ -1174,9 +1174,6 @@ namespace GungeonTogether.Game
             }
         }
 
-        /// <summary>
-        /// Send character information even when not in a run
-        /// </summary>
         private void SendCharacterInfo()
         {
             try
@@ -1209,9 +1206,6 @@ namespace GungeonTogether.Game
             }
         }
 
-        /// <summary>
-        /// Manually trigger character info broadcast (called when character selection changes)
-        /// </summary>
         public void BroadcastCharacterSelectionChange()
         {
             try
@@ -1235,9 +1229,6 @@ namespace GungeonTogether.Game
             }
         }
 
-        /// <summary>
-        /// Check if the player's character selection has changed and broadcast if needed
-        /// </summary>
         private void CheckForCharacterSelectionChanges()
         {
             try
@@ -1259,9 +1250,6 @@ namespace GungeonTogether.Game
             }
         }
 
-        /// <summary>
-        /// Try to re-initialize local player if it becomes available
-        /// </summary>
         private void TryReinitializeLocalPlayer()
         {
             try
@@ -1300,9 +1288,6 @@ namespace GungeonTogether.Game
             }
         }
 
-        /// <summary>
-        /// Get the local player's current animation name directly from their animator - simple 1:1 system
-        /// </summary>
         private Steam.PlayerAnimationState GetLocalPlayerAnimationState(out Vector2 movementDirection, out bool isRunning, out bool isFalling, out bool isTakingDamage, out bool isDead, out string currentAnimationName)
         {
             movementDirection = Vector2.zero;
@@ -1322,7 +1307,7 @@ namespace GungeonTogether.Game
                 // Get the animation name directly from the local player's animator
                 // Try to find the PLAYER CHARACTER animator (not item/effect animators)
                 tk2dSpriteAnimator localAnimator = localPlayer.GetComponent<tk2dSpriteAnimator>();
-                
+
                 // If not found on the main object, check for player sprite animator specifically
                 if (localAnimator == null)
                 {
@@ -1332,7 +1317,7 @@ namespace GungeonTogether.Game
                     {
                         localAnimator = playerSpriteRenderer.GetComponent<tk2dSpriteAnimator>();
                     }
-                    
+
                     // If still not found, try to find it on the primary sprite object
                     if (localAnimator == null)
                     {
@@ -1349,7 +1334,7 @@ namespace GungeonTogether.Game
                             }
                         }
                     }
-                    
+
                     // Last resort: use GetComponentInChildren but verify it has player animations
                     if (localAnimator == null)
                     {
@@ -1365,7 +1350,7 @@ namespace GungeonTogether.Game
                                     if (anim.Library.clips[i] != null)
                                     {
                                         string clipName = anim.Library.clips[i].name.ToLower();
-                                        if (clipName.Contains("idle") || clipName.Contains("run") || clipName.Contains("walk") || 
+                                        if (clipName.Contains("idle") || clipName.Contains("run") || clipName.Contains("walk") ||
                                             clipName.Contains("dodge") || clipName.Contains("pitfall"))
                                         {
                                             hasPlayerAnims = true;
@@ -1373,18 +1358,18 @@ namespace GungeonTogether.Game
                                         }
                                     }
                                 }
-                                
+
                                 if (hasPlayerAnims)
                                 {
                                     localAnimator = anim;
-                
+
                                     break;
                                 }
                             }
                         }
                     }
                 }
-                
+
                 if (localAnimator != null)
                 {
                     // Try multiple ways to get the current animation name from tk2d
@@ -1399,7 +1384,7 @@ namespace GungeonTogether.Game
                         {
                             // Try to get the playing clip name through different methods
                             bool foundCurrentAnimation = false;
-                            
+
                             // Method 1: Try to get the current clip through the sprite animator's state
                             try
                             {
@@ -1409,12 +1394,12 @@ namespace GungeonTogether.Game
                                 {
                                     // Try to access animation properties through reflection if necessary
                                     var animatorType = localAnimator.GetType();
-                                    
+
                                     // Look for properties that might give us the current clip name
                                     var currentClipProperty = animatorType.GetProperty("CurrentClip");
                                     var currentClipField = animatorType.GetField("currentClip", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                                     var clipTimeProperty = animatorType.GetProperty("ClipTime");
-                                    
+
                                     // Try to get the actual playing clip through different means
                                     if (currentClipField != null)
                                     {
@@ -1441,14 +1426,14 @@ namespace GungeonTogether.Game
                             {
                                 GungeonTogether.Logging.Debug.Log($"[PlayerSync][LocalAnimDebug] Reflection approach failed: {reflectionEx.Message}");
                             }
-                            
+
                             // If reflection didn't work, fall back to intelligent state-based detection
                             if (!foundCurrentAnimation)
                             {
                                 // Log available clips for debugging
                                 if (localAnimator.Library != null && localAnimator.Library.clips != null)
                                 {
-                                   
+
                                     // Get all clip names for debugging
                                     var allClipNames = new List<string>();
                                     for (int i = 0; i < localAnimator.Library.clips.Length; i++)
@@ -1458,8 +1443,8 @@ namespace GungeonTogether.Game
                                             allClipNames.Add(localAnimator.Library.clips[i].name);
                                         }
                                     }
-                                    
-                                    
+
+
                                     // Try to determine current animation by checking player state against available clips
                                     if (localPlayer.IsDodgeRolling)
                                     {
@@ -1491,7 +1476,7 @@ namespace GungeonTogether.Game
                                     {
                                         var playerVelocity = localPlayer.specRigidbody?.Velocity ?? Vector2.zero;
                                         var playerSpeed = playerVelocity.magnitude;
-                                        
+
                                         if (playerSpeed > 0.01f)
                                         {
                                             // Look for movement animations that match current direction
@@ -1504,16 +1489,16 @@ namespace GungeonTogether.Game
                                             {
                                                 directionPattern = playerVelocity.y > 0 ? "up" : "down";
                                             }
-                                            
+
                                             // Look for run animations with this direction - try multiple naming patterns
-                                            var directionClips = allClipNames.Where(name => 
+                                            var directionClips = allClipNames.Where(name =>
                                                 name.ToLower().Contains("run") && (
                                                     name.ToLower().Contains(directionPattern) ||
                                                     name.ToLower().Contains($"_{directionPattern}") ||
                                                     name.ToLower().Contains($"{directionPattern}_") ||
                                                     name.ToLower().EndsWith(directionPattern)
                                                 )).ToArray();
-                                            
+
                                             if (directionClips.Length > 0)
                                             {
                                                 currentAnimationName = directionClips[0];
@@ -1525,12 +1510,12 @@ namespace GungeonTogether.Game
                                                 if (runClips.Length > 0)
                                                 {
                                                     currentAnimationName = runClips[0];
-                                                    
+
                                                 }
                                                 else
                                                 {
                                                     // Log all available animations to see what we actually have
-                                
+
                                                     currentAnimationName = "idle"; // Use idle instead of constructed name that doesn't exist
                                                 }
                                             }
@@ -1542,7 +1527,7 @@ namespace GungeonTogether.Game
                                             if (idleClips.Length > 0)
                                             {
                                                 currentAnimationName = idleClips[0];
-                                               
+
                                             }
                                             else
                                             {
@@ -1574,7 +1559,7 @@ namespace GungeonTogether.Game
                 // Still detect basic movement for network efficiency (but don't use for animation)
                 var velocity2D = localPlayer.specRigidbody?.Velocity ?? Vector2.zero;
                 var speed = velocity2D.magnitude;
-                
+
                 if (speed > 0.01f)
                 {
                     movementDirection = velocity2D.normalized;
@@ -1737,12 +1722,13 @@ namespace GungeonTogether.Game
                     var gunAngle = localPlayer.CurrentGun.CurrentAngle;
                     var shootDirection = new Vector2(Mathf.Cos(gunAngle * Mathf.Deg2Rad), Mathf.Sin(gunAngle * Mathf.Deg2Rad));
 
-                    NetworkManager.Instance.SendPlayerShooting(
+                    // Send shoot request to server instead of direct visual effect
+                    NetworkManager.Instance.SendShootRequest(
                         localPlayer.transform.position,
                         shootDirection,
                         localPlayer.CurrentGun.PickupObjectId,
                         isCharging,
-                        0f // TODO: Find correct charge time property
+                        isCharging ? localPlayer.CurrentGun.GetChargeFraction() : 0f
                     );
                 }
             }
@@ -1831,10 +1817,10 @@ namespace GungeonTogether.Game
                         var currentPos = playerObject.transform.position;
                         var targetPos = playerState.TargetPosition;
                         var newPos = Vector2.Lerp(currentPos, targetPos, Time.deltaTime * playerState.InterpolationSpeed);
-                        
+
                         // Direct position assignment - compensation already applied to TargetPosition
                         playerObject.transform.position = new Vector3(newPos.x, newPos.y, playerObject.transform.position.z);
-                        
+
                         playerObject.transform.rotation = Quaternion.Euler(0, 0, playerState.Rotation);
                     }
                 }
@@ -1909,7 +1895,7 @@ namespace GungeonTogether.Game
 
                         // Add nametag to show player's Steam username
                         PlayerNametagManager.Instance.AddNametagToPlayer(steamId, remotePlayerObj);
-                        
+
                         remotePlayers[steamId] = new RemotePlayerState
                         {
                             SteamId = steamId,
@@ -1960,10 +1946,10 @@ namespace GungeonTogether.Game
                     remotePlayers.Remove(steamId);
                     remotePlayerFacingLeft.Remove(steamId); // Clean up facing direction tracking
                 }
-                
+
                 // Remove nametag when player is removed
                 PlayerNametagManager.Instance.RemoveNametagFromPlayer(steamId);
-                
+
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Removed remote player {steamId}");
             }
             catch (Exception e)
@@ -2011,7 +1997,7 @@ namespace GungeonTogether.Game
                     // Default to a visible position
                     initialPosition = new Vector3(5f, 5f, 0f);
                 }
-                
+
                 // Use centralized positioning for consistent center anchoring
                 SetSpritePositionCentered(remotePlayerObj, initialPosition);
                 return remotePlayerObj;
@@ -2193,7 +2179,7 @@ namespace GungeonTogether.Game
                         spriteRenderer.sortingLayerName = localSpriteRenderer.sortingLayerName;
                         spriteRenderer.sortingOrder = localSpriteRenderer.sortingOrder;
                         spriteRenderer.color = Color.white; // Use normal white color like local player
-                        
+
                         // Copy material to ensure same rendering
                         if (localSpriteRenderer.material != null)
                         {
@@ -2213,7 +2199,7 @@ namespace GungeonTogether.Game
                                 tk2dSprite.Collection = localSprite.Collection;
                                 tk2dSprite.SetSprite(localSprite.spriteId);
                             }
-                            
+
                             // Then add animator which will work with the tk2dSprite
                             animator = remotePlayerObj.AddComponent<tk2dSpriteAnimator>();
                             animator.Library = localAnimator.Library;
@@ -2265,7 +2251,7 @@ namespace GungeonTogether.Game
                     // Default to a visible position
                     initialPosition = new Vector3(5f, 5f, 0f);
                 }
-                
+
                 // Use centralized positioning for consistent center anchoring
                 SetSpritePositionCentered(remotePlayerObj, initialPosition);
 
@@ -2327,7 +2313,7 @@ namespace GungeonTogether.Game
                 // Default to a visible position
                 initialPosition = new Vector3(5f, 5f, 0f);
             }
-            
+
             // Use centralized positioning for consistent center anchoring
             SetSpritePositionCentered(remotePlayerObj, initialPosition);
 
@@ -2361,7 +2347,7 @@ namespace GungeonTogether.Game
             {
                 initialPosition = new Vector3(5f, 5f, 0f);
             }
-            
+
             // Use centralized positioning for consistent center anchoring
             SetSpritePositionCentered(remotePlayerObj, initialPosition);
 
@@ -2449,15 +2435,15 @@ namespace GungeonTogether.Game
                         {
                             remotePlayerObjects[steamId] = remotePlayerObj;
                         }
-                        
+
                         // Add nametag to show player's Steam username
                         GungeonTogether.Logging.Debug.Log($"[PlayerSync] 🏷️ Adding nametag for player {steamId} in RecreateAllRemotePlayers");
                         PlayerNametagManager.Instance.AddNametagToPlayer(steamId, remotePlayerObj);
-                        
+
                         // Use centralized positioning for consistent center anchoring
                         Vector3 targetPosition = new Vector3(state.Position.x, state.Position.y, remotePlayerObj.transform.position.z);
                         SetSpritePositionCentered(remotePlayerObj, targetPosition);
-                        
+
                         GungeonTogether.Logging.Debug.Log($"[PlayerSync] Recreated remote player {steamId} at position {state.Position}");
                     }
                 }
@@ -2496,14 +2482,14 @@ namespace GungeonTogether.Game
                 {
                     // Simple 1-unit offset when facing left (FlipX = true)
                     Vector3 adjustedPosition = targetPosition;
-                    
+
                     if (tk2dSprite.FlipX)
                     {
                         // When facing left (FlipX = true), move the sprite 1 unit to the right
                         // to compensate for the visual shift caused by sprite flipping
                         adjustedPosition.x += 1.3f;
                     }
-                    
+
                     spriteObject.transform.position = adjustedPosition;
                 }
                 else
@@ -2847,7 +2833,7 @@ namespace GungeonTogether.Game
 
                 // Check for movement to update facing direction - try both movement direction AND velocity
                 bool shouldFaceLeft = false;
-                
+
                 if (state.MovementDirection.magnitude > 0.1f)
                 {
                     shouldFaceLeft = state.MovementDirection.x < 0;
@@ -2859,30 +2845,30 @@ namespace GungeonTogether.Game
                     shouldFaceLeft = state.Velocity.x < 0;
                     remotePlayerFacingLeft[playerId] = shouldFaceLeft;
                 }
-                
+
                 // Get current facing direction (saved or default to right)
                 bool currentFacingLeft = remotePlayerFacingLeft.ContainsKey(playerId) ? remotePlayerFacingLeft[playerId] : false;
 
                 // Use tk2d sprite system only (ETG's native system)
                 var tk2dSprite = playerObj.GetComponent<tk2dSprite>();
-                
+
                 if (tk2dSprite != null)
                 {
                     // Use tk2d's FlipX property for sprite flipping
                     bool isCurrentlyFlipped = tk2dSprite.FlipX;
-                    
-                    
+
+
                     if (isCurrentlyFlipped != currentFacingLeft)
                     {
                         tk2dSprite.FlipX = currentFacingLeft;
-                        
+
                     }
-                    
+
                     // THEN set position after flip is applied
                     // This ensures the visual position matches the network position
                     Vector3 targetNetworkPosition = new Vector3(state.Position.x, state.Position.y, playerObj.transform.position.z);
                     SetSpritePositionCentered(playerObj, targetNetworkPosition);
-                    
+
                     // Update the TargetPosition in the state to the compensated position for interpolation
                     // This ensures UpdateRemotePlayers interpolates towards the correct visual position
                     lock (collectionLock)
@@ -2902,10 +2888,10 @@ namespace GungeonTogether.Game
             }
             catch (Exception ex)
             {
-                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error applying animation state to player {playerId}: {ex.Message}");       
+                GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error applying animation state to player {playerId}: {ex.Message}");
             }
-            
-             
+
+
         }
 
         /// <summary>
@@ -2917,7 +2903,7 @@ namespace GungeonTogether.Game
             {
                 // Get the tk2dSprite component (ETG uses tk2d sprites)
                 var tk2dSprite = playerObj.GetComponent<tk2dSprite>();
-                
+
                 if (tk2dSprite != null)
                 {
                     // Apply damage tint effect (red color) when taking damage
@@ -2958,11 +2944,11 @@ namespace GungeonTogether.Game
                         {
                             playerObj.SetActive(true);
                             GungeonTogether.Logging.Debug.Log($"[PlayerSync] Rendering remote player {playerId} at pos={state.Position} rot={state.Rotation} in map {state.MapName} (debug: {isDebugFakePlayer})");
-                            
+
                             // Use centralized positioning function for consistent center anchoring
                             Vector3 targetPosition = new Vector3(state.Position.x, state.Position.y, playerObj.transform.position.z);
                             SetSpritePositionCentered(playerObj, targetPosition);
-                            
+
                             playerObj.transform.eulerAngles = new Vector3(0, 0, state.Rotation);
                         }
                         else
@@ -3042,14 +3028,14 @@ namespace GungeonTogether.Game
                     {
                         remotePlayerObjects[steamId] = remotePlayerObj;
                     }
-                    
+
                     // Add nametag to show player's Steam username
                     GungeonTogether.Logging.Debug.Log($"[PlayerSync] 🏷️ Adding nametag for player {steamId} in CreateRemotePlayerFromPersistentData");
                     PlayerNametagManager.Instance.AddNametagToPlayer(steamId, remotePlayerObj);
-                    
+
                     // Set initial position from persistent data
                     SetSpritePositionCentered(remotePlayerObj, new Vector3(persistentState.Position.x, persistentState.Position.y, 0));
-                    
+
                     // Make sure it persists across scene changes
                     UnityEngine.Object.DontDestroyOnLoad(remotePlayerObj);
                 }
@@ -3071,7 +3057,7 @@ namespace GungeonTogether.Game
         {
             // Clean up nametag manager
             PlayerNametagManager.Instance.ClearAllNametags();
-            
+
             // Clean up persistence manager
             if (PlayerPersistenceManager.Instance != null)
             {
@@ -3389,7 +3375,7 @@ namespace GungeonTogether.Game
             {
                 UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(sceneName);
                 return true;
-            }                                              
+            }
             catch (Exception ex)
             {
                 GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error in generic scene load: {ex.Message}");
@@ -3485,9 +3471,9 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.Log($"[PlayerSync] Sent immediate position update: {currentPosition} in map {localMapName}");
             }
         }
-        
+
         #region Debug Character Methods
-        
+
         /// <summary>
         /// Create a debug character that mirrors local player movement using networked rendering system
         /// This allows offline testing of the positioning and rendering differences
@@ -3499,25 +3485,25 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.LogWarning("[PlayerSync] Cannot create debug character - no local player found");
                 return;
             }
-            
+
             if (debugCharacterController != null)
             {
                 GungeonTogether.Logging.Debug.Log("[PlayerSync] Debug character already exists, removing old one first");
                 DestroyDebugCharacter();
             }
-            
+
             try
             {
                 // Create a GameObject to hold the debug character controller
                 var debugManagerObj = new GameObject("DebugCharacterManager");
                 UnityEngine.Object.DontDestroyOnLoad(debugManagerObj);
-                
+
                 // Add the debug character controller component
                 debugCharacterController = debugManagerObj.AddComponent<DebugCharacterController>();
-                
+
                 // Initialize it with the local player
                 debugCharacterController.Initialize(localPlayer);
-                
+
                 GungeonTogether.Logging.Debug.Log("[PlayerSync] Debug character created successfully");
                 UI.MultiplayerUIManager.ShowNotification("Debug character created! Red player shows networked rendering", 5f);
             }
@@ -3526,7 +3512,7 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.LogError($"[PlayerSync] Error creating debug character: {ex.Message}");
             }
         }
-        
+
         /// <summary>
         /// Destroy the debug character
         /// </summary>
@@ -3540,12 +3526,12 @@ namespace GungeonTogether.Game
                     UnityEngine.Object.DestroyImmediate(debugCharacterController.gameObject);
                 }
                 debugCharacterController = null;
-                
+
                 GungeonTogether.Logging.Debug.Log("[PlayerSync] Debug character destroyed");
                 UI.MultiplayerUIManager.ShowNotification("Debug character removed", 3f);
             }
         }
-        
+
         /// <summary>
         /// Toggle debug character visibility
         /// </summary>
@@ -3560,7 +3546,7 @@ namespace GungeonTogether.Game
                 CreateDebugCharacter();
             }
         }
-        
+
         /// <summary>
         /// Get debug information about positioning differences
         /// </summary>
@@ -3572,7 +3558,7 @@ namespace GungeonTogether.Game
             }
             return "No debug character active";
         }
-        
+
         /// <summary>
         /// Check if debug character exists
         /// </summary>
@@ -3580,7 +3566,7 @@ namespace GungeonTogether.Game
         {
             return debugCharacterController != null;
         }
-        
+
         #endregion
     }
 }

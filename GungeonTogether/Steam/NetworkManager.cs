@@ -211,10 +211,6 @@ namespace GungeonTogether.Steam
             outgoingPackets.Enqueue(packet);
         }
 
-        /// <summary>
-        /// <summary>
-        /// Send player position update with full animation state
-        /// </summary>
         public void SendPlayerPositionUpdate(Vector2 position, Vector2 velocity, float rotation, bool isGrounded, bool isDodgeRolling, string mapName, PlayerAnimationState animationState = PlayerAnimationState.Idle, Vector2 movementDirection = default, bool isRunning = false, bool isFalling = false, bool isTakingDamage = false, bool isDead = false, string currentAnimationName = "")
         {
             // Get current character info instead of using placeholders
@@ -231,7 +227,7 @@ namespace GungeonTogether.Steam
                 MapName = mapName,
                 CharacterId = characterInfo.CharacterId,
                 CharacterName = characterInfo.CharacterName,
-                
+
                 // Animation state data
                 AnimationState = animationState,
                 MovementDirection = movementDirection,
@@ -269,28 +265,34 @@ namespace GungeonTogether.Steam
             SendPlayerPositionUpdate(position, velocity, rotation, isGrounded, isDodgeRolling, mapName, animationState, movementDirection, isRunning, isFalling, isTakingDamage, isDead, currentAnimationName);
         }
 
-        /// <summary>
-        /// Send player shooting event
-        /// </summary>
-        public void SendPlayerShooting(Vector2 position, Vector2 direction, int weaponId, bool isCharging = false, float chargeAmount = 0f)
+        // Send shoot request to server (Client -> Server)
+        public void SendShootRequest(Vector2 position, Vector2 direction, int weaponId, bool isCharging = false, float chargeAmount = 0f)
         {
-            var data = new PlayerShootingData
+            var data = new PlayerShootRequestData
             {
                 PlayerId = localSteamId,
                 Position = position,
                 Direction = direction,
                 WeaponId = weaponId,
                 IsCharging = isCharging,
-                ChargeAmount = chargeAmount
+                ChargeAmount = chargeAmount,
+                RequestTimestamp = Time.time
             };
 
             var serializedData = PacketSerializer.SerializeObject(data);
-            SendToAll(PacketType.PlayerShooting, serializedData);
+            if (isHost)
+            {
+                // If we're the host, process the shoot request immediately
+                HandleShootRequest(data);
+            }
+            else
+            {
+                // Send to host for processing
+                SendToAll(PacketType.PlayerShootRequest, serializedData);
+            }
         }
 
-        /// <summary>
-        /// Send enemy state update (host only)
-        /// </summary>
+        // Send enemy state update (host only)
         public void SendEnemyState(int enemyId, Vector2 position, Vector2 velocity, float rotation, float health, int animationState, bool isActive)
         {
             if (!isHost) return; // Only host sends enemy updates
@@ -310,9 +312,7 @@ namespace GungeonTogether.Steam
             SendToAll(PacketType.EnemyPosition, serializedData);
         }
 
-        /// <summary>
-        /// Send enemy shooting event (host only)
-        /// </summary>
+        // Send enemy shooting event (host only)
         public void SendEnemyShooting(int enemyId, Vector2 position, Vector2 direction, int projectileId)
         {
             if (!isHost) return; // Only host sends enemy updates
@@ -329,10 +329,8 @@ namespace GungeonTogether.Steam
             SendToAll(PacketType.EnemyShooting, serializedData);
         }
 
-        /// <summary>
-        /// Send projectile spawn event
-        /// </summary>
-        public void SendProjectileSpawn(int projectileId, Vector2 position, Vector2 velocity, float rotation, int ownerId, bool isPlayerProjectile)
+        // Send projectile spawn even
+        public void SendProjectileSpawn(int projectileId, Vector2 position, Vector2 velocity, float rotation, int ownerId, bool isPlayerProjectile, bool isServerAuthoritative = false)
         {
             var data = new ProjectileSpawnData
             {
@@ -340,20 +338,16 @@ namespace GungeonTogether.Steam
                 Position = position,
                 Velocity = velocity,
                 Rotation = rotation,
-                OwnerId = ownerId,
-                IsPlayerProjectile = isPlayerProjectile
+                OwnerId = (ulong)ownerId,
+                IsPlayerProjectile = isPlayerProjectile,
+                Damage = 0f,
+                ProjectileType = 0,
+                WeaponId = 0,
+                IsServerAuthoritative = isServerAuthoritative || isHost // Server spawned or host spawned
             };
 
             var serializedData = PacketSerializer.SerializeObject(data);
             SendToAll(PacketType.ProjectileSpawn, serializedData);
-        }
-
-        /// <summary>
-        /// Send heartbeat to maintain connection
-        /// </summary>
-        public void SendHeartbeat()
-        {
-            SendToAll(PacketType.HeartBeat, new byte[0]);
         }
 
         /// <summary>
@@ -513,8 +507,8 @@ namespace GungeonTogether.Steam
                     case PacketType.PlayerPosition:
                         HandlePlayerPosition(packet);
                         break;
-                    case PacketType.PlayerShooting:
-                        HandlePlayerShooting(packet);
+                    case PacketType.PlayerShootRequest:
+                        HandlePlayerShootRequest(packet);
                         break;
                     case PacketType.EnemyPosition:
                         HandleEnemyPosition(packet);
@@ -661,23 +655,63 @@ namespace GungeonTogether.Steam
                 GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error handling player position: {e.Message}");
             }
         }
-
-        private void HandlePlayerShooting(NetworkPacket packet)
+        
+        private void HandlePlayerShootRequest(NetworkPacket packet)
         {
             try
             {
-                var data = PacketSerializer.DeserializeObject<PlayerShootingData>(packet.Data);
-                // Only log shooting events occasionally to avoid spam
-                if (Time.time - lastNetworkLogTime > NETWORK_LOG_THROTTLE)
+                var data = PacketSerializer.DeserializeObject<PlayerShootRequestData>(packet.Data);
+
+                // Only the host should process shoot requests
+                if (isHost)
                 {
-                    GungeonTogether.Logging.Debug.Log($"[NetworkManager] Received player shooting from {data.PlayerId}");
+                    HandleShootRequest(data);
                 }
-                PlayerSynchroniser.Instance.OnPlayerShootingReceived(data);
+                else
+                {
+                    GungeonTogether.Logging.Debug.LogWarning($"[NetworkManager] Non-host received shoot request from {data.PlayerId}");
+                }
             }
             catch (Exception e)
             {
-                GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error handling player shooting: {e.Message}");
+                GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error handling shoot request: {e.Message}");
             }
+        }
+
+        private void HandleShootRequest(PlayerShootRequestData data)
+        {
+            try
+            {
+                // Validate the shoot request (anti-cheat, rate limiting, etc.)
+                if (!IsValidShootRequest(data))
+                {
+                    GungeonTogether.Logging.Debug.LogWarning($"[NetworkManager] Invalid shoot request from {data.PlayerId}");
+                    return;
+                }
+
+                // Server authoritative projectile spawning
+                ProjectileSynchronizer.Instance.HandleServerShootRequest(data);
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error processing shoot request: {e.Message}");
+            }
+        }
+
+        private bool IsValidShootRequest(PlayerShootRequestData data)
+        {
+            // TODO: Implement proper validation
+            // - Check if player exists and is alive
+            // - Check weapon constraints (ammo, fire rate, etc.)
+            // - Validate position is reasonable
+            // - Check timing/rate limiting
+            
+            // For now, basic validation
+            if (data.PlayerId == 0) return false;
+            if (float.IsNaN(data.Position.x) || float.IsNaN(data.Position.y)) return false;
+            if (float.IsNaN(data.Direction.x) || float.IsNaN(data.Direction.y)) return false;
+            
+            return true;
         }
 
         private void HandleEnemyPosition(NetworkPacket packet)
@@ -860,22 +894,6 @@ namespace GungeonTogether.Steam
             {
                 SendEnemyUpdates();
                 lastEnemyUpdateTime = currentTime;
-            }
-        }
-
-        private void SendPlayerUpdates()
-        {
-            // Get player position from game
-            var player = GameManager.Instance?.PrimaryPlayer;
-            if (player != null)
-            {
-                SendPlayerPosition(
-                    player.transform.position,
-                    player.specRigidbody?.Velocity ?? Vector2.zero,
-                    player.transform.eulerAngles.z,
-                    player.IsGrounded,
-                    player.IsDodgeRolling
-                );
             }
         }
 

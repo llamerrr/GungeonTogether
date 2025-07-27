@@ -15,7 +15,7 @@ namespace GungeonTogether.Steam
         // Player state
         PlayerPosition = 10,
         PlayerMovement = 11,
-        PlayerShooting = 12,
+        PlayerShootRequest = 12,  // Client requests to shoot (Client -> Server)
         PlayerReload = 13,
         PlayerHealth = 14,
         PlayerAnimation = 15,
@@ -122,6 +122,18 @@ namespace GungeonTogether.Steam
     }
 
     [Serializable]
+    public struct PlayerShootRequestData
+    {
+        public ulong PlayerId;
+        public Vector2 Position;
+        public Vector2 Direction;
+        public int WeaponId;
+        public bool IsCharging;
+        public float ChargeAmount;
+        public float RequestTimestamp;  // For validation
+    }
+
+    [Serializable]
     public struct PlayerShootingData
     {
         public ulong PlayerId;
@@ -196,8 +208,12 @@ namespace GungeonTogether.Steam
         public Vector2 Position;
         public Vector2 Velocity;
         public float Rotation;
-        public int OwnerId;
+        public ulong OwnerId;
         public bool IsPlayerProjectile;
+        public float Damage;
+        public int ProjectileType;
+        public int WeaponId;  // What weapon spawned this
+        public bool IsServerAuthoritative;  // Server-spawned vs client visual
     }
 
     [Serializable]

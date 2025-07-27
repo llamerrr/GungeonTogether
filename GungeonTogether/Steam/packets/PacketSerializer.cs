@@ -132,6 +132,19 @@ namespace GungeonTogether.Steam
                 writer.Write(data.IsDead);
                 writer.Write(data.CurrentAnimationName ?? "");
             }
+            else if (type.Equals(typeof(PlayerShootRequestData)))
+            {
+                var data = (PlayerShootRequestData)(object)obj;
+                writer.Write(data.PlayerId);
+                writer.Write(data.Position.x);
+                writer.Write(data.Position.y);
+                writer.Write(data.Direction.x);
+                writer.Write(data.Direction.y);
+                writer.Write(data.WeaponId);
+                writer.Write(data.IsCharging);
+                writer.Write(data.ChargeAmount);
+                writer.Write(data.RequestTimestamp);
+            }
             else if (type.Equals(typeof(PlayerShootingData)))
             {
                 var data = (PlayerShootingData)(object)obj;
@@ -184,6 +197,22 @@ namespace GungeonTogether.Steam
                 writer.Write(data.OwnerId);
                 writer.Write(data.IsPlayerProjectile);
             }
+            else if (type.Equals(typeof(ProjectileSpawnData)))
+            {
+                var data = (ProjectileSpawnData)(object)obj;
+                writer.Write(data.ProjectileId);
+                writer.Write(data.Position.x);
+                writer.Write(data.Position.y);
+                writer.Write(data.Velocity.x);
+                writer.Write(data.Velocity.y);
+                writer.Write(data.Rotation);
+                writer.Write(data.OwnerId);
+                writer.Write(data.IsPlayerProjectile);
+                writer.Write(data.Damage);
+                writer.Write(data.ProjectileType);
+                writer.Write(data.WeaponId);
+                writer.Write(data.IsServerAuthoritative);
+            }
             // Add more types as needed
         }
 
@@ -215,6 +244,20 @@ namespace GungeonTogether.Steam
                     IsTakingDamage = reader.ReadBoolean(),
                     IsDead = reader.ReadBoolean(),
                     CurrentAnimationName = reader.ReadString()
+                };
+                return (T)(object)data;
+            }
+            else if (type.Equals(typeof(PlayerShootRequestData)))
+            {
+                var data = new PlayerShootRequestData
+                {
+                    PlayerId = reader.ReadUInt64(),
+                    Position = new Vector2(reader.ReadSingle(), reader.ReadSingle()),
+                    Direction = new Vector2(reader.ReadSingle(), reader.ReadSingle()),
+                    WeaponId = reader.ReadInt32(),
+                    IsCharging = reader.ReadBoolean(),
+                    ChargeAmount = reader.ReadSingle(),
+                    RequestTimestamp = reader.ReadSingle()
                 };
                 return (T)(object)data;
             }
@@ -275,6 +318,23 @@ namespace GungeonTogether.Steam
                     ProjectileType = reader.ReadInt32(),
                     OwnerId = reader.ReadUInt64(),
                     IsPlayerProjectile = reader.ReadBoolean()
+                };
+                return (T)(object)data;
+            }
+            else if (type.Equals(typeof(ProjectileSpawnData)))
+            {
+                var data = new ProjectileSpawnData
+                {
+                    ProjectileId = reader.ReadInt32(),
+                    Position = new Vector2(reader.ReadSingle(), reader.ReadSingle()),
+                    Velocity = new Vector2(reader.ReadSingle(), reader.ReadSingle()),
+                    Rotation = reader.ReadSingle(),
+                    OwnerId = reader.ReadUInt64(),
+                    IsPlayerProjectile = reader.ReadBoolean(),
+                    Damage = reader.ReadSingle(),
+                    ProjectileType = reader.ReadInt32(),
+                    WeaponId = reader.ReadInt32(),
+                    IsServerAuthoritative = reader.ReadBoolean()
                 };
                 return (T)(object)data;
             }

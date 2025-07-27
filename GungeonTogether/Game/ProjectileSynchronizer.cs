@@ -27,8 +27,10 @@ namespace GungeonTogether.Game
         private readonly Dictionary<int, Projectile> localProjectiles = new Dictionary<int, Projectile>();
         private readonly Dictionary<int, RemoteProjectileData> remoteProjectiles = new Dictionary<int, RemoteProjectileData>();
         private readonly Dictionary<int, GameObject> remoteProjectileObjects = new Dictionary<int, GameObject>();
+        private readonly HashSet<int> authorizedProjectiles = new HashSet<int>(); // Server-authorized projectiles
 
         private bool isInitialized;
+        private bool isProjectileBlockingEnabled;
         private float lastUpdateTime;
         private const float UPDATE_INTERVAL = 0.05f; // 20 FPS for projectile updates
         private int nextProjectileId = 1;
@@ -52,14 +54,17 @@ namespace GungeonTogether.Game
         }
 
         /// <summary>
-        /// Initialize the projectile synchronizer
+        /// Initialize the projectile synchronizer and hook into ETG projectile system
         /// </summary>
         public void Initialize()
         {
             try
             {
                 isInitialized = true;
-                HookProjectileEvents();
+                
+                // Initialize comprehensive projectile blocking hooks
+                ProjectileBlockingHooks.InitializeHooks();
+                
                 GungeonTogether.Logging.Debug.Log("[ProjectileSync] Projectile synchronizer initialized");
             }
             catch (Exception e)
@@ -89,19 +94,10 @@ namespace GungeonTogether.Game
 
         #region Local Projectiles
 
-        private void HookProjectileEvents()
-        {
-            try
-            {
-                // Hook into projectile spawning
-                // We'll monitor existing projectiles in the scene instead of hooking events directly
-                GungeonTogether.Logging.Debug.Log("[ProjectileSync] Projectile event hooks installed");
-            }
-            catch (Exception e)
-            {
-                GungeonTogether.Logging.Debug.LogError($"[ProjectileSync] Failed to hook projectile events: {e.Message}");
-            }
-        }
+
+        /// <summary>
+        /// Hook into ETG projectile system to control client-side spawning
+        /// </summary>
 
         private void UpdateLocalProjectiles()
         {
@@ -125,11 +121,6 @@ namespace GungeonTogether.Game
                         {
                             localProjectiles[projectileId] = projectile;
                             OnLocalProjectileSpawned(projectile, projectileId);
-                        }
-                        else
-                        {
-                            // Update existing projectile
-                            UpdateLocalProjectileState(projectile, projectileId);
                         }
                     }
                 }
@@ -164,34 +155,41 @@ namespace GungeonTogether.Game
             {
                 bool isPlayerProjectile = IsPlayerProjectile(projectile);
 
-                // Send spawn notification
-                NetworkManager.Instance.SendProjectileSpawn(
-                    projectileId,
-                    projectile.transform.position,
-                    projectile.specRigidbody?.Velocity ?? Vector2.zero,
-                    projectile.baseData.damage,
-                    GetProjectileType(projectile),
-                    isPlayerProjectile
-                );
+                // Client-side projectile blocking for networked games
+                if (isProjectileBlockingEnabled && isPlayerProjectile && !authorizedProjectiles.Contains(projectileId))
+                {
+                    // For clients, only allow projectiles from server authority
+                    // Block all client-side player projectiles - they should come from server
+                    GungeonTogether.Logging.Debug.Log($"[ProjectileSync] Blocking unauthorized client projectile: {projectileId}");
+                    
+                    // Destroy the unauthorized projectile
+                    if (projectile != null && projectile.gameObject != null)
+                    {
+                        UnityEngine.Object.Destroy(projectile.gameObject);
+                        return;
+                    }
+                }
 
-                GungeonTogether.Logging.Debug.Log($"[ProjectileSync] Local projectile spawned: {projectileId} (Player: {isPlayerProjectile})");
+                // For host or authorized projectiles (enemy/environment), allow and synchronize
+                if (!isProjectileBlockingEnabled || !isPlayerProjectile || authorizedProjectiles.Contains(projectileId))
+                {
+                    // Send spawn notification to other clients
+                    NetworkManager.Instance.SendProjectileSpawn(
+                        projectileId,
+                        projectile.transform.position,
+                        projectile.specRigidbody?.Velocity ?? Vector2.zero,
+                        projectile.transform.eulerAngles.z,
+                        0, // Default owner ID for non-player projectiles
+                        isPlayerProjectile,
+                        false // Not server authoritative for this path
+                    );
+
+                    GungeonTogether.Logging.Debug.Log($"[ProjectileSync] Local projectile spawned: {projectileId} (Player: {isPlayerProjectile})");
+                }
             }
             catch (Exception e)
             {
                 GungeonTogether.Logging.Debug.LogError($"[ProjectileSync] Local projectile spawn error: {e.Message}");
-            }
-        }
-
-        private void UpdateLocalProjectileState(Projectile projectile, int projectileId)
-        {
-            try
-            {
-                // For now, we mainly track spawn/destroy rather than continuous updates
-                // Projectiles are usually short-lived and move predictably
-            }
-            catch (Exception e)
-            {
-                GungeonTogether.Logging.Debug.LogError($"[ProjectileSync] Local projectile state update error: {e.Message}");
             }
         }
 
@@ -231,24 +229,6 @@ namespace GungeonTogether.Game
             catch
             {
                 return false;
-            }
-        }
-
-        private int GetProjectileType(Projectile projectile)
-        {
-            try
-            {
-                // Return a simple type identifier based on projectile properties
-                if (projectile.baseData.damage > 50f)
-                    return 2; // Heavy projectile
-                else if (projectile.baseData.speed > 20f)
-                    return 1; // Fast projectile
-                else
-                    return 0; // Normal projectile
-            }
-            catch
-            {
-                return 0;
             }
         }
 
@@ -501,7 +481,156 @@ namespace GungeonTogether.Game
             }
         }
 
-        #region Network Event Handlers
+        #region Server Authority Methods
+
+        // Server only
+        public void HandleServerShootRequest(PlayerShootRequestData request)
+        {
+            try
+            {
+                if (!NetworkManager.Instance?.IsHost() ?? true)
+                {
+                    GungeonTogether.Logging.Debug.LogWarning("[ProjectileSync] Non-host tried to handle shoot request");
+                    return;
+                }
+
+                // Validate request and spawn projectile server-side
+                SpawnServerProjectile(request);
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[ProjectileSync] Error handling server shoot request: {e.Message}");
+            }
+        }
+
+        private int GetNextProjectileId()
+        {
+            return ++nextProjectileId;
+        }
+
+        private Vector2 CalculateProjectileVelocity(Vector2 direction, int weaponId)
+        {
+            // TODO: Get actual weapon speed from weapon data
+            float baseSpeed = 15f; // Default projectile speed
+            
+            // Weapon-specific speeds
+            switch (weaponId)
+            {
+                case 1: baseSpeed = 20f; break; // Fast weapon
+                case 2: baseSpeed = 10f; break; // Slow weapon
+                default: baseSpeed = 15f; break;
+            }
+
+            return direction.normalized * baseSpeed;
+        }
+
+        private float GetWeaponDamage(int weaponId)
+        {
+            // TODO: Get actual weapon damage from weapon data
+            switch (weaponId)
+            {
+                case 1: return 5f;   // Weak weapon
+                case 2: return 20f;  // Strong weapon
+                default: return 10f; // Default damage
+            }
+        }
+
+        private int GetProjectileType(int weaponId)
+        {
+            // TODO: Map weapon IDs to projectile types
+            return weaponId % 3; // Simple mapping for now
+        }
+
+        // Authorize a projectile ID for spawning (prevents blocking)
+        public void AuthorizeProjectile(int projectileId)
+        {
+            authorizedProjectiles.Add(projectileId);
+            ProjectileBlockingHooks.AuthorizeProjectile(projectileId);
+            GungeonTogether.Logging.Debug.Log($"[ProjectileSync] Authorized projectile: {projectileId}");
+        }
+        
+        public void DeauthorizeProjectile(int projectileId)
+        {
+            authorizedProjectiles.Remove(projectileId);
+            ProjectileBlockingHooks.DeauthorizeProjectile(projectileId);
+        }
+
+        public void SpawnServerProjectile(ProjectileSpawnData data)
+        {
+            try
+            {
+                // Authorize this projectile before spawning
+                AuthorizeProjectile(data.ProjectileId);
+
+                // Find a reference gun to use for projectile creation
+                var localPlayer = GameManager.Instance?.PrimaryPlayer;
+                if (localPlayer?.CurrentGun != null)
+                {
+                    var gun = localPlayer.CurrentGun;
+                    var projectileModule = gun.DefaultModule;
+
+                    if (projectileModule?.projectiles?.Count > 0)
+                    {
+                        var projectilePrefab = projectileModule.projectiles[0];
+
+                        // Spawn the actual projectile
+                        var spawnedProjectile = SpawnManager.SpawnProjectile(
+                            projectilePrefab.gameObject,
+                            data.Position,
+                            Quaternion.AngleAxis(data.Rotation, Vector3.forward),
+                            true
+                        );
+
+                        if (spawnedProjectile != null)
+                        {
+                            var projectileComponent = spawnedProjectile.GetComponent<Projectile>();
+                            if (projectileComponent != null)
+                            {
+                                // Set projectile properties from server data
+                                if (projectileComponent.specRigidbody != null)
+                                {
+                                    projectileComponent.specRigidbody.Velocity = data.Velocity;
+                                }
+
+                                projectileComponent.baseData.damage = data.Damage;
+
+                                GungeonTogether.Logging.Debug.Log($"[ProjectileSync] Spawned server projectile: {data.ProjectileId}");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[ProjectileSync] Error spawning server projectile: {e.Message}");
+            }
+            finally
+            {
+                // Clean up authorization after a short delay using a simple timer
+                ScheduleDelayedDeauthorization(data.ProjectileId, 1f);
+            }
+        }
+
+        private void ScheduleDelayedDeauthorization(int projectileId, float delay)
+        {
+            // Simple timer-based deauthorization (could be enhanced with a proper coroutine system)
+            var timer = delay;
+            System.Action updateAction = null;
+            updateAction = () =>
+            {
+                timer -= Time.deltaTime;
+                if (timer <= 0f)
+                {
+                    DeauthorizeProjectile(projectileId);
+                    // Remove the update action (would need a proper update system in real implementation)
+                }
+            };
+            // In a real implementation, this would be added to an update list
+            // For now, just deauthorize immediately after spawning is confirmed
+            DeauthorizeProjectile(projectileId);
+        }
+
+        #endregion
 
         /// <summary>
         /// Handle received projectile spawn data
@@ -580,7 +709,68 @@ namespace GungeonTogether.Game
             }
         }
 
-        #endregion
+        /// <summary>
+        /// Check if projectile should be blocked for networked players
+        /// </summary>
+        public static bool ShouldBlockProjectileForNetworkedPlayer(GameActor owner)
+        {
+            try
+            {
+                // Only block for remote players, not local player
+                if (owner is PlayerController playerController)
+                {
+                    // If this is a remote player and we're in multiplayer, block client-side projectiles
+                    var networkManager = NetworkManager.Instance;
+                    if (networkManager != null)
+                    {
+                        // Simple check: if we're in multiplayer mode
+                        if (networkManager.IsHost())
+                        {
+                            // For now, allow all projectiles - blocking logic would need proper player ID matching
+                            return false;
+                        }
+                    }
+                }
+                return false; // Allow local player and enemy projectiles
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[ProjectileSync] Error checking projectile blocking: {e.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Server-side method to spawn actual ETG projectile (simplified)
+        /// </summary>
+        private void SpawnServerProjectile(PlayerShootRequestData request)
+        {
+            try
+            {
+                // For now, create a visual projectile representation
+                // In the full implementation, this would spawn an actual ETG projectile
+                var projectileId = GetNextProjectileId();
+                
+                // Send to all clients
+                NetworkManager.Instance.SendProjectileSpawn(
+                    projectileId,
+                    request.Position,
+                    CalculateProjectileVelocity(request.Direction, request.WeaponId),
+                    Mathf.Atan2(request.Direction.y, request.Direction.x) * Mathf.Rad2Deg,
+                    (int)request.PlayerId,
+                    true,
+                    true // Mark as server authoritative
+                );
+
+                GungeonTogether.Logging.Debug.Log($"[ProjectileSync] Server spawned projectile {projectileId} for player {request.PlayerId}");
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[ProjectileSync] Error spawning server projectile: {e.Message}");
+            }
+        }
+
+        #region Network Event Handlers
 
         /// <summary>
         /// Get all remote projectile states
@@ -610,6 +800,8 @@ namespace GungeonTogether.Game
             GungeonTogether.Logging.Debug.Log("[ProjectileSync] Cleanup complete");
         }
 
+        #endregion
+
         #region Static Methods
 
         /// <summary>
@@ -638,26 +830,37 @@ namespace GungeonTogether.Game
 
         #endregion
 
+        #region Helper Methods
+
         private void HandleProjectileSpawn(ProjectileSpawnData data)
         {
             try
             {
-                var remoteData = new RemoteProjectileData
+                // If this is a server-authoritative projectile, spawn it properly
+                if (data.IsServerAuthoritative && data.IsPlayerProjectile)
                 {
-                    ProjectileId = data.ProjectileId,
-                    Position = data.Position,
-                    Velocity = data.Velocity,
-                    OwnerId = (ulong)data.OwnerId,
-                    IsPlayerProjectile = data.IsPlayerProjectile,
-                    SpawnTime = Time.time,
-                    LastUpdateTime = Time.time,
-                    TargetPosition = data.Position
-                };
+                    SpawnServerProjectile(data);
+                }
+                else
+                {
+                    // For visual/remote projectiles, create the visual representation
+                    var remoteData = new RemoteProjectileData
+                    {
+                        ProjectileId = data.ProjectileId,
+                        Position = data.Position,
+                        Velocity = data.Velocity,
+                        OwnerId = (ulong)data.OwnerId,
+                        IsPlayerProjectile = data.IsPlayerProjectile,
+                        SpawnTime = Time.time,
+                        LastUpdateTime = Time.time,
+                        TargetPosition = data.Position
+                    };
 
-                remoteProjectiles[data.ProjectileId] = remoteData;
-                CreateRemoteProjectileVisual(data.ProjectileId, remoteData);
+                    remoteProjectiles[data.ProjectileId] = remoteData;
+                    CreateRemoteProjectileVisual(data.ProjectileId, remoteData);
 
-                GungeonTogether.Logging.Debug.Log($"[ProjectileSync] Spawned remote projectile {data.ProjectileId}");
+                    GungeonTogether.Logging.Debug.Log($"[ProjectileSync] Spawned remote projectile visual {data.ProjectileId}");
+                }
             }
             catch (Exception e)
             {
@@ -677,5 +880,7 @@ namespace GungeonTogether.Game
                 GungeonTogether.Logging.Debug.LogError($"[ProjectileSync] Error creating projectile visual: {e.Message}");
             }
         }
+
+        #endregion
     }
 }
