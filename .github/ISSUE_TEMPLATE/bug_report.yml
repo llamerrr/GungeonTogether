@@ -1,0 +1,50 @@
+name: Bug Report
+description: Report a bug in GungeonTogether
+title: "[BUG] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # GungeonTogether Bug Report
+        Thank you for taking the time to report a bug in GungeonTogether!
+      
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Please provide details of the bug.
+      placeholder: "Describe what happened and what you expected to happen instead."
+    validations:
+      required: true
+      
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How did you cause the bug? Can you reproduce it?
+      placeholder: |
+        Start a multiplayer game with...
+        Connect to friend using...
+        When attempting to...
+        Error occurs...
+    validations:
+      required: true
+        
+  - type: input
+    id: version
+    attributes:
+      label: GungeonTogether Version
+      description: What version of GungeonTogether are you using?
+      placeholder: "e.g., Steam v1.2.3"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: GungeonTogether Log
+      description: Please provide your GungeonTogether 🙏🙏🙏🙏
+      placeholder: "Copy and paste your log here, or attach it as a file."
+    validations:
+      required: false
