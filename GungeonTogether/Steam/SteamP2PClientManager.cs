@@ -15,6 +15,9 @@ namespace GungeonTogether.Steam
         private float _lastHeartbeatLogTime = 0f;
         private const float HEARTBEAT_INTERVAL = 2.0f; // Send heartbeat every 2 seconds
 
+        // Enemy spawning control
+        private bool enemySpawningDisabled = false;
+
         public SteamP2PClientManager(ulong hostSteamId, ulong clientSteamId)
         {
             _hostSteamId = hostSteamId;
@@ -41,6 +44,7 @@ namespace GungeonTogether.Steam
 
                         // Send join packet
                         SendPlayerJoinPacket();
+                        enemySpawningDisabled = true;
                     }
                     else
                     {

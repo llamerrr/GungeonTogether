@@ -433,6 +433,60 @@ namespace GungeonTogether.Steam
             SendToPlayer(targetSteamId, PacketType.MapSync, data);
         }
 
+        // Item spawn (host authoritative for synced categories)
+    public void SendItemSpawn(int itemId, Vector2 position, int itemType, int spriteId = 0, int quality = 0, int ammo = 0, int maxAmmo = 0, int charges = 0)
+        {
+            try
+            {
+                var data = new ItemData
+                {
+                    ItemId = itemId,
+                    Position = position,
+                    ItemType = itemType,
+                    IsPickedUp = false,
+            PickedUpBy = 0,
+            SpriteId = spriteId,
+                    Quality = quality,
+                    Ammo = ammo,
+                    MaxAmmo = maxAmmo,
+                    Charges = charges
+                };
+                var bytes = PacketSerializer.SerializeObject(data);
+                SendToAll(PacketType.ItemSpawn, bytes);
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error sending item spawn: {e.Message}");
+            }
+        }
+
+        // Item pickup broadcast so other clients remove it
+    public void SendItemPickup(int itemId, int itemType, ulong pickerId, int spriteId = 0, int quality = 0, int ammo = 0, int maxAmmo = 0, int charges = 0)
+        {
+            try
+            {
+                var data = new ItemData
+                {
+                    ItemId = itemId,
+                    Position = Vector2.zero,
+                    ItemType = itemType,
+                    IsPickedUp = true,
+            PickedUpBy = pickerId,
+            SpriteId = spriteId,
+                    Quality = quality,
+                    Ammo = ammo,
+                    MaxAmmo = maxAmmo,
+                    Charges = charges
+                };
+                var bytes = PacketSerializer.SerializeObject(data);
+                SendToAll(PacketType.ItemPickup, bytes);
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error sending item pickup: {e.Message}");
+            }
+        }
+
         #endregion
 
         #region Packet Processing
@@ -534,6 +588,12 @@ namespace GungeonTogether.Steam
                     case PacketType.MapSync:
                         var mapName = System.Text.Encoding.UTF8.GetString(packet.Data);
                         PlayerSynchroniser.Instance.OnMapSyncReceived(mapName, packet.SenderId);
+                        break;
+                    case PacketType.ItemSpawn:
+                        HandleItemSpawn(packet);
+                        break;
+                    case PacketType.ItemPickup:
+                        HandleItemPickup(packet);
                         break;
                     default:
                         GungeonTogether.Logging.Debug.Log($"[NetworkManager] Unhandled packet type: {packet.Type}");
@@ -838,6 +898,32 @@ namespace GungeonTogether.Steam
             if (!isHost)
             {
                 PlayerSynchroniser.Instance?.StartSendingUpdates();
+            }
+        }
+
+        private void HandleItemSpawn(NetworkPacket packet)
+        {
+            try
+            {
+                var data = PacketSerializer.DeserializeObject<ItemData>(packet.Data);
+                ItemSynchronizer.Instance.OnItemSpawnReceived(data);
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error handling item spawn: {e.Message}");
+            }
+        }
+
+        private void HandleItemPickup(NetworkPacket packet)
+        {
+            try
+            {
+                var data = PacketSerializer.DeserializeObject<ItemData>(packet.Data);
+                ItemSynchronizer.Instance.OnItemPickupReceived(data);
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error handling item pickup: {e.Message}");
             }
         }
 

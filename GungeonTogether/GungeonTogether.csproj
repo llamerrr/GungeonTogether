@@ -14,8 +14,7 @@
 
   <ItemGroup>
     <PackageReference Include="EtG.ModTheGungeonAPI" Version="1.9.2" />
-    <!-- <PackageReference Include="Facepunch.Steamworks" Version="2.3.3" /> -->
-    <!-- Commented out - ETG already has Steamworks built-in -->
+    <!--<PackageReference Include="HarmonyX" Version="2.7.0" />-->
   </ItemGroup>
 
   <!-- Copy the compiled DLL to the mod directory after build -->

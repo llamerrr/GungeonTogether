@@ -255,6 +255,11 @@ namespace GungeonTogether.Steam
         public int ItemType;
         public bool IsPickedUp;
         public ulong PickedUpBy;
+    public int SpriteId;      // Visual identifier (if available)
+    public int Quality;       // Item quality / rarity (if available)
+    public int Ammo;          // Current ammo (guns)
+    public int MaxAmmo;       // Max ammo (guns)
+    public int Charges;       // Active item charges
     }
 
     [Serializable]

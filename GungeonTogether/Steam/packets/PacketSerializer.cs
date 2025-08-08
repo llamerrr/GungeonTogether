@@ -213,6 +213,21 @@ namespace GungeonTogether.Steam
                 writer.Write(data.WeaponId);
                 writer.Write(data.IsServerAuthoritative);
             }
+            else if (type.Equals(typeof(ItemData)))
+            {
+                var data = (ItemData)(object)obj;
+                writer.Write(data.ItemId);
+                writer.Write(data.Position.x);
+                writer.Write(data.Position.y);
+                writer.Write(data.ItemType);
+                writer.Write(data.IsPickedUp);
+                writer.Write(data.PickedUpBy);
+                writer.Write(data.SpriteId);
+                writer.Write(data.Quality);
+                writer.Write(data.Ammo);
+                writer.Write(data.MaxAmmo);
+                writer.Write(data.Charges);
+            }
             // Add more types as needed
         }
 
@@ -335,6 +350,23 @@ namespace GungeonTogether.Steam
                     ProjectileType = reader.ReadInt32(),
                     WeaponId = reader.ReadInt32(),
                     IsServerAuthoritative = reader.ReadBoolean()
+                };
+                return (T)(object)data;
+            }
+            else if (type.Equals(typeof(ItemData)))
+            {
+                var data = new ItemData
+                {
+                    ItemId = reader.ReadInt32(),
+                    Position = new Vector2(reader.ReadSingle(), reader.ReadSingle()),
+                    ItemType = reader.ReadInt32(),
+                    IsPickedUp = reader.ReadBoolean(),
+                    PickedUpBy = reader.ReadUInt64(),
+                    SpriteId = reader.ReadInt32(),
+                    Quality = reader.ReadInt32(),
+                    Ammo = reader.ReadInt32(),
+                    MaxAmmo = reader.ReadInt32(),
+                    Charges = reader.ReadInt32()
                 };
                 return (T)(object)data;
             }
