@@ -329,6 +329,22 @@ namespace GungeonTogether.Steam
             SendToAll(PacketType.EnemyShooting, serializedData);
         }
 
+        // Send lightweight enemy spawn (host only)
+        public void SendEnemySpawn(int enemyId, int enemyType, Vector2 position, float rotation, float maxHealth)
+        {
+            if (!isHost) return;
+            var data = new EnemySpawnData
+            {
+                EnemyId = enemyId,
+                EnemyType = enemyType,
+                Position = position,
+                Rotation = rotation,
+                MaxHealth = maxHealth
+            };
+            var serializedData = PacketSerializer.SerializeObject(data);
+            SendToAll(PacketType.EnemySpawn, serializedData);
+        }
+
         // Send projectile spawn even
         public void SendProjectileSpawn(int projectileId, Vector2 position, Vector2 velocity, float rotation, int ownerId, bool isPlayerProjectile, bool isServerAuthoritative = false)
         {
@@ -348,6 +364,24 @@ namespace GungeonTogether.Steam
 
             var serializedData = PacketSerializer.SerializeObject(data);
             SendToAll(PacketType.ProjectileSpawn, serializedData);
+        }
+
+        /// <summary>
+        /// Send room cleared event (host only)
+        /// </summary>
+        public void SendRoomCleared(Vector2 roomPosition)
+        {
+            if (!isHost) return;
+
+            var data = new RoomClearedData
+            {
+                RoomPosition = roomPosition,
+                ClearTime = Time.time
+            };
+
+            var serializedData = PacketSerializer.SerializeObject(data);
+            SendToAll(PacketType.RoomCleared, serializedData);
+            GungeonTogether.Logging.Debug.Log($"[NetworkManager] Sent room cleared for {roomPosition}");
         }
 
         /// <summary>
@@ -552,6 +586,9 @@ namespace GungeonTogether.Steam
             {
                 switch (packet.Type)
                 {
+                    case PacketType.EnemySpawn:
+                        HandleEnemySpawn(packet);
+                        break;
                     case PacketType.PlayerJoin:
                         HandlePlayerJoin(packet);
                         break;
@@ -575,6 +612,9 @@ namespace GungeonTogether.Steam
                         break;
                     case PacketType.ProjectileSpawn:
                         HandleProjectileSpawn(packet);
+                        break;
+                    case PacketType.RoomCleared:
+                        HandleRoomCleared(packet);
                         break;
                     case PacketType.HeartBeat:
                         HandleHeartbeat(packet);
@@ -790,6 +830,22 @@ namespace GungeonTogether.Steam
             }
         }
 
+        private void HandleEnemySpawn(NetworkPacket packet)
+        {
+            if (!isHost) // Clients create remote enemy shell
+            {
+                try
+                {
+                    var data = PacketSerializer.DeserializeObject<EnemySpawnData>(packet.Data);
+                    EnemySynchronizer.HandleEnemySpawn(data);
+                }
+                catch (Exception e)
+                {
+                    GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error handling enemy spawn minimal: {e.Message}");
+                }
+            }
+        }
+
         private void HandleEnemyPath(NetworkPacket packet)
         {
             if (!isHost) // Only clients should handle enemy path updates from host
@@ -818,6 +874,23 @@ namespace GungeonTogether.Steam
                 catch (Exception e)
                 {
                     GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error handling enemy shooting: {e.Message}");
+                }
+            }
+        }
+
+        private void HandleRoomCleared(NetworkPacket packet)
+        {
+            if (!isHost) // Only clients should handle room cleared from host
+            {
+                try
+                {
+                    var data = PacketSerializer.DeserializeObject<RoomClearedData>(packet.Data);
+                    ClientRoomStateManager.Instance.OnHostRoomCleared(data.RoomPosition);
+                    GungeonTogether.Logging.Debug.Log($"[NetworkManager] Received room cleared for {data.RoomPosition}");
+                }
+                catch (Exception e)
+                {
+                    GungeonTogether.Logging.Debug.LogError($"[NetworkManager] Error handling room cleared: {e.Message}");
                 }
             }
         }

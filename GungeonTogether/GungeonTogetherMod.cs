@@ -234,6 +234,7 @@ namespace GungeonTogether
                     EnemySynchronizer.StaticUpdate();
                     ProjectileSynchronizer.StaticUpdate();
                     ItemSynchronizer.Instance.Update();
+                    ClientRoomStateManager.Instance.Update();
                 }
             }
             else
@@ -250,6 +251,7 @@ namespace GungeonTogether
                 EnemySynchronizer.StaticUpdate();
                 ProjectileSynchronizer.StaticUpdate();
                 ItemSynchronizer.Instance.Update();
+                ClientRoomStateManager.Instance.Update();
             }
 
             // CATCH-ALL: If this process is not the host, always run synchronizer update
@@ -259,6 +261,7 @@ namespace GungeonTogether
                 EnemySynchronizer.StaticUpdate();
                 ProjectileSynchronizer.StaticUpdate();
                 ItemSynchronizer.Instance.Update();
+                ClientRoomStateManager.Instance.Update();
             }
 
             // CRITICAL: Process Steam callbacks every frame to catch join requests
@@ -983,6 +986,9 @@ namespace GungeonTogether
                 string syncCats = ConfigSyncedItemCategories?.Value ?? "Gun,Passive,Active";
                 string dupCats = ConfigDuplicatedItemCategories?.Value ?? "Consumable,Currency,Key,Heart,Armor";
                 ItemSynchronizer.Instance.Initialize(_sessionManager != null && _sessionManager.IsHost, syncCats, dupCats);
+
+                // Initialize client room state manager
+                ClientRoomStateManager.Instance.Initialize(_sessionManager != null && !_sessionManager.IsHost);
 
                 // Initialize player persistence manager
                 PlayerPersistenceManager.Instance.Initialize();

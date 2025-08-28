@@ -47,6 +47,24 @@ namespace GungeonTogether.Game
                 catch { }
                 return list;
             }
+            static void Postfix(AIActor __result)
+            {
+                try
+                {
+                    if (__result == null) return;
+                    // Host: broadcast minimal spawn describing this enemy
+                    if (NetworkManager.Instance != null && NetworkManager.Instance.IsHost())
+                    {
+                        int enemyId = __result.GetInstanceID();
+                        int typeHash = __result.GetType().FullName.GetHashCode();
+                        float maxHealth = 0f;
+                        try { if (__result.healthHaver != null) maxHealth = __result.healthHaver.GetMaxHealth(); } catch { }
+                        // Use existing EnemySpawn packet (no separate minimal variant needed)
+                        NetworkManager.Instance.SendEnemySpawn(enemyId, typeHash, (__result.transform.position), __result.transform.eulerAngles.z, maxHealth);
+                    }
+                }
+                catch { }
+            }
             static bool Prefix(ref AIActor __result, MethodBase __originalMethod)
             {
                 if (!IsClient) return true;

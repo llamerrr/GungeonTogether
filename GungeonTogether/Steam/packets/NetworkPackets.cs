@@ -169,6 +169,16 @@ namespace GungeonTogether.Steam
     }
 
     [Serializable]
+    public struct EnemySpawnData
+    {
+        public int EnemyId;         // Host-assigned instance ID
+        public int EnemyType;       // Hash / lookup id of enemy prefab/type
+        public Vector2 Position;    // Spawn position
+        public float Rotation;      // Initial rotation
+        public float MaxHealth;     // Starting health
+    }
+
+    [Serializable]
     public struct EnemyShootingData
     {
         public int EnemyId;
@@ -245,6 +255,13 @@ namespace GungeonTogether.Steam
         public int[] EnemyIds;
         public Vector2[] ItemPositions;
         public int[] ItemTypes;
+    }
+
+    [Serializable]
+    public struct RoomClearedData
+    {
+        public Vector2 RoomPosition;
+        public float ClearTime;
     }
 
     [Serializable]

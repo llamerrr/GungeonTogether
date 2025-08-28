@@ -723,6 +723,11 @@ namespace GungeonTogether.Game
             Instance.HandleEnemyShootingUpdate(data);
         }
 
+        public static void HandleEnemySpawn(EnemySpawnData data)
+        {
+            Instance.HandleEnemySpawnInternal(data);
+        }
+
         private void HandleEnemyPositionUpdate(EnemyPositionData data)
         {
             try
@@ -774,6 +779,34 @@ namespace GungeonTogether.Game
             catch (Exception e)
             {
                 GungeonTogether.Logging.Debug.LogError($"[EnemySync] Error handling enemy shooting: {e.Message}");
+            }
+        }
+
+        private void HandleEnemySpawnInternal(EnemySpawnData data)
+        {
+            try
+            {
+                if (remoteEnemyStates.ContainsKey(data.EnemyId)) return; // already exists
+                var st = new RemoteEnemyState
+                {
+                    EnemyId = data.EnemyId,
+                    Position = data.Position,
+                    Velocity = Vector2.zero,
+                    Rotation = data.Rotation,
+                    Health = data.MaxHealth,
+                    MaxHealth = data.MaxHealth,
+                    AnimationState = 0,
+                    IsActive = true,
+                    LastUpdateTime = Time.time,
+                    TargetPosition = data.Position
+                };
+                remoteEnemyStates[data.EnemyId] = st;
+                CreateRemoteEnemyVisual(data.EnemyId, data.Position);
+                GungeonTogether.Logging.Debug.Log($"[EnemySync] Minimal spawn created for enemy {data.EnemyId} type {data.EnemyType}");
+            }
+            catch (Exception e)
+            {
+                GungeonTogether.Logging.Debug.LogError($"[EnemySync] Error handling minimal enemy spawn: {e.Message}");
             }
         }
 
