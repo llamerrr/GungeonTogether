@@ -8,7 +8,7 @@ GungeonTogether is a multiplayer mod for Enter the Gungeon that allows online co
 WIP WIP WIP WIP WIP WIP pls be nice 
 
 > [!WARNING]
-> _ON HOLD, HAD SOME HUGE UNEXPECTED LIFE THINGS GET IN THE WAY, DO NOT WORRY, THIS MOD IS STILL IN DEVELOPMENT AND WE ARE STILL EXTREMELY EXCITED ABOUT THE FUTURE OF GUNGEONTOGETHER
+> ON HOLD, HAD SOME HUGE UNEXPECTED LIFE THINGS GET IN THE WAY, DO NOT WORRY, THIS MOD IS STILL IN DEVELOPMENT AND WE ARE STILL EXTREMELY EXCITED ABOUT THE FUTURE OF GUNGEONTOGETHER
 
 <p align="center" href="https://github.com/llamerrr/GungeonTogether">
 <img height="320" alt="image" src="https://github.com/user-attachments/assets/6c485240-5e3c-44ee-93bb-747d27a0731e"/>
