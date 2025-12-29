@@ -4,7 +4,7 @@ namespace GungeonTogether.Networking.Interfaces
 {
     public interface INetworkRole
     {
-        void Initialize();
+        void Initialise();
         void Update();
         void Shutdown();
         void SendPacket(ulong targetId, INetworkPacket packet, bool reliable = true);

@@ -24,6 +24,13 @@ if (Test-Path -Path $r2ModmanPath) {
 
 Write-Host "Building GungeonTogether ($Configuration)..." -ForegroundColor Green
 
+# Ensure Libs/ exists and contains required references
+$SetupScript = Join-Path $PSScriptRoot "setup-libs.ps1"
+if (Test-Path $SetupScript) {
+    Write-Host "Preparing Libs/ from game install..." -ForegroundColor Yellow
+    & $SetupScript -GamePath $GamePath
+}
+
 # Build the project
 dotnet build GungeonTogether.csproj --configuration $Configuration
 

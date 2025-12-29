@@ -7,6 +7,7 @@ using GungeonTogether.Networking.Interfaces;
 using GungeonTogether.Networking.Enums;
 using GungeonTogether.Networking.Serialization;
 using GungeonTogether.Networking.Steam;
+using GungeonTogether.Networking.Packets;
 using Debug = GungeonTogether.Systems.Logging.Debug;
 
 namespace GungeonTogether.Networking
@@ -25,18 +26,25 @@ namespace GungeonTogether.Networking
         public ClientController Client { get; private set; }
 
         private SteamP2PManager _p2p;
+        private SteamLobbyManager _lobby;
 
-        public void Initialize()
+        public const int ProtocolVersion = 1;
+
+        public void Initialise()
         {
             _p2p = SteamP2PManager.Instance;
-            _p2p.Initialize();
+            _p2p.Initialise();
             _p2p.OnPacketReceived += HandlePacket;
+
+            _lobby = SteamLobbyManager.Instance;
+            _lobby.Initialise();
             
-            Debug.Log("NetworkManager Initialized.");
+            Debug.Log("NetworkManager Initialised.");
         }
 
         public void Update()
         {
+            _lobby?.Update();
             _p2p.Update();
             CurrentRole?.Update();
         }
@@ -49,7 +57,7 @@ namespace GungeonTogether.Networking
             IsClient = false;
             
             Host = new HostController();
-            Host.Initialize();
+            Host.Initialise();
             Host.StartSession();
             
             CurrentRole = Host;
@@ -64,7 +72,7 @@ namespace GungeonTogether.Networking
             IsClient = true;
 
             Client = new ClientController();
-            Client.Initialize();
+            Client.Initialise();
             Client.Connect(hostId);
 
             CurrentRole = Client;
@@ -102,11 +110,29 @@ namespace GungeonTogether.Networking
             switch (packet.Type)
             {
                 case PacketType.ConnectionRequest:
-                    if (IsHost) Host.HandleJoinRequest(senderId);
+                    if (IsHost)
+                    {
+                        Host.HandleJoinRequest(senderId);
+                        Host.SendPacket(senderId, new ConnectionAcceptedPacket
+                        {
+                            HostId = _p2p.LocalSteamID,
+                            ProtocolVersion = ProtocolVersion,
+                        }, reliable: true);
+                    }
+                    break;
+
+                case PacketType.ConnectionAccepted:
+                    if (IsClient)
+                    {
+                        Client.HandleConnectionAccepted(senderId, (ConnectionAcceptedPacket)packet);
+                    }
                     break;
                 
                 case PacketType.PlayerPosition:
-                    // Dispatch to PlayerSynchronizer (to be implemented)
+                    if (IsHost)
+                    {
+                        Host.HandlePlayerPosition(senderId, (PlayerPositionPacket)packet);
+                    }
                     break;
                     
                 // ... other cases

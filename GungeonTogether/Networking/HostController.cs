@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using GungeonTogether.Networking.Interfaces;
 using GungeonTogether.Networking.Steam;
+using GungeonTogether.Networking.Packets;
 using GungeonTogether.Systems.Logging;
 using Debug = GungeonTogether.Systems.Logging.Debug;
 
@@ -12,15 +13,15 @@ namespace GungeonTogether.Networking
         private List<ulong> _connectedClients = new List<ulong>();
         private SteamP2PManager _p2p;
 
-        public void Initialize()
+        public void Initialise()
         {
             _p2p = SteamP2PManager.Instance;
-            Debug.Log("HostController Initialized.");
+            Debug.Log("HostController Initialised.");
         }
 
         public void StartSession()
         {
-            // Initialize game state for hosting
+            // Initialise game state for hosting
             Debug.Log("Session Started.");
         }
 
@@ -44,10 +45,33 @@ namespace GungeonTogether.Networking
             {
                 _connectedClients.Add(playerId);
                 Debug.Log($"Player {playerId} joined the session.");
+
+                // Ensure Steam will accept the P2P session.
+                try
+                {
+                    if (SteamReflectionHelper.AcceptP2PSessionMethod != null)
+                    {
+                        object steamIdObj = SteamReflectionHelper.CreateCSteamID(playerId);
+                        SteamReflectionHelper.AcceptP2PSessionMethod.Invoke(null, new object[] { steamIdObj });
+                        Debug.Log($"[Host] Accepted P2P session with {playerId}.");
+                    }
+                }
+                catch { }
                 
                 // Send accept packet
                 // Send initial state
             }
+        }
+
+        public void HandlePlayerPosition(ulong senderId, PlayerPositionPacket packet)
+        {
+            if (!_connectedClients.Contains(senderId))
+            {
+                // If packets arrive before our ConnectionRequest route, still accept/log.
+                HandleJoinRequest(senderId);
+            }
+
+            Debug.Log($"[Host] Position from {senderId}: ({packet.Position.x:0.00}, {packet.Position.y:0.00})");
         }
 
         public void SendPacket(ulong targetId, INetworkPacket packet, bool reliable = true)

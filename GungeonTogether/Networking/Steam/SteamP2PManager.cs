@@ -14,32 +14,32 @@ namespace GungeonTogether.Networking.Steam
 
         private const int CHANNEL_INDEX = 0;
         
-        public bool IsInitialized { get; private set; }
+        public bool IsInitialised { get; private set; }
         public ulong LocalSteamID { get; private set; }
 
         // Events
         public event Action<ulong, byte[]> OnPacketReceived;
         public event Action<ulong> OnP2PSessionRequest;
 
-        public void Initialize()
+        public void Initialise()
         {
-            if (IsInitialized) return;
+            if (IsInitialised) return;
 
-            SteamReflectionHelper.InitializeSteamTypes();
-            if (!SteamReflectionHelper.IsInitialized)
+            SteamReflectionHelper.InitialiseSteamTypes();
+            if (!SteamReflectionHelper.IsInitialised)
             {
-                Debug.LogError("Failed to initialize Steam Reflection Helper.");
+                Debug.LogError("Failed to initialise Steam Reflection Helper.");
                 return;
             }
 
             LocalSteamID = SteamReflectionHelper.GetLocalSteamId();
-            Debug.Log($"Steam P2P Manager Initialized. Local SteamID: {LocalSteamID}");
-            IsInitialized = true;
+            Debug.Log($"Steam P2P Manager Initialised. Local SteamID: {LocalSteamID}");
+            IsInitialised = true;
         }
 
         public void Update()
         {
-            if (!IsInitialized) return;
+            if (!IsInitialised) return;
             
             ReadPackets();
         }
@@ -91,7 +91,7 @@ namespace GungeonTogether.Networking.Steam
 
         public void SendPacket(ulong targetSteamId, byte[] data, bool reliable = true)
         {
-            if (!IsInitialized) return;
+            if (!IsInitialised) return;
 
             try
             {

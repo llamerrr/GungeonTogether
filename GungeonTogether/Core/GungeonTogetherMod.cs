@@ -2,6 +2,7 @@ using BepInEx;
 using UnityEngine;
 using GungeonTogether.Networking;
 using GungeonTogether.Systems.Logging;
+using GungeonTogether.UI;
 
 namespace GungeonTogether.Core
 {
@@ -16,16 +17,20 @@ namespace GungeonTogether.Core
             Instance = this;
             Logger.LogInfo("Gungeon Together started!");
             
-            // Initialize Logging
-            GungeonTogether.Systems.Logging.Logger.Initialize(base.Logger);
+            // Initialise Logging
+            GungeonTogether.Systems.Logging.Logger.Initialise(base.Logger);
 
-            // Initialize Networking
-            NetworkManager.Instance.Initialize();
+            // Initialise Networking
+            NetworkManager.Instance.Initialise();
+
+            // Initialise UI
+            UIManager.Initialise();
         }
 
         private void Update()
         {
             NetworkManager.Instance.Update();
+            UIManager.Update();
         }
     }
 }

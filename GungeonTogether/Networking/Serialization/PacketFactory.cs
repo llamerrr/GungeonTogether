@@ -10,7 +10,9 @@ namespace GungeonTogether.Networking.Serialization
     {
         private static Dictionary<PacketType, Type> _packetTypes = new Dictionary<PacketType, Type>
         {
-            { PacketType.PlayerPosition, typeof(PlayerPositionPacket) }
+            { PacketType.PlayerPosition, typeof(PlayerPositionPacket) },
+            { PacketType.ConnectionRequest, typeof(ConnectionRequestPacket) },
+            { PacketType.ConnectionAccepted, typeof(ConnectionAcceptedPacket) }
             // Register other packets here
         };
 

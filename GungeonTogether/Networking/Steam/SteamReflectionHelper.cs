@@ -52,7 +52,7 @@ namespace GungeonTogether.Networking.Steam
         private static MethodInfo getFriendGamePlayedMethod;
         private static MethodInfo getFriendRichPresenceMethod;
 
-        private static bool initialized = false;
+        private static bool initialised = false;
 
         // Cache for Steam ID to prevent repeated expensive reflection calls
         private static ulong cachedSteamId = 0;
@@ -65,9 +65,9 @@ namespace GungeonTogether.Networking.Steam
         private static int workingSendSignatureIndex = -1;
 
         /// <summary>
-        /// Initialize Steam types via reflection to use ETG's Steamworks
+        /// Initialise Steam types via reflection to use ETG's Steamworks
         /// </summary>
-        public static void InitializeSteamTypes()
+        public static void InitialiseSteamTypes()
         {
             try
             {
@@ -129,11 +129,11 @@ namespace GungeonTogether.Networking.Steam
                 CacheSteamFriendsMethods();
                 CacheSteamMatchmakingMethods();
 
-                initialized = (!ReferenceEquals(steamNetworkingType, null) && !ReferenceEquals(sendP2PPacketMethod, null));
+                initialised = (!ReferenceEquals(steamNetworkingType, null) && !ReferenceEquals(sendP2PPacketMethod, null));
 
-                if (initialized)
+                if (initialised)
                 {
-                    // Debug.Log("[ETGSteamP2P] Steam types initialized successfully!");
+                    // Debug.Log("[ETGSteamP2P] Steam types initialised successfully!");
                 }
                 else
                 {
@@ -142,8 +142,8 @@ namespace GungeonTogether.Networking.Steam
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ETGSteamP2P] Failed to initialize Steam types: {e.Message}");
-                initialized = false;
+                Debug.LogError($"[ETGSteamP2P] Failed to initialise Steam types: {e.Message}");
+                initialised = false;
             }
         }
 
@@ -420,9 +420,9 @@ namespace GungeonTogether.Networking.Steam
                     return cachedSteamId;
                 }
 
-                if (!initialized)
+                if (!initialised)
                 {
-                    InitializeSteamTypes();
+                    InitialiseSteamTypes();
                 }
 
                 if (!ReferenceEquals(getSteamIdMethod, null))
@@ -608,9 +608,9 @@ namespace GungeonTogether.Networking.Steam
         {
             try
             {
-                if (!initialized)
+                if (!initialised)
                 {
-                    InitializeSteamTypes();
+                    InitialiseSteamTypes();
                 }
 
                 // Try to find CSteamID type using cached assembly
@@ -659,9 +659,9 @@ namespace GungeonTogether.Networking.Steam
         /// </summary>
         public static Assembly GetSteamworksAssembly()
         {
-            if (ReferenceEquals(cachedSteamworksAssembly, null) && !initialized)
+            if (ReferenceEquals(cachedSteamworksAssembly, null) && !initialised)
             {
-                InitializeSteamTypes();
+                InitialiseSteamTypes();
             }
             return cachedSteamworksAssembly;
         }
@@ -800,7 +800,7 @@ namespace GungeonTogether.Networking.Steam
         }
 
         // Property accessors for the cached methods
-        public static bool IsInitialized => initialized;
+        public static bool IsInitialised => initialised;
         public static MethodInfo SendP2PPacketMethod => sendP2PPacketMethod;
         public static MethodInfo ReadP2PPacketMethod => readP2PPacketMethod;
         public static MethodInfo ReadP2PSessionRequestMethod => readP2PSessionRequestMethod;

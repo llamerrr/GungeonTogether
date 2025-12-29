@@ -5,6 +5,7 @@ namespace GungeonTogether.Networking.Enums
         None = 0,
         PlayerPosition = 1,
         ConnectionRequest = 2,
+        ConnectionAccepted = 3,
         // Add more packet types here
     }
 }

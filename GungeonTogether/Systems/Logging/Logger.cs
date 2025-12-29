@@ -6,7 +6,7 @@ namespace GungeonTogether.Systems.Logging
     {
         private static ManualLogSource _logSource;
 
-        public static void Initialize(ManualLogSource logSource)
+        public static void Initialise(ManualLogSource logSource)
         {
             _logSource = logSource;
         }
