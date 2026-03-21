@@ -66,44 +66,48 @@ namespace GungeonTogether.UI
 			_panel.Anchor = dfAnchorStyle.Top | dfAnchorStyle.Left;
 			_panel.RelativePosition = new Vector3(25f, 25f, 0f);
 			_panel.Width = 420f;
-			_panel.Height = 165f;
+			_panel.Height = 300f;
 			_panel.IsVisible = true;
 			_panel.Opacity = 1f;
+
+			Debug.Log($"[UI] Panel created: Position={_panel.RelativePosition}, Size={_panel.Width}x{_panel.Height}");
 
 			if (template != null)
 			{
 				_panel.Atlas = template.Atlas;
+				Debug.Log($"[UI] Panel atlas set from template");
 			}
 
 			_statusLabel = CreateLabel(gui, _panel, template);
 			_statusLabel.RelativePosition = new Vector3(10f, 10f, 0f);
 			_statusLabel.Width = _panel.Width - 20f;
-			_statusLabel.Height = 55f;
+			_statusLabel.Height = 70f;
 			_statusLabel.VerticalAlignment = dfVerticalAlignment.Top;
 			_statusLabel.TextScale = 1.0f;
 			_statusLabel.ProcessMarkup = true;
 			_statusLabel.ColorizeSymbols = true;
 
-			_hostButton = CreateButtonFromTemplate(gui, _panel, template, "GT_HostButton", "HOST LOBBY");
-			_hostButton.RelativePosition = new Vector3(10f, 350f, 0f);
-			_hostButton.Click += OnHostClicked;
+			Debug.Log($"[UI] Status label created: Position={_statusLabel.RelativePosition}, Size={_statusLabel.Width}x{_statusLabel.Height}");
 
-			_inviteButton = CreateButtonFromTemplate(gui, _panel, template, "GT_InviteButton", "INVITE (STEAM)");
-			_inviteButton.RelativePosition = new Vector3(10f, 450f, 0f);
-			_inviteButton.Click += OnInviteClicked;
+			// Layout buttons vertically within the panel
+			float currentY = _statusLabel.RelativePosition.y + _statusLabel.Height + 10f;
+			float buttonWidth = (_panel.Width - 30f) / 2f;
+			float buttonHeight = 40f;
+			float buttonSpacing = 10f;
 
-			_leaveButton = CreateButtonFromTemplate(gui, _panel, template, "GT_LeaveButton", "LEAVE");
-			_leaveButton.RelativePosition = new Vector3(10f, 550f, 0f);
-			_leaveButton.Click += OnLeaveClicked;
+			Debug.Log($"[UI] Button layout: currentY={currentY}, buttonWidth={buttonWidth}, buttonHeight={buttonHeight}, spacing={buttonSpacing}");
 
-			_hostButton.Width = 400f;
-			_inviteButton.Width = 200f;
-			_leaveButton.Width = 180f;
-			_hostButton.Height = 35f;
-			_inviteButton.Height = 35f;
-			_leaveButton.Height = 35f;
+		_hostButton = CreateButtonFromTemplate(gui, _panel, template, "GT_HostButton", "HOST LOBBY", 10f, currentY, buttonWidth, buttonHeight);
+		_hostButton.Click += OnHostClicked;
+		Debug.Log($"[UI] Host button created: Position={_hostButton.RelativePosition}, Size={_hostButton.Width}x{_hostButton.Height}, Visible={_hostButton.IsVisible}");
 
-			Debug.Log("[UI] GungeonTogether foyer panel created.");
+		_inviteButton = CreateButtonFromTemplate(gui, _panel, template, "GT_InviteButton", "INVITE", 10f + buttonWidth + buttonSpacing, currentY, buttonWidth, buttonHeight);
+		_inviteButton.Click += OnInviteClicked;
+		Debug.Log($"[UI] Invite button created: Position={_inviteButton.RelativePosition}, Size={_inviteButton.Width}x{_inviteButton.Height}, Visible={_inviteButton.IsVisible}");
+
+		currentY += buttonHeight + buttonSpacing;
+
+		_leaveButton = CreateButtonFromTemplate(gui, _panel, template, "GT_LeaveButton", "LEAVE", 10f, currentY, buttonWidth, buttonHeight);
 		}
 
 		private static void UpdateStatus()
@@ -169,42 +173,43 @@ namespace GungeonTogether.UI
 			return lbl;
 		}
 
-		private static dfButton CreateButtonFromTemplate(dfGUIManager gui, dfControl parent, dfButton template, string name, string text)
+		private static dfButton CreateButtonFromTemplate(dfGUIManager gui, dfControl parent, dfButton template, string name, string text, float posX, float posY, float width, float height)
 		{
-			dfButton btn;
+			// Create button from scratch instead of cloning to avoid parent hierarchy issues
+			GameObject go = new GameObject(name);
+			go.transform.parent = parent.transform;
+			go.transform.localScale = Vector3.one;
+			go.transform.localPosition = Vector3.zero;
 
+			dfButton btn = go.AddComponent<dfButton>();
+			
+			// Apply styling from template if available
 			if (template != null)
 			{
-				GameObject clone = Object.Instantiate(template.gameObject);
-				clone.name = name;
-				clone.transform.parent = parent.transform;
-				clone.transform.localScale = Vector3.one;
-
-				btn = clone.GetComponent<dfButton>();
-
-				// Remove key navigation to avoid interfering with base menu.
-				var keys = clone.GetComponent<UIKeyControls>();
-				if (keys != null) Object.Destroy(keys);
-
-				btn.IsInteractive = true;
-				btn.IsVisible = true;
-				btn.IsEnabled = true;
-				btn.ModifyLocalizedText(text);
+				btn.Atlas = template.Atlas;
+				btn.Font = template.Font;
+				btn.TextScale = template.TextScale;
+				btn.TextColor = template.TextColor;
+				btn.BackgroundSprite = template.BackgroundSprite;
+				btn.FocusSprite = template.FocusSprite;
+				btn.HoverSprite = template.HoverSprite;
+				btn.PressedSprite = template.PressedSprite;
+				btn.DisabledSprite = template.DisabledSprite;
 			}
-			else
-			{
-				GameObject go = new GameObject(name);
-				go.transform.parent = parent.transform;
-				go.transform.localScale = Vector3.one;
-				btn = go.AddComponent<dfButton>();
-				btn.IsInteractive = true;
-				btn.IsVisible = true;
-				btn.IsEnabled = true;
-				btn.Text = text;
-			}
-
+			
+			btn.Text = text;
 			btn.forceUpperCase = true;
-			btn.ModifyLocalizedText(text.ToUpperInvariant());
+			btn.IsInteractive = true;
+			btn.IsVisible = true;
+			btn.IsEnabled = true;
+			
+			// Set position and size
+			btn.RelativePosition = new Vector3(posX, posY, 0f);
+			btn.Width = width;
+			btn.Height = height;
+			
+			Debug.Log($"[UI] Button '{name}' created from scratch: Position={btn.RelativePosition}, Size={btn.Width}x{btn.Height}");
+			
 			return btn;
 		}
 	}

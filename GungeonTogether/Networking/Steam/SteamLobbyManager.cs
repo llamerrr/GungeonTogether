@@ -8,7 +8,31 @@ namespace GungeonTogether.Networking.Steam
     public class SteamLobbyManager
     {
         private static SteamLobbyManager _instance;
-        public static SteamLobbyManager Instance => _instance ?? (_instance = new SteamLobbyManager());
+        
+        public static SteamLobbyManager Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    try
+                    {
+                        _instance = new SteamLobbyManager();
+                    }
+                    catch (System.TypeLoadException tle)
+                    {
+                        Debug.LogError($"SteamLobbyManager: TypeLoadException: {tle.Message}");
+                        throw;
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Debug.LogError($"SteamLobbyManager: {ex.GetType().Name}: {ex.Message}");
+                        throw;
+                    }
+                }
+                return _instance;
+            }
+        }
 
         public bool IsInitialised { get; private set; }
         public bool IsInLobby { get; private set; }
@@ -21,6 +45,13 @@ namespace GungeonTogether.Networking.Steam
         private object _lobbyCreatedCb;
         private object _lobbyEnterCb;
         private object _richPresenceJoinRequestedCb;
+
+        public SteamLobbyManager()
+        {
+            IsInitialised = false;
+            IsInLobby = false;
+            CurrentLobbyId = 0;
+        }
 
         public void Initialise()
         {
@@ -56,9 +87,18 @@ namespace GungeonTogether.Networking.Steam
             if (!IsInitialised) return;
             try
             {
-                _runCallbacksMethod?.Invoke(null, null);
+                if (_runCallbacksMethod == null)
+                {
+                    Debug.LogWarning("[SteamLobby] RunCallbacks method is NULL");
+                    return;
+                }
+                
+                _runCallbacksMethod.Invoke(null, null);
             }
-            catch { }
+            catch (Exception e)
+            {
+                Debug.LogError("[SteamLobby] Error in Update/RunCallbacks: " + e.Message);
+            }
         }
 
         public void CreateLobby(int maxMembers = 4)
@@ -159,29 +199,60 @@ namespace GungeonTogether.Networking.Steam
                 Type lobbyEnterType = SteamReflectionHelper.LobbyEnterCallbackType;
                 Type richPresenceJoinRequestedType = SteamReflectionHelper.GameJoinRequestedCallbackType;
 
-                if (_steamworksAssembly == null) return;
+                if (_steamworksAssembly == null)
+                {
+                    Debug.LogWarning("[SteamLobby] Steamworks assembly is null, cannot hook callbacks");
+                    return;
+                }
+
+                Debug.Log("[SteamLobby] Attempting to hook callbacks...");
 
                 if (lobbyCreatedType != null)
                 {
+                    Debug.Log("[SteamLobby] Creating LobbyCreated callback...");
                     _lobbyCreatedCb = SteamCallbackRouter.CreateCallback(_steamworksAssembly, lobbyCreatedType, OnLobbyCreated);
+                    Debug.Log("[SteamLobby] LobbyCreated callback created: " + (_lobbyCreatedCb != null ? "SUCCESS" : "FAILED"));
                 }
-                if (lobbyEnterType != null)
+                else
                 {
-                    _lobbyEnterCb = SteamCallbackRouter.CreateCallback(_steamworksAssembly, lobbyEnterType, OnLobbyEnter);
-                }
-                if (richPresenceJoinRequestedType != null)
-                {
-                    _richPresenceJoinRequestedCb = SteamCallbackRouter.CreateCallback(_steamworksAssembly, richPresenceJoinRequestedType, OnRichPresenceJoinRequested);
+                    Debug.LogWarning("[SteamLobby] LobbyCreatedCallbackType is null");
                 }
 
-                if (_lobbyCreatedCb == null && _lobbyEnterCb == null)
+                if (lobbyEnterType != null)
                 {
-                    Debug.LogWarning("[SteamLobby] Could not hook lobby callbacks (Steamworks callback API mismatch?)");
+                    Debug.Log("[SteamLobby] Creating LobbyEnter callback...");
+                    _lobbyEnterCb = SteamCallbackRouter.CreateCallback(_steamworksAssembly, lobbyEnterType, OnLobbyEnter);
+                    Debug.Log("[SteamLobby] LobbyEnter callback created: " + (_lobbyEnterCb != null ? "SUCCESS" : "FAILED"));
+                }
+                else
+                {
+                    Debug.LogWarning("[SteamLobby] LobbyEnterCallbackType is null");
+                }
+
+                if (richPresenceJoinRequestedType != null)
+                {
+                    Debug.Log("[SteamLobby] Creating RichPresenceJoinRequested callback...");
+                    _richPresenceJoinRequestedCb = SteamCallbackRouter.CreateCallback(_steamworksAssembly, richPresenceJoinRequestedType, OnRichPresenceJoinRequested);
+                    Debug.Log("[SteamLobby] RichPresenceJoinRequested callback created: " + (_richPresenceJoinRequestedCb != null ? "SUCCESS" : "FAILED"));
+                }
+                else
+                {
+                    Debug.LogWarning("[SteamLobby] GameJoinRequestedCallbackType is null");
+                }
+
+                if (_lobbyCreatedCb == null && _lobbyEnterCb == null && _richPresenceJoinRequestedCb == null)
+                {
+                    Debug.LogError("[SteamLobby] Could not hook ANY callbacks (Steamworks callback API mismatch?)");
+                }
+                else
+                {
+                    Debug.Log("[SteamLobby] Successfully hooked callbacks");
                 }
             }
             catch (Exception e)
             {
-                Debug.LogWarning("[SteamLobby] Failed to hook callbacks: " + e.Message);
+                Debug.LogError("[SteamLobby] Failed to hook callbacks: " + e.Message);
+                Debug.LogError("[SteamLobby] Stack trace: " + e.StackTrace);
             }
         }
 
@@ -198,7 +269,6 @@ namespace GungeonTogether.Networking.Steam
                     return;
                 }
 
-                // 1 == OK in EResult, but we keep it permissive since versions vary
                 Debug.Log("[SteamLobby] Lobby created: " + lobbyId + " result=" + result);
 
                 CurrentLobbyId = lobbyId;
@@ -212,21 +282,31 @@ namespace GungeonTogether.Networking.Steam
                         object lobbySteamId = SteamReflectionHelper.CreateCSteamID(lobbyId);
                         SteamReflectionHelper.SetLobbyDataMethod.Invoke(null, new object[] { lobbySteamId, "gt_host", SteamReflectionHelper.GetLocalSteamId().ToString() });
                         SteamReflectionHelper.SetLobbyDataMethod.Invoke(null, new object[] { lobbySteamId, "gt_proto", Networking.NetworkManager.ProtocolVersion.ToString() });
+                        Debug.Log("[SteamLobby] Lobby data set");
                     }
 
                     if (SteamReflectionHelper.SetLobbyJoinableMethod != null)
                     {
                         object lobbySteamId = SteamReflectionHelper.CreateCSteamID(lobbyId);
                         SteamReflectionHelper.SetLobbyJoinableMethod.Invoke(null, new object[] { lobbySteamId, true });
+                        Debug.Log("[SteamLobby] Lobby joinable set");
                     }
 
                     if (SteamReflectionHelper.SetRichPresenceMethod != null)
                     {
                         // Common pattern: Rich presence key "connect" set to lobby id
                         SteamReflectionHelper.SetRichPresenceMethod.Invoke(null, new object[] { "connect", lobbyId.ToString() });
+                        Debug.Log("[SteamLobby] Rich presence set to connect=" + lobbyId.ToString());
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[SteamLobby] SetRichPresenceMethod is NULL!");
                     }
                 }
-                catch { }
+                catch (Exception richPresenceEx)
+                {
+                    Debug.LogError("[SteamLobby] Error setting rich presence: " + richPresenceEx.Message);
+                }
 
                 // Start hosting session at networking layer
                 Networking.NetworkManager.Instance.StartHosting();
@@ -276,10 +356,15 @@ namespace GungeonTogether.Networking.Steam
 
         private void OnRichPresenceJoinRequested(object callbackData)
         {
+            Debug.Log("[SteamLobby] ========== OnRichPresenceJoinRequested CALLBACK FIRED ==========");
             try
             {
+                Debug.Log("[SteamLobby] Callback data type: " + (callbackData != null ? callbackData.GetType().Name : "NULL"));
+                
                 // GameRichPresenceJoinRequested_t typically has a string connect field named m_rgchConnect
                 string connect = ReadStringField(callbackData, "m_rgchConnect", "m_connect", "m_rgchConnectString");
+
+                Debug.Log("[SteamLobby] Connect string: " + (string.IsNullOrEmpty(connect) ? "(empty or null)" : connect));
 
                 if (string.IsNullOrEmpty(connect))
                 {
@@ -290,15 +375,20 @@ namespace GungeonTogether.Networking.Steam
                 ulong lobbyId;
                 if (TryExtractFirstUlong(connect, out lobbyId) && lobbyId != 0)
                 {
-                    Debug.Log("[SteamLobby] Join requested via rich presence. lobby=" + lobbyId);
+                    Debug.Log("[SteamLobby] Join requested via rich presence. Extracted lobby id: " + lobbyId);
                     JoinLobby(lobbyId);
                 }
                 else
                 {
-                    Debug.Log("[SteamLobby] Join requested but couldn't parse lobby id from: " + connect);
+                    Debug.Log("[SteamLobby] Join requested but couldn't parse lobby id from connect string: " + connect);
                 }
             }
-            catch { }
+            catch (Exception e)
+            {
+                Debug.LogError("[SteamLobby] OnRichPresenceJoinRequested error: " + e.Message);
+                Debug.LogError("[SteamLobby] Stack trace: " + e.StackTrace);
+            }
+            Debug.Log("[SteamLobby] ========== OnRichPresenceJoinRequested END ==========");
         }
 
         private object GetLobbyTypeEnum(string name)

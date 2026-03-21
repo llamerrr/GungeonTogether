@@ -51,15 +51,8 @@ if (Test-Path $PluginsPath) {
         Copy-Item $SourceDLL $PluginsPath -Force
         Write-Host "Deployed GungeonTogether.dll" -ForegroundColor Green
     } else {
-        # Fallback to net46 if net35 not found (just in case)
-        $SourceDLL = "bin\$Configuration\net46\GungeonTogether.dll"
-        if (Test-Path $SourceDLL) {
-            Copy-Item $SourceDLL $PluginsPath -Force
-            Write-Host "Deployed GungeonTogether.dll (net46)" -ForegroundColor Green
-        } else {
-            Write-Host "Source DLL not found in net35 or net46: $SourceDLL" -ForegroundColor Red
-            exit 1
-        }
+        Write-Host "Source DLL not found: $SourceDLL" -ForegroundColor Red
+        exit 1
     }
 } else {
     Write-Host "BepInEx plugins folder not found: $PluginsPath" -ForegroundColor Red

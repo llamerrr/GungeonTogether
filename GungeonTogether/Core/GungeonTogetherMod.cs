@@ -17,20 +17,43 @@ namespace GungeonTogether.Core
             Instance = this;
             Logger.LogInfo("Gungeon Together started!");
             
-            // Initialise Logging
-            GungeonTogether.Systems.Logging.Logger.Initialise(base.Logger);
+            try
+            {
+                // Initialise Logging
+                GungeonTogether.Systems.Logging.Logger.Initialise(base.Logger);
+                Logger.LogInfo("Logging initialized.");
 
-            // Initialise Networking
-            NetworkManager.Instance.Initialise();
+                // Initialise Networking
+                Logger.LogInfo("Initializing NetworkManager...");
+                NetworkManager.Instance.Initialise();
+                Logger.LogInfo("NetworkManager initialized.");
 
-            // Initialise UI
-            UIManager.Initialise();
+                // Initialise UI
+                Logger.LogInfo("Initializing UIManager...");
+                UIManager.Initialise();
+                Logger.LogInfo("UIManager initialized.");
+                
+                Logger.LogInfo("Gungeon Together fully initialized!");
+            }
+            catch (System.Exception ex)
+            {
+                Logger.LogError($"Exception during initialization: {ex.GetType().Name}: {ex.Message}");
+                Logger.LogError($"Stack trace: {ex.StackTrace}");
+                throw;
+            }
         }
 
         private void Update()
         {
-            NetworkManager.Instance.Update();
-            UIManager.Update();
+            try
+            {
+                NetworkManager.Instance.Update();
+                UIManager.Update();
+            }
+            catch (System.Exception ex)
+            {
+                Logger.LogError($"Error in Update: {ex.Message}");
+            }
         }
     }
 }

@@ -32,20 +32,33 @@ namespace GungeonTogether.Networking
 
         public void Initialise()
         {
-            _p2p = SteamP2PManager.Instance;
-            _p2p.Initialise();
-            _p2p.OnPacketReceived += HandlePacket;
+            try
+            {
+                Debug.Log("NetworkManager: Initializing P2P Manager...");
+                _p2p = SteamP2PManager.Instance;
+                _p2p.Initialise();
+                _p2p.OnPacketReceived += HandlePacket;
+                Debug.Log("NetworkManager: P2P Manager initialized.");
 
-            _lobby = SteamLobbyManager.Instance;
-            _lobby.Initialise();
-            
-            Debug.Log("NetworkManager Initialised.");
+                Debug.Log("NetworkManager: Initializing Lobby Manager...");
+                _lobby = SteamLobbyManager.Instance;
+                _lobby.Initialise();
+                Debug.Log("NetworkManager: Lobby Manager initialized.");
+                
+                Debug.Log("NetworkManager Initialised.");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"NetworkManager: Exception during initialization: {ex.GetType().Name}: {ex.Message}");
+                Debug.LogError($"NetworkManager: Stack trace: {ex.StackTrace}");
+                throw;
+            }
         }
 
         public void Update()
         {
             _lobby?.Update();
-            _p2p.Update();
+            _p2p?.Update();
             CurrentRole?.Update();
         }
 
