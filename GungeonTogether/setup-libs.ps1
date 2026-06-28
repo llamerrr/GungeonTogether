@@ -1,5 +1,6 @@
 param(
-    [string]$GamePath = "C:\Program Files (x86)\Steam\steamapps\common\Enter the Gungeon"
+    [string]$GamePath = "C:\Program Files (x86)\Steam\steamapps\common\Enter the Gungeon",
+    [string]$BepInExCorePath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,11 +21,20 @@ $libs = Join-Path $projectRoot "Libs"
 New-Item -ItemType Directory -Force -Path $libs | Out-Null
 
 $managed = Resolve-ManagedPath $GamePath
-$bepCore = Join-Path $GamePath "BepInEx\core"
 
-Write-Host "GamePath:   $GamePath" -ForegroundColor Cyan
-Write-Host "Managed:    $managed" -ForegroundColor Cyan
-Write-Host "BepInExCore:$bepCore" -ForegroundColor Cyan
+# Fallback behavior: if no explicit BepInEx path was passed, construct the standard Steam path
+if ([string]::IsNullOrEmpty($BepInExCorePath)) {
+    $bepCore = Join-Path $GamePath "BepInEx\core"
+    $bepRootSearchPath = Join-Path $GamePath "BepInEx"
+} else {
+    $bepCore = $BepInExCorePath
+    # For optional plugins like MTG/Json, search the parent profile directory instead of Steam's BepInEx
+    $bepRootSearchPath = Split-Path -Parent $bepCore
+}
+
+Write-Host "GamePath:    $GamePath" -ForegroundColor Cyan
+Write-Host "Managed:     $managed" -ForegroundColor Cyan
+Write-Host "BepInExCore: $bepCore" -ForegroundColor Cyan
 
 function Copy-IfExists([string]$from, [string]$toName) {
     if (Test-Path $from) {
@@ -53,8 +63,8 @@ Copy-IfExists (Join-Path $managed "UnityEngine.UIModule.dll") "UnityEngine.UIMod
 Copy-IfExists (Join-Path $managed "UnityEngine.UI.dll") "UnityEngine.UI.dll"
 
 # Optional: ModTheGungeonAPI + Newtonsoft.Json (best-effort search)
-$mtg = Get-ChildItem -Path (Join-Path $GamePath "BepInEx") -Filter "ModTheGungeonAPI.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+$mtg = Get-ChildItem -Path $bepRootSearchPath -Filter "ModTheGungeonAPI.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($mtg) { Copy-Item $mtg.FullName (Join-Path $libs "ModTheGungeonAPI.dll") -Force; Write-Host "Copied ModTheGungeonAPI.dll" -ForegroundColor Green }
 
-$json = Get-ChildItem -Path (Join-Path $GamePath "BepInEx") -Filter "Newtonsoft.Json.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+$json = Get-ChildItem -Path $bepRootSearchPath -Filter "Newtonsoft.Json.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($json) { Copy-Item $json.FullName (Join-Path $libs "Newtonsoft.Json.dll") -Force; Write-Host "Copied Newtonsoft.Json.dll" -ForegroundColor Green }
