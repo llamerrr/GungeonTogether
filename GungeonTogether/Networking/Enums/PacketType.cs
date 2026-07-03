@@ -10,5 +10,9 @@ namespace GungeonTogether.Networking.Enums
         Disconnect = 5,
         PlayerJoin = 6,
         PlayerLeave = 7,
+        RoomChange = 8,
+        EnemySpawn = 9,
+        EnemyState = 10,
+        EnemyDeath = 11,
     }
 }

@@ -9,6 +9,7 @@ using GungeonTogether.Networking.Serialization;
 using GungeonTogether.Networking.Steam;
 using GungeonTogether.Networking.Packets;
 using Debug = GungeonTogether.Systems.Logging.Debug;
+using static ETGMod;
 
 namespace GungeonTogether.Networking
 {
@@ -172,6 +173,46 @@ namespace GungeonTogether.Networking
                         // Host should also remove from its list of connected clients
                         Host.HandleClientDisconnect(leavePacket.PlayerId);
                     }
+                    break;
+                case PacketType.RoomChange:
+                    var roomChange = (RoomChangePacket)packet;
+                    // Client: clear old remote entities and prepare for new room
+                    NetworkEntityManager.Instance.Clear();
+                    // Possibly also call LoadRoom on client (but we'll rely on enemy spawns)
+                    break;
+
+                case PacketType.EnemySpawn:
+                    var spawn = (EnemySpawnPacket)packet;
+                    // Client: spawn enemy prefab
+                    GameObject enemyPrefab = Resources.Load<GameObject>(spawn.PrefabName); // or use a prefab registry
+                    if (enemyPrefab != null)
+                    {
+                        GameObject enemyGO = UnityEngine.Object.Instantiate(enemyPrefab, spawn.Position, Quaternion.Euler(0, 0, spawn.Rotation));
+                        // Set health via reflection or component
+                        // Store in NetworkEntityManager for future updates
+                        NetworkEntityManager.Instance.AddRemote(spawn.EnemyId, enemyGO);
+                    }
+                    break;
+
+                case PacketType.EnemyState:
+                    var state = (EnemyStatePacket)packet;
+                    var remoteGO = NetworkEntityManager.Instance.GetRemote(state.EnemyId);
+                    if (remoteGO != null)
+                    {
+                        remoteGO.transform.position = state.Position;
+                        remoteGO.transform.rotation = Quaternion.Euler(0, 0, state.Rotation);
+                        // Update health and AI state via reflection on the remote enemy component
+                        var enemyComp = remoteGO.GetComponent<AIActor>();
+                        if (enemyComp != null)
+                        {
+                            // Set health property
+                        }
+                    }
+                    break;
+
+                case PacketType.EnemyDeath:
+                    var death = (EnemyDeathPacket)packet;
+                    NetworkEntityManager.Instance.RemoveRemote(death.EnemyId);
                     break;
             }
         }

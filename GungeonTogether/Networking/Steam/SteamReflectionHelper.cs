@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using Dungeonator;
 using GungeonTogether.Systems.Logging;
+using HutongGames.PlayMaker.Actions;
+using static ETGMod;
 
 namespace GungeonTogether.Networking.Steam
 {
@@ -408,21 +411,13 @@ namespace GungeonTogether.Networking.Steam
                             }
                         }
                     }
-                    else
-                    {
-                        // Only log warning once
-                        if (!steamIdCached)
-                        {
-                            Debug.LogWarning("[ETGSteamP2P] GetSteamID method returned null");
-                        }
-                    }
                 }
                 else
                 {
                     // Only log warning once
                     if (!steamIdCached)
                     {
-                        Debug.LogWarning("[ETGSteamP2P] GetSteamID method not found");
+                        Debug.LogWarning("[ETGSteamP2P] GetSteamID method returned null");
                     }
                 }
 
@@ -718,5 +713,54 @@ namespace GungeonTogether.Networking.Steam
                 return 0;
             }
         }
+        #region room and enemy data
+        public static Type GameManagerType => Type.GetType("GameManager, Assembly-CSharp");
+        public static Type RoomHandlerType => Type.GetType("RoomHandler, Assembly-CSharp");
+        public static Type EnemyType => Type.GetType("AIActor, Assembly-CSharp"); // adjust
+
+        private static PropertyInfo _currentRoomProperty;
+        private static FieldInfo _activeEnemiesField;
+        private static PropertyInfo _healthProperty;
+
+        public static void InitGameReflection()
+        {
+            var roomHandlerType = RoomHandlerType;
+            if (roomHandlerType != null)
+            {
+                _currentRoomProperty = roomHandlerType.GetProperty("CurrentRoom", BindingFlags.Public | BindingFlags.Static);
+                _activeEnemiesField = roomHandlerType.GetField("activeEnemies", BindingFlags.Public | BindingFlags.Instance);
+            }
+            var enemyType = EnemyType;
+            if (enemyType != null)
+            {
+                _healthProperty = enemyType.GetProperty("Health", BindingFlags.Public | BindingFlags.Instance);
+                // Position might be from transform
+            }
+        }
+        public static RoomHandler GetCurrentRoomHandler()
+        {
+            if (_currentRoomProperty == null)
+            {
+                _currentRoomProperty = GameManagerType?.GetProperty(
+                    "CurrentRoom",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            }
+
+            var gameManager = GameManagerType?.GetProperty("Instance")?.GetValue(null, null);
+            return _currentRoomProperty?.GetValue(gameManager, null) as RoomHandler;
+        }
+
+        public static List<AIActor> GetActiveEnemies()
+        {
+            var room = GetCurrentRoomHandler();
+            if (room == null) return new List<AIActor>();
+            return _activeEnemiesField?.GetValue(room) as List<AIActor> ?? new List<AIActor>();
+        }
+
+        public static int GetEnemyHealth(AIActor enemy)
+        {
+            return (int)(_healthProperty?.GetValue(enemy, null) ?? 0);
+        }
+        #endregion
     }
 }

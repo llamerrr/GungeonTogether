@@ -17,7 +17,10 @@ namespace GungeonTogether.Networking.Serialization
             { PacketType.ConnectionRejected, typeof(ConnectionRejectedPacket) },
             { PacketType.PlayerJoin, typeof(PlayerJoinPacket) },
             { PacketType.PlayerLeave, typeof(PlayerLeavePacket) },
-
+            { PacketType.RoomChange, typeof(RoomChangePacket) },
+            { PacketType.EnemySpawn, typeof(EnemySpawnPacket) },
+            { PacketType.EnemyState, typeof(EnemyStatePacket) },
+            { PacketType.EnemyDeath, typeof(EnemyDeathPacket) },
         };
 
         public static INetworkPacket Create(PacketType type)
