@@ -85,6 +85,7 @@ namespace GungeonTogether.Networking.Steam
                 Debug.Log($"  LobbyDataUpdateCallback: {lobbyDataUpdateCallbackType?.FullName ?? "NOT FOUND"}");
                 Debug.Log($"  GameLobbyJoinRequestedCallback: {gameLobbyJoinRequestedCallbackType?.FullName ?? "NOT FOUND"}");
 
+
                 // Cache frequently used methods using proper Steamworks.NET method names
                 CacheSteamUserMethods();
                 CacheSteamNetworkingMethods();
@@ -232,7 +233,21 @@ namespace GungeonTogether.Networking.Steam
                 setLobbyJoinableMethod = steamMatchmakingType.GetMethod("SetLobbyJoinable", BindingFlags.Public | BindingFlags.Static);
                 inviteUserToLobbyMethod = steamMatchmakingType.GetMethod("InviteUserToLobby", BindingFlags.Public | BindingFlags.Static);
                 getLobbyOwnerMethod = steamMatchmakingType.GetMethod("GetLobbyOwner", BindingFlags.Public | BindingFlags.Static);
+                getLobbyMemberCountMethod = steamMatchmakingType.GetMethod("GetNumLobbyMembers", BindingFlags.Public | BindingFlags.Static);
+                getLobbyMemberByIndexMethod = steamMatchmakingType.GetMethod("GetLobbyMemberByIndex", BindingFlags.Public | BindingFlags.Static);
             }
+        }
+
+        public static string GetPlayerName(ulong steamId)
+        {
+            if (getFriendPersonaNameMethod == null) return steamId.ToString();
+            try
+            {
+                object cSteamId = ConvertToCSteamID(steamId);
+                object result = getFriendPersonaNameMethod.Invoke(null, new object[] { cSteamId });
+                return result?.ToString() ?? steamId.ToString();
+            }
+            catch { return steamId.ToString(); }
         }
 
         /// <summary>

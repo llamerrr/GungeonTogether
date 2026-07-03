@@ -14,7 +14,10 @@ namespace GungeonTogether.Networking.Serialization
             { PacketType.ConnectionRequest, typeof(ConnectionRequestPacket) },
             { PacketType.ConnectionAccepted, typeof(ConnectionAcceptedPacket) },
             { PacketType.Disconnect, typeof(DisconnectPacket) },
-            { PacketType.ConnectionRejected, typeof(ConnectionRejectedPacket) }
+            { PacketType.ConnectionRejected, typeof(ConnectionRejectedPacket) },
+            { PacketType.PlayerJoin, typeof(PlayerJoinPacket) },
+            { PacketType.PlayerLeave, typeof(PlayerLeavePacket) },
+
         };
 
         public static INetworkPacket Create(PacketType type)

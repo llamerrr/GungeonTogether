@@ -7,6 +7,8 @@ namespace GungeonTogether.Networking.Enums
         ConnectionRequest = 2,
         ConnectionAccepted = 3,
         ConnectionRejected = 4,
-        Disconnect = 5
+        Disconnect = 5,
+        PlayerJoin = 6,
+        PlayerLeave = 7,
     }
 }

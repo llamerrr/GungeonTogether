@@ -3,6 +3,7 @@ using GungeonTogether.Networking;
 using GungeonTogether.Networking.Steam;
 using GungeonTogether.Systems.Logging;
 using Debug = GungeonTogether.Systems.Logging.Debug;
+using System.Collections.Generic;
 
 namespace GungeonTogether.UI
 {
@@ -14,6 +15,11 @@ namespace GungeonTogether.UI
 		private static dfButton _hostButton;
 		private static dfButton _inviteButton;
 		private static dfButton _leaveButton;
+		
+		private static dfPanel _playerListPanel;
+		private static dfScrollPanel _playerScrollPanel;
+		private static List<dfLabel> _playerLabels = new List<dfLabel>();
+		private static bool _subscribed = false;
 
 		public static void Initialise()
 		{
@@ -34,6 +40,7 @@ namespace GungeonTogether.UI
 
 				EnsureBuilt();
 				UpdateStatus();
+				SubscribeEvents();
 			}
 			catch { }
 		}
@@ -65,6 +72,10 @@ namespace GungeonTogether.UI
 			_root.transform.localScale = Vector3.one;
 
 			_panel = _root.AddComponent<dfPanel>();
+			if (gui != null)
+			{
+				gui.AddControl(_panel);
+			}
 			_panel.Anchor = dfAnchorStyle.Top | dfAnchorStyle.Left;
 			_panel.RelativePosition = new Vector3(25f, 25f, 0f);
 			_panel.Width = 420f;
@@ -111,7 +122,61 @@ namespace GungeonTogether.UI
 
 		_leaveButton = CreateButtonFromTemplate(gui, _panel, template, "GT_LeaveButton", "LEAVE", 10f, currentY, buttonWidth, buttonHeight);
 		_leaveButton.Click += OnLeaveClicked;
+
+			// Player list panel (inside the main panel)
+			_playerListPanel = new dfPanel();
+			_panel.AddControl(_playerListPanel);
+			_playerListPanel.RelativePosition = new Vector3(10f, 130f, 0f);
+			_playerListPanel.Width = _panel.Width - 20f;
+			_playerListPanel.Height = 120f;
+			_playerListPanel.Atlas = template?.Atlas;
+			_playerListPanel.BackgroundSprite = "blank";
+			_playerListPanel.Color = new Color32(0, 0, 0, 150);
+
+			// Scrollable area
+			_playerScrollPanel = new dfScrollPanel();
+			_playerListPanel.AddControl(_playerScrollPanel);
+			_playerScrollPanel.RelativePosition = Vector3.zero;
+			_playerScrollPanel.Width = _playerListPanel.Width;
+			_playerScrollPanel.Height = _playerListPanel.Height;
 		}
+
+		private static void SubscribeEvents()
+		{
+			if (_subscribed) return;
+			SteamLobbyManager.Instance.OnPlayerListChanged += RefreshPlayerList;
+			_subscribed = true;
+		}
+
+		private static void RefreshPlayerList()
+		{
+			if (_playerScrollPanel == null) return;
+
+			// Clear old labels
+			foreach (var label in _playerLabels)
+				UnityEngine.Object.Destroy(label.gameObject);
+			_playerLabels.Clear();
+
+			var members = SteamLobbyManager.Instance.GetLobbyMembers();
+			float yOffset = 0f;
+			float labelHeight = 20f;
+			foreach (var id in members)
+			{
+				string name = SteamReflectionHelper.GetPlayerName(id);
+				var label = CreateLabel(null, _playerScrollPanel, null);
+				label.Text = name;
+				label.RelativePosition = new Vector3(5f, yOffset, 0f);
+				label.Width = _playerScrollPanel.Width - 10f;
+				label.Height = labelHeight;
+				label.TextScale = 0.8f;
+				label.Color = Color.white;
+				label.VerticalAlignment = dfVerticalAlignment.Middle;
+				_playerLabels.Add(label);
+				yOffset += labelHeight + 2f;
+			}
+		}
+
+
 
 		private static void UpdateStatus()
 		{
@@ -157,9 +222,13 @@ namespace GungeonTogether.UI
 		private static dfLabel CreateLabel(dfGUIManager gui, dfControl parent, dfButton template)
 		{
 			GameObject go = new GameObject("GT_StatusLabel");
-			go.transform.parent = parent.transform;
+			go.transform.parent = parent != null ? parent.transform : null;
 			go.transform.localScale = Vector3.one;
 			var lbl = go.AddComponent<dfLabel>();
+			if (parent != null)
+			{
+				parent.AddControl(lbl);
+			}
 			if (template != null)
 			{
 				lbl.Atlas = template.Atlas;
@@ -180,11 +249,15 @@ namespace GungeonTogether.UI
 		{
 			// Create button from scratch instead of cloning to avoid parent hierarchy issues
 			GameObject go = new GameObject(name);
-			go.transform.parent = parent.transform;
+			go.transform.parent = parent != null ? parent.transform : null;
 			go.transform.localScale = Vector3.one;
 			go.transform.localPosition = Vector3.zero;
 
 			dfButton btn = go.AddComponent<dfButton>();
+			if (parent != null)
+			{
+				parent.AddControl(btn);
+			}
 			
 			// Apply styling from template if available
 			if (template != null)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using GungeonTogether.Systems.Logging;
 using Debug = GungeonTogether.Systems.Logging.Debug;
@@ -556,6 +557,37 @@ namespace GungeonTogether.Networking.Steam
             return ulong.TryParse(digits, out value);
         }
         private object _lobbyJoinRequestedCb;
-    }
 
+        public event Action OnPlayerListChanged;
+
+        public List<ulong> GetLobbyMembers()
+        {
+            var members = new List<ulong>();
+            if (!IsInLobby || CurrentLobbyId == 0) return members;
+            try
+            {
+                var lobbyIdObj = SteamReflectionHelper.CreateCSteamID(CurrentLobbyId);
+                int count = (int)(SteamReflectionHelper.GetLobbyMemberCountMethod?.Invoke(null, new object[] { lobbyIdObj }) ?? 0);
+                for (int i = 0; i < count; i++)
+                {
+                    object member = SteamReflectionHelper.GetLobbyMemberByIndexMethod?.Invoke(null, new object[] { lobbyIdObj, i });
+                    if (member != null)
+                    {
+                        ulong id = ExtractSteamId(member);
+                        if (id != 0) members.Add(id);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[SteamLobby] GetLobbyMembers error: {e.Message}");
+            }
+            return members;
+        }
+
+        private void UpdatePlayerList()
+        {
+            OnPlayerListChanged?.Invoke();
+        }
+    }
 }

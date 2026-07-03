@@ -103,8 +103,24 @@ namespace GungeonTogether.Networking
                     ProtocolVersion = NetworkManager.ProtocolVersion
                 };
                 SendPacket(playerId, accept, reliable: true);
-                // send initial state...
+                // send initial state..
+
+                // Spawn for host's own view
+                Vector2 spawnPos = new Vector2(UnityEngine.Random.Range(-2f, 2f), UnityEngine.Random.Range(-2f, 2f)); // or get from game
+                PlayerManager.Instance.SpawnRemotePlayer(playerId, spawnPos, 0f);
+
+                // Broadcast to all clients (including the new one)
+                var joinPacket = new PlayerJoinPacket
+                {
+                    PlayerId = playerId,
+                    Position = spawnPos,
+                    Rotation = 0f
+                };
+                Broadcast(joinPacket, excludeId: 0, reliable: true);
             }
+            
+
+            
         }
 
         public void HandlePlayerPosition(ulong senderId, PlayerPositionPacket packet)
@@ -149,4 +165,5 @@ namespace GungeonTogether.Networking
             }
         }
     }
+
 }

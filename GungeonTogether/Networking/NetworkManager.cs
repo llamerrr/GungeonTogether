@@ -46,6 +46,7 @@ namespace GungeonTogether.Networking
                 Debug.Log("NetworkManager: Lobby Manager initialized.");
                 
                 Debug.Log("NetworkManager Initialised.");
+                PlayerManager.Instance.gameObject.SetActive(true);
             }
             catch (System.Exception ex)
             {
@@ -138,14 +139,39 @@ namespace GungeonTogether.Networking
                     break;
                 
                 case PacketType.PlayerPosition:
-                    if (IsHost)
+                    var posPacket = (PlayerPositionPacket)packet;
+                    if (IsClient && posPacket.PlayerId != SteamReflectionHelper.GetLocalSteamId())
                     {
-                        Host.HandlePlayerPosition(senderId, (PlayerPositionPacket)packet);
+                        PlayerManager.Instance.UpdateRemotePlayer(posPacket.PlayerId, posPacket.Position, posPacket.Rotation);
+                    }
+                    else if (IsHost)
+                    {
+                        Host.HandlePlayerPosition(senderId, posPacket);
                     }
                     break;
                 case PacketType.Disconnect:
                     if (IsHost)
                         Host.HandleClientDisconnect(senderId);
+                    break;
+                case PacketType.PlayerJoin:
+                    var joinPacket = (PlayerJoinPacket)packet;
+                    if (IsClient && joinPacket.PlayerId != SteamReflectionHelper.GetLocalSteamId())
+                    {
+                        PlayerManager.Instance.SpawnRemotePlayer(joinPacket.PlayerId, joinPacket.Position, joinPacket.Rotation);
+                    }
+                    break;
+
+                case PacketType.PlayerLeave:
+                    var leavePacket = (PlayerLeavePacket)packet;
+                    if (IsClient)
+                    {
+                        PlayerManager.Instance.RemoveRemotePlayer(leavePacket.PlayerId);
+                    }
+                    else if (IsHost)
+                    {
+                        // Host should also remove from its list of connected clients
+                        Host.HandleClientDisconnect(leavePacket.PlayerId);
+                    }
                     break;
             }
         }
