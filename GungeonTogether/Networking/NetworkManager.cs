@@ -49,7 +49,7 @@ namespace GungeonTogether.Networking
                 
                 Debug.Log("NetworkManager Initialised.");
                 PlayerManager.Instance.gameObject.SetActive(true);
-                ETGReflectionHelper.InitGameReflection();
+                ETGReflectionHelper.Initialise();
             }
             catch (System.Exception ex)
             {
@@ -223,6 +223,14 @@ namespace GungeonTogether.Networking
                     {
                         WorldSyncManager.Instance.ApplyWorldState(world);
                     }
+                    break;
+                case PacketType.PlayerState:
+                    var playerState = (PlayerStatePacket)packet;
+                    if (IsClient) PlayerSyncManager.Instance.ApplyPlayerState(playerState);
+                    break;
+                case PacketType.LoadingState:
+                    var load = (LoadingStatePacket)packet;
+                    if (IsClient) LoadingSyncManager.Instance.ApplyLoadingState(load.IsLoading);
                     break;
             }
         }

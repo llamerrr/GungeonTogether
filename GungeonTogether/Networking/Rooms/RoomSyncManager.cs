@@ -40,7 +40,10 @@ public class RoomSyncManager : MonoBehaviour
         var room = ETGReflectionHelper.GetCurrentRoomHandler();
         if (room == null) return;
 
-        string roomName = room.GetRoomName();
+        var roomHandler = room as RoomHandler;
+        if (roomHandler == null) return;
+
+        string roomName = roomHandler.GetRoomName();
 
         if (roomName != _currentRoomName)
         {
@@ -49,7 +52,7 @@ public class RoomSyncManager : MonoBehaviour
             NetworkManager.Instance.Host.Broadcast(new RoomChangePacket { RoomName = roomName });
 
             // Spawn enemies in this room and broadcast
-            SpawnAndBroadcastEnemies((RoomHandler)room);
+            SpawnAndBroadcastEnemies(roomHandler);
         }
 
         // Sync enemy states periodically
@@ -65,12 +68,15 @@ public class RoomSyncManager : MonoBehaviour
         var enemies = ETGReflectionHelper.GetActiveEnemies();
         foreach (var enemy in enemies)
         {
+            var enemyComponent = enemy as Component;
+            if (enemyComponent == null) continue;
+
             // Assign a network ID if not already assigned
-            int id = GetOrAssignEnemyId(enemy);
-            Vector3 pos = enemy.transform.position;
-            float rot = enemy.transform.eulerAngles.z;
-            int health = ETGReflectionHelper.GetEnemyHealth(enemy);
-            string prefabName = enemy.name; // or a more robust type identifier
+            int id = GetOrAssignEnemyId(enemyComponent);
+            Vector3 pos = enemyComponent.transform.position;
+            float rot = enemyComponent.transform.eulerAngles.z;
+            int health = ETGReflectionHelper.GetEnemyHealth(enemyComponent);
+            string prefabName = enemyComponent.name; // or a more robust type identifier
 
             var packet = new EnemySpawnPacket
             {
@@ -89,11 +95,14 @@ public class RoomSyncManager : MonoBehaviour
         var enemies = ETGReflectionHelper.GetActiveEnemies();
         foreach (var enemy in enemies)
         {
-            int id = GetOrAssignEnemyId(enemy);
-            Vector3 pos = enemy.transform.position;
-            float rot = enemy.transform.eulerAngles.z;
-            int health = ETGReflectionHelper.GetEnemyHealth(enemy);
-            int aiState = GetEnemyAIState(enemy); // implement reflection
+            var enemyComponent = enemy as Component;
+            if (enemyComponent == null) continue;
+
+            int id = GetOrAssignEnemyId(enemyComponent);
+            Vector3 pos = enemyComponent.transform.position;
+            float rot = enemyComponent.transform.eulerAngles.z;
+            int health = ETGReflectionHelper.GetEnemyHealth(enemyComponent);
+            int aiState = GetEnemyAIState(enemyComponent); // implement reflection
 
             var packet = new EnemyStatePacket
             {
@@ -107,9 +116,9 @@ public class RoomSyncManager : MonoBehaviour
         }
     }
 
-    private Dictionary<object, int> _enemyIdMap = new Dictionary<object, int>();
+    private Dictionary<Component, int> _enemyIdMap = new Dictionary<Component, int>();
 
-    private int GetOrAssignEnemyId(object enemy)
+    private int GetOrAssignEnemyId(Component enemy)
     {
         if (_enemyIdMap.TryGetValue(enemy, out int id)) return id;
         id = NetworkEntityManager.Instance.AssignId(enemy);

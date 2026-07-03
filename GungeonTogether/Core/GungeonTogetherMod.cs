@@ -39,6 +39,8 @@ namespace GungeonTogether.Core
                 //initialise room sync
                 RoomSyncManager.Instance.gameObject.SetActive(true);
                 WorldSyncManager.Instance.gameObject.SetActive(true);
+                PlayerSyncManager.Instance.gameObject.SetActive(true);
+                LoadingSyncManager.Instance.gameObject.SetActive(true);
                 
             }
             catch (System.Exception ex)

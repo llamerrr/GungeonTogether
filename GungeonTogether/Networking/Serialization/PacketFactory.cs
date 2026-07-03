@@ -22,6 +22,8 @@ namespace GungeonTogether.Networking.Serialization
             { PacketType.EnemyState, typeof(EnemyStatePacket) },
             { PacketType.EnemyDeath, typeof(EnemyDeathPacket) },
             { PacketType.WorldState, typeof(WorldStatePacket) },
+            { PacketType.PlayerState, typeof(PlayerStatePacket) },
+            { PacketType.LoadingState, typeof(LoadingStatePacket) },
         };
 
         public static INetworkPacket Create(PacketType type)

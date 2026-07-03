@@ -30,6 +30,17 @@ namespace GungeonTogether.Networking
         private static FieldInfo _aiStateField;
         private static FieldInfo _isDeadField;
 
+        //player
+        private static PropertyInfo _playerHealthProperty;
+        private static PropertyInfo _maxHealthProperty;
+        private static PropertyInfo _armorProperty;
+        private static PropertyInfo _maxArmorProperty;
+        private static FieldInfo _currentGunField;
+        private static FieldInfo _gunInventoryField;
+        private static PropertyInfo _currentAmmoProperty;
+        private static PropertyInfo _maxAmmoProperty;
+        private static PropertyInfo _activeItemProperty;
+
         private static bool _initialised;
 
         public static void Initialise()
@@ -86,6 +97,20 @@ namespace GungeonTogether.Networking
                         _isDeadField = _enemyControllerType.GetField("_dead", BindingFlags.NonPublic | BindingFlags.Instance);
                 }
 
+                var playerControllerType = _gameAssembly.GetType("PlayerController");
+                if (playerControllerType != null)
+                {
+                    _playerHealthProperty = playerControllerType.GetProperty("Health", BindingFlags.Public | BindingFlags.Instance);
+                    _maxHealthProperty = playerControllerType.GetProperty("MaxHealth", BindingFlags.Public | BindingFlags.Instance);
+                    _armorProperty = playerControllerType.GetProperty("Armor", BindingFlags.Public | BindingFlags.Instance);
+                    _maxArmorProperty = playerControllerType.GetProperty("MaxArmor", BindingFlags.Public | BindingFlags.Instance);
+                    _currentGunField = playerControllerType.GetField("CurrentGun", BindingFlags.Public | BindingFlags.Instance);
+                    _gunInventoryField = playerControllerType.GetField("GunInventory", BindingFlags.Public | BindingFlags.Instance);
+                    _currentAmmoProperty = playerControllerType.GetProperty("CurrentAmmo", BindingFlags.Public | BindingFlags.Instance);
+                    _maxAmmoProperty = playerControllerType.GetProperty("MaxAmmo", BindingFlags.Public | BindingFlags.Instance);
+                    _activeItemProperty = playerControllerType.GetProperty("ActiveItem", BindingFlags.Public | BindingFlags.Instance);
+                }
+
                 _initialised = true;
                 UnityEngine.Debug.Log("[ETGReflection] Initialized successfully.");
             }
@@ -100,18 +125,14 @@ namespace GungeonTogether.Networking
 
         public static object GetGameManager()
         {
-            if (!_initialised || _gameManagerType == null) return null;
-            try
-            {
-                if (_gameManagerInstanceProperty != null)
-                    return _gameManagerInstanceProperty.GetValue(null, null);
-                // Fallback: FindObjectOfType
-                return UnityEngine.Object.FindObjectOfType(_gameManagerType);
-            }
-            catch
-            {
-                return null;
-            }
+            if (_gameManagerType == null) return null;
+            // Usually GameManager has a static Instance property
+            var instanceProp = _gameManagerType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
+            if (instanceProp != null) return instanceProp.GetValue(null, null);
+            // Fallback: FindObjectOfType
+            var method = _gameManagerType.GetMethod("FindObjectOfType", new[] { typeof(Type) });
+            if (method != null) return method.Invoke(null, new object[] { _gameManagerType });
+            return null;
         }
 
         public static bool IsInFoyer()
@@ -295,6 +316,45 @@ namespace GungeonTogether.Networking
             if (transformProp == null) return 0f;
             Transform t = transformProp.GetValue(enemy, null) as Transform;
             return t != null ? t.eulerAngles.z : 0f;
+        }
+        public static object GetPrimaryPlayer()
+        {
+            var gm = GetGameManager();
+            if (gm == null) return null;
+            if (_primaryPlayerProperty != null) return _primaryPlayerProperty.GetValue(gm, null);
+            return null;
+        }
+
+        public static float GetPlayerHealth() => GetFloatProperty(GetPrimaryPlayer(), _healthProperty);
+        public static float GetPlayerMaxHealth() => GetFloatProperty(GetPrimaryPlayer(), _maxHealthProperty);
+        public static float GetPlayerArmor() => GetFloatProperty(GetPrimaryPlayer(), _armorProperty);
+        public static float GetPlayerMaxArmor() => GetFloatProperty(GetPrimaryPlayer(), _maxArmorProperty);
+        public static int GetPlayerCurrentGunIndex()
+        {
+            var player = GetPrimaryPlayer();
+            if (player == null || _currentGunField == null) return -1;
+            var gun = _currentGunField.GetValue(player);
+            if (gun == null) return -1;
+            // Gun might have an index; for now, we can get its position in inventory
+            var inv = _gunInventoryField?.GetValue(player) as System.Collections.IList;
+            if (inv != null) return inv.IndexOf(gun);
+            return -1;
+        }
+        public static int GetPlayerAmmo() => (int)GetFloatProperty(GetPrimaryPlayer(), _currentAmmoProperty);
+        public static int GetPlayerMaxAmmo() => (int)GetFloatProperty(GetPrimaryPlayer(), _maxAmmoProperty);
+        // Active item ID or type name
+        public static string GetActiveItemName()
+        {
+            var player = GetPrimaryPlayer();
+            if (player == null || _activeItemProperty == null) return "";
+            var item = _activeItemProperty.GetValue(player, null);
+            return item?.GetType().Name ?? "";
+        }
+
+        private static float GetFloatProperty(object obj, PropertyInfo prop)
+        {
+            if (obj == null || prop == null) return 0f;
+            return (float)prop.GetValue(obj, null);
         }
     }
 }

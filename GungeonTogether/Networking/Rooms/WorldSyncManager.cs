@@ -1,6 +1,7 @@
 using UnityEngine;
 using GungeonTogether.Networking;
 using GungeonTogether.Networking.Packets;
+using System.Collections;
 
 namespace GungeonTogether.Networking.Sync
 {
@@ -72,22 +73,45 @@ namespace GungeonTogether.Networking.Sync
         // Client applies the world state when packet arrives (handled in NetworkManager)
         public void ApplyWorldState(WorldStatePacket packet)
         {
+            if (LoadingSyncManager.Instance != null && LoadingSyncManager.Instance.IsClientLoading)
+            {
+                StartCoroutine(DelayedApply(packet));
+            }
+            else
+            {
+                ApplyNow(packet);
+            }
+            // If we are loading, delay teleport until done
+            if (LoadingSyncManager.Instance.IsClientLoading)
+            {
+                Debug.Log("[WorldSync] Client is loading, delaying world state apply.");
+                StartCoroutine(DelayedApply(packet));
+                return;
+            }
+            ApplyNow(packet);
+        }
+
+        private IEnumerator DelayedApply(WorldStatePacket packet)
+        {
+            while (LoadingSyncManager.Instance.IsClientLoading)
+                yield return new WaitForSeconds(0.1f);
+            ApplyNow(packet);
+        }
+
+        private void ApplyNow(WorldStatePacket packet)
+        {
             Debug.Log($"[WorldSync] Client applying world state: isFoyer={packet.IsFoyer}, floor={packet.FloorIndex}, room={packet.RoomIdentifier}, pos={packet.Position}");
 
             // If we need to change floor or foyer
             if (packet.IsFoyer)
             {
-                // Only teleport if not already in foyer
                 if (!ETGReflectionHelper.IsInFoyer())
                 {
                     ETGReflectionHelper.TeleportToFoyer();
-                    // We need to wait for the load to complete before setting position.
-                    // We'll use a coroutine or delay; for simplicity, we'll set position after a short delay.
                     StartCoroutine(SetPositionAfterDelay(packet.Position, packet.Rotation, 0.5f));
                 }
                 else
                 {
-                    // Already in foyer, just move
                     ETGReflectionHelper.TeleportToPosition(packet.Position, packet.Rotation);
                 }
             }
@@ -97,13 +121,11 @@ namespace GungeonTogether.Networking.Sync
                 if (currentFloor != packet.FloorIndex)
                 {
                     ETGReflectionHelper.TeleportToFloor(packet.FloorIndex);
-                    StartCoroutine(SetPositionAfterDelay(packet.Position, packet.Rotation, 1.0f)); // floor load takes longer
+                    StartCoroutine(SetPositionAfterDelay(packet.Position, packet.Rotation, 1.0f));
                 }
                 else
                 {
-                    // Same floor, just move position (and possibly room)
                     ETGReflectionHelper.TeleportToPosition(packet.Position, packet.Rotation);
-                    // Optionally, we could force room entry if we have room identifier
                 }
             }
         }
