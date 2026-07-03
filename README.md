@@ -9,7 +9,7 @@ WIP WIP WIP WIP WIP WIP pls be nice
 
 > [!WARNING]
 > ON HOLD, HAD SOME HUGE UNEXPECTED LIFE THINGS GET IN THE WAY, DO NOT WORRY, THIS MOD IS STILL IN DEVELOPMENT AND WE ARE STILL EXTREMELY EXCITED ABOUT THE FUTURE OF GUNGEONTOGETHER
-> actually I'm back now
+> actually I'm back now as of july 2026
 
 <p align="center" href="https://github.com/llamerrr/GungeonTogether">
 <img height="320" alt="image" src="https://github.com/user-attachments/assets/6c485240-5e3c-44ee-93bb-747d27a0731e"/>
