@@ -10,6 +10,7 @@ using GungeonTogether.Networking.Steam;
 using GungeonTogether.Networking.Packets;
 using Debug = GungeonTogether.Systems.Logging.Debug;
 using static ETGMod;
+using GungeonTogether.Networking.Sync;
 
 namespace GungeonTogether.Networking
 {
@@ -48,6 +49,7 @@ namespace GungeonTogether.Networking
                 
                 Debug.Log("NetworkManager Initialised.");
                 PlayerManager.Instance.gameObject.SetActive(true);
+                ETGReflectionHelper.InitGameReflection();
             }
             catch (System.Exception ex)
             {
@@ -213,6 +215,14 @@ namespace GungeonTogether.Networking
                 case PacketType.EnemyDeath:
                     var death = (EnemyDeathPacket)packet;
                     NetworkEntityManager.Instance.RemoveRemote(death.EnemyId);
+                    break;
+
+                case PacketType.WorldState:
+                    var world = (WorldStatePacket)packet;
+                    if (IsClient)
+                    {
+                        WorldSyncManager.Instance.ApplyWorldState(world);
+                    }
                     break;
             }
         }

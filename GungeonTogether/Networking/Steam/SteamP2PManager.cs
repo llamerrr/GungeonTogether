@@ -232,33 +232,51 @@ namespace GungeonTogether.Networking.Steam
         private void HandleP2PSessionRequestCallback(object callbackData)
         {
             ulong remoteSteamId = ExtractSteamIDFromCallback(callbackData);
+            Debug.Log($"[SteamP2P] Received P2PSessionRequest from {remoteSteamId}");
+
             if (remoteSteamId == 0)
             {
-                Debug.LogWarning("SteamP2PManager: Received P2PSessionRequest callback without a valid remote Steam ID.");
+                Debug.LogWarning("[SteamP2P] P2PSessionRequest with invalid Steam ID");
                 return;
             }
 
-            Debug.Log($"SteamP2PManager: Received P2PSessionRequest from {remoteSteamId}.");
-            TryAcceptP2PSession(remoteSteamId);
+            // Accept the session
+            bool accepted = TryAcceptP2PSession(remoteSteamId);
+            Debug.Log($"[SteamP2P] AcceptP2PSessionWithUser result: {accepted}");
+
+            // Fire event regardless (host controller will handle join logic)
             OnP2PSessionRequest?.Invoke(remoteSteamId);
         }
 
-        private void TryAcceptP2PSession(ulong remoteSteamId)
+    
+        private bool TryAcceptP2PSession(ulong remoteSteamId)
         {
-            if (remoteSteamId == 0) return;
+            if (remoteSteamId == 0) return false;
 
             try
             {
-                if (SteamReflectionHelper.AcceptP2PSessionMethod != null)
+                if (SteamReflectionHelper.AcceptP2PSessionMethod == null)
                 {
-                    object steamIdObj = SteamReflectionHelper.CreateCSteamID(remoteSteamId);
-                    SteamReflectionHelper.AcceptP2PSessionMethod.Invoke(null, new object[] { steamIdObj });
-                    Debug.Log($"SteamP2PManager: Accepted P2P session with {remoteSteamId}.");
+                    Debug.LogError("[SteamP2P] AcceptP2PSessionMethod is null!");
+                    return false;
                 }
+
+                object steamIdObj = SteamReflectionHelper.CreateCSteamID(remoteSteamId);
+                if (steamIdObj == null)
+                {
+                    Debug.LogError($"[SteamP2P] Failed to create CSteamID for {remoteSteamId}");
+                    return false;
+                }
+
+                object result = SteamReflectionHelper.AcceptP2PSessionMethod.Invoke(null, new object[] { steamIdObj });
+                bool accepted = result is bool b && b;
+                Debug.Log($"[SteamP2P] AcceptP2PSessionWithUser returned {accepted}");
+                return accepted;
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"SteamP2PManager: Failed to accept P2P session with {remoteSteamId}: {e.Message}");
+                Debug.LogError($"[SteamP2P] Exception in TryAcceptP2PSession: {e.Message}");
+                return false;
             }
         }
 

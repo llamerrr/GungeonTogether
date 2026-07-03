@@ -3,6 +3,7 @@ using UnityEngine;
 using GungeonTogether.Networking;
 using GungeonTogether.Systems.Logging;
 using GungeonTogether.UI;
+using GungeonTogether.Networking.Sync;
 
 namespace GungeonTogether.Core
 {
@@ -34,6 +35,11 @@ namespace GungeonTogether.Core
                 Logger.LogInfo("UIManager initialized.");
                 
                 Logger.LogInfo("Gungeon Together fully initialized!");
+
+                //initialise room sync
+                RoomSyncManager.Instance.gameObject.SetActive(true);
+                WorldSyncManager.Instance.gameObject.SetActive(true);
+                
             }
             catch (System.Exception ex)
             {

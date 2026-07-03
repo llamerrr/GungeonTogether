@@ -18,7 +18,7 @@ public class RoomSyncManager : MonoBehaviour
 
     private void Start()
     {
-        SteamReflectionHelper.InitGameReflection();
+        ETGReflectionHelper.Initialise();
     }
 
     private void Update()
@@ -37,9 +37,10 @@ public class RoomSyncManager : MonoBehaviour
     private void SyncHost()
     {
         // Check if room changed
-        var room = SteamReflectionHelper.GetCurrentRoomHandler();
+        var room = ETGReflectionHelper.GetCurrentRoomHandler();
         if (room == null) return;
-        string roomName = room.GetRoomName(); // or a unique identifier
+
+        string roomName = room.GetRoomName();
 
         if (roomName != _currentRoomName)
         {
@@ -48,7 +49,7 @@ public class RoomSyncManager : MonoBehaviour
             NetworkManager.Instance.Host.Broadcast(new RoomChangePacket { RoomName = roomName });
 
             // Spawn enemies in this room and broadcast
-            SpawnAndBroadcastEnemies(room);
+            SpawnAndBroadcastEnemies((RoomHandler)room);
         }
 
         // Sync enemy states periodically
@@ -61,14 +62,14 @@ public class RoomSyncManager : MonoBehaviour
 
     private void SpawnAndBroadcastEnemies(RoomHandler room)
     {
-        var enemies = SteamReflectionHelper.GetActiveEnemies();
+        var enemies = ETGReflectionHelper.GetActiveEnemies();
         foreach (var enemy in enemies)
         {
             // Assign a network ID if not already assigned
             int id = GetOrAssignEnemyId(enemy);
             Vector3 pos = enemy.transform.position;
             float rot = enemy.transform.eulerAngles.z;
-            int health = SteamReflectionHelper.GetEnemyHealth(enemy);
+            int health = ETGReflectionHelper.GetEnemyHealth(enemy);
             string prefabName = enemy.name; // or a more robust type identifier
 
             var packet = new EnemySpawnPacket
@@ -85,13 +86,13 @@ public class RoomSyncManager : MonoBehaviour
 
     private void SyncEnemyStates()
     {
-        var enemies = SteamReflectionHelper.GetActiveEnemies();
+        var enemies = ETGReflectionHelper.GetActiveEnemies();
         foreach (var enemy in enemies)
         {
             int id = GetOrAssignEnemyId(enemy);
             Vector3 pos = enemy.transform.position;
             float rot = enemy.transform.eulerAngles.z;
-            int health = SteamReflectionHelper.GetEnemyHealth(enemy);
+            int health = ETGReflectionHelper.GetEnemyHealth(enemy);
             int aiState = GetEnemyAIState(enemy); // implement reflection
 
             var packet = new EnemyStatePacket

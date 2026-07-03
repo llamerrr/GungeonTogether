@@ -14,5 +14,6 @@ namespace GungeonTogether.Networking.Enums
         EnemySpawn = 9,
         EnemyState = 10,
         EnemyDeath = 11,
+        WorldState = 12,
     }
 }

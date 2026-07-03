@@ -22,22 +22,34 @@ namespace GungeonTogether.Networking
             Debug.Log("ClientController Initialised.");
         }
 
+        private bool _connectPending = false;
+        private float _connectRetryTimer = 0f;
+
         public void Connect(ulong hostId)
         {
             _hostId = hostId;
             IsConnected = false;
-
-            Debug.Log($"Sending connection request to {hostId}...");
-
-            SendPacket(_hostId, new ConnectionRequestPacket
-            {
-                ClientId = _p2p.LocalSteamID,
-                ProtocolVersion = NetworkManager.ProtocolVersion
-            }, reliable: true);
+            _connectPending = true;
+            _connectRetryTimer = 0.5f; // wait half a second before sending
+            Debug.Log($"Will send connection request to {hostId} in 0.5s...");
         }
 
         public void Update()
         {
+            if (_connectPending)
+            {
+                _connectRetryTimer -= Time.deltaTime;
+                if (_connectRetryTimer <= 0f)
+                {
+                    _connectPending = false;
+                    Debug.Log($"Sending connection request to {_hostId}...");
+                    SendPacket(_hostId, new ConnectionRequestPacket
+                    {
+                        ClientId = _p2p.LocalSteamID,
+                        ProtocolVersion = NetworkManager.ProtocolVersion
+                    }, reliable: true);
+                }
+            }
             if (!IsConnected) return;
 
             if (Time.realtimeSinceStartup < _nextPositionSendTime) return;

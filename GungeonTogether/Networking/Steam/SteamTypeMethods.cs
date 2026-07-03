@@ -24,7 +24,6 @@ namespace GungeonTogether.Networking.Steam
         private static MethodInfo getSteamIdMethod;
         private static MethodInfo sendP2PPacketMethod;
         private static MethodInfo readP2PPacketMethod;
-        private static MethodInfo readP2PSessionRequestMethod;
         private static MethodInfo isP2PPacketAvailableMethod;
         private static MethodInfo acceptP2PSessionMethod;
         private static MethodInfo closeP2PSessionMethod;
@@ -53,7 +52,6 @@ namespace GungeonTogether.Networking.Steam
         public static bool IsInitialised => initialised;
         public static MethodInfo SendP2PPacketMethod => sendP2PPacketMethod;
         public static MethodInfo ReadP2PPacketMethod => readP2PPacketMethod;
-        public static MethodInfo ReadP2PSessionRequestMethod => readP2PSessionRequestMethod;
         public static MethodInfo IsP2PPacketAvailableMethod => isP2PPacketAvailableMethod;
         public static MethodInfo AcceptP2PSessionMethod => acceptP2PSessionMethod;
         public static MethodInfo CloseP2PSessionMethod => closeP2PSessionMethod;
@@ -84,6 +82,7 @@ namespace GungeonTogether.Networking.Steam
 
         private static Type gameLobbyJoinRequestedCallbackType;
         public static Type GameLobbyJoinRequestedCallbackType => gameLobbyJoinRequestedCallbackType;
+        
         private static MethodInfo getLobbyMemberCountMethod;
         private static MethodInfo getLobbyMemberByIndexMethod;
 

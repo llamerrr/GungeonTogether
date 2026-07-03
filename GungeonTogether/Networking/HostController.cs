@@ -118,9 +118,26 @@ namespace GungeonTogether.Networking
                 };
                 Broadcast(joinPacket, excludeId: 0, reliable: true);
             }
-            
+            // Send current world state to the new client
+            var gm = ETGReflectionHelper.GetGameManager();
+            if (gm != null)
+            {
+                bool isFoyer = ETGReflectionHelper.IsInFoyer();
+                int floorIndex = ETGReflectionHelper.GetCurrentFloorIndex();
+                string roomId = ETGReflectionHelper.GetCurrentRoomIdentifier();
+                Vector3 pos = ETGReflectionHelper.GetPlayerPosition();
+                float rot = ETGReflectionHelper.GetPlayerRotation();
 
-            
+                var packet = new WorldStatePacket
+                {
+                    IsFoyer = isFoyer,
+                    FloorIndex = floorIndex,
+                    RoomIdentifier = roomId,
+                    Position = new Vector2(pos.x, pos.y),
+                    Rotation = rot
+                };
+                SendPacket(playerId, packet, reliable: true);
+            }
         }
 
         public void HandlePlayerPosition(ulong senderId, PlayerPositionPacket packet)

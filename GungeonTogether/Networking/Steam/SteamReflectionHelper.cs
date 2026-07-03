@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Dungeonator;
 using GungeonTogether.Systems.Logging;
+using HarmonyLib;
 using HutongGames.PlayMaker.Actions;
 using static ETGMod;
 
@@ -66,8 +68,8 @@ namespace GungeonTogether.Networking.Steam
                 steamMatchmakingType = steamworksAssembly.GetType("Steamworks.SteamMatchmaking", false);
                 steamUtilsType = steamworksAssembly.GetType("Steamworks.SteamUtils", false);
                 steamAppsType = steamworksAssembly.GetType("Steamworks.SteamApps", false);
-                p2pSessionConnectFailType = steamworksAssembly.GetType("Steamworks.P2PSessionConnectFail_t", false);
                 gameLobbyJoinRequestedCallbackType = steamworksAssembly.GetType("Steamworks.GameLobbyJoinRequested_t", false);
+                p2pSessionConnectFailType = steamworksAssembly.GetType("Steamworks.P2PSessionConnectFail_t", false);
 
                 // Additional callback types
                 gameJoinRequestedCallbackType = steamworksAssembly.GetType("Steamworks.GameRichPresenceJoinRequested_t", false);
@@ -138,50 +140,60 @@ namespace GungeonTogether.Networking.Steam
 
         private static void CacheSteamNetworkingMethods()
         {
-            if (!ReferenceEquals(steamNetworkingType, null))
+            if (ReferenceEquals(steamNetworkingType, null)) return;
+
+            try
             {
-                // Discover all SendP2PPacket method overloads to find the correct signature
-                DiscoverSendP2PPacketSignatures(steamNetworkingType);
+                // Find SendP2PPacket – just take the first overload (we'll try different ones at send time)
+                var allMethods = steamNetworkingType.GetMethods(BindingFlags.Public | BindingFlags.Static);
+                foreach (var method in allMethods)
+                {
+                    if (method.Name == "SendP2PPacket")
+                    {
+                        sendP2PPacketMethod = method;
+                        break;
+                    }
+                }
 
+                // Find ReadP2PPacket
                 readP2PPacketMethod = steamNetworkingType.GetMethod("ReadP2PPacket", BindingFlags.Public | BindingFlags.Static);
-                readP2PSessionRequestMethod = steamNetworkingType.GetMethod("ReadP2PSessionRequest", BindingFlags.Public | BindingFlags.Static);
 
-                // Try to discover IsP2PPacketAvailable with different signatures
-                DiscoverIsP2PPacketAvailableSignature(steamNetworkingType);
+                // Find IsP2PPacketAvailable – look for the version with out uint
+                foreach (var method in allMethods)
+                {
+                    if (method.Name != "IsP2PPacketAvailable") continue;
+                    var ps = method.GetParameters();
+                    if (ps.Length >= 1 && ps[0].IsOut && ps[0].ParameterType == typeof(uint).MakeByRefType())
+                    {
+                        isP2PPacketAvailableMethod = method;
+                        break;
+                    }
+                }
+                // Fallback: if not found, take the first one
+                if (isP2PPacketAvailableMethod == null)
+                {
+                    foreach (var method in allMethods)
+                    {
+                        if (method.Name == "IsP2PPacketAvailable")
+                        {
+                            isP2PPacketAvailableMethod = method;
+                            break;
+                        }
+                    }
+                }
 
                 acceptP2PSessionMethod = steamNetworkingType.GetMethod("AcceptP2PSessionWithUser", BindingFlags.Public | BindingFlags.Static);
                 closeP2PSessionMethod = steamNetworkingType.GetMethod("CloseP2PSessionWithUser", BindingFlags.Public | BindingFlags.Static);
 
-                // Debug output for packet methods
-                // Debug.Log($"[ETGSteamP2P] Packet methods found:");
-                // Debug.Log($"[ETGSteamP2P]   ReadP2PPacket: {(!ReferenceEquals(readP2PPacketMethod, null) ? "Found" : "Not found")}");
-                // Debug.Log($"[ETGSteamP2P]   ReadP2PSessionRequest: {(!ReferenceEquals(readP2PSessionRequestMethod, null) ? "Found" : "Not found")}");
-                // Debug.Log($"[ETGSteamP2P]   IsP2PPacketAvailable: {(!ReferenceEquals(isP2PPacketAvailableMethod, null) ? "Found" : "Not found")}");
-                // Debug.Log($"[ETGSteamP2P]   AcceptP2PSessionWithUser: {(!ReferenceEquals(acceptP2PSessionMethod, null) ? "Found" : "Not found")}");
-                // Debug.Log($"[ETGSteamP2P]   CloseP2PSessionWithUser: {(!ReferenceEquals(closeP2PSessionMethod, null) ? "Found" : "Not found")}");
-
-                // Log all available networking methods for debugging
-                if (ReferenceEquals(readP2PPacketMethod, null) || ReferenceEquals(isP2PPacketAvailableMethod, null))
-                {
-                    // Debug.LogWarning("[ETGSteamP2P] P2P packet reception methods not found!");
-                    // List all methods containing "P2P" for debugging
-                    var allMethods = steamNetworkingType.GetMethods(BindingFlags.Public | BindingFlags.Static);
-                    // Debug.Log("[ETGSteamP2P] Available SteamNetworking methods containing 'P2P':");
-                    foreach (var method in allMethods)
-                    {
-                        if (method.Name.Contains("P2P"))
-                        {
-                            var paramStr = "";
-                            var parameters = method.GetParameters();
-                            for (int i = 0; i < parameters.Length; i++)
-                            {
-                                if (i > 0) paramStr += ", ";
-                                paramStr += parameters[i].ParameterType.Name + " " + parameters[i].Name;
-                            }
-                            // Debug.Log($"[ETGSteamP2P]   {method.Name}({paramStr})");
-                        }
-                    }
-                }
+                // Basic logging
+                Debug.Log($"[ETGSteamP2P] SendP2PPacket: {(sendP2PPacketMethod != null ? "Found" : "Missing")}");
+                Debug.Log($"[ETGSteamP2P] ReadP2PPacket: {(readP2PPacketMethod != null ? "Found" : "Missing")}");
+                Debug.Log($"[ETGSteamP2P] IsP2PPacketAvailable: {(isP2PPacketAvailableMethod != null ? "Found" : "Missing")}");
+                Debug.Log($"[ETGSteamP2P] AcceptP2PSessionWithUser: {(acceptP2PSessionMethod != null ? "Found" : "Missing")}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ETGSteamP2P] Error in CacheSteamNetworkingMethods: {ex.Message}\n{ex.StackTrace}");
             }
         }
 
@@ -253,83 +265,6 @@ namespace GungeonTogether.Networking.Steam
             catch { return steamId.ToString(); }
         }
 
-        /// <summary>
-        /// Discover all SendP2PPacket method signatures and cache the working one
-        /// </summary>
-        private static void DiscoverSendP2PPacketSignatures(Type steamNetworkingType)
-        {
-            try
-            {
-                var allMethods = steamNetworkingType.GetMethods(BindingFlags.Public | BindingFlags.Static);
-                var sendMethods = new List<MethodInfo>();
-
-                // Find all SendP2PPacket methods
-                foreach (var method in allMethods)
-                {
-                    if (string.Equals(method.Name, "SendP2PPacket"))
-                    {
-                        sendMethods.Add(method);
-                    }
-                }
-
-                // Debug.Log($"[ETGSteamP2P] Found {sendMethods.Count} SendP2PPacket method signatures:");
-
-                for (int i = 0; i < sendMethods.Count; i++)
-                {
-                    var method = sendMethods[i];
-                    var parameters = method.GetParameters();
-                    var paramStr = "";
-
-                    for (int j = 0; j < parameters.Length; j++)
-                    {
-                        if (j > 0) paramStr += ", ";
-                        paramStr += parameters[j].ParameterType.Name + " " + parameters[j].Name;
-                    }
-
-                    // Debug.Log($"[ETGSteamP2P]   Signature {i}: {method.Name}({paramStr})");
-                }
-
-                // Use the first one as default, but we'll try different signatures in TryDifferentSendSignatures
-                if (sendMethods.Count > 0)
-                {
-                    sendP2PPacketMethod = sendMethods[0];
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[ETGSteamP2P] Error discovering SendP2PPacket signatures: {e.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Discover the correct IsP2PPacketAvailable method signature
-        /// </summary>
-        private static void DiscoverIsP2PPacketAvailableSignature(Type steamNetworkingType)
-        {
-            try
-            {
-                var methods = steamNetworkingType.GetMethods(BindingFlags.Public | BindingFlags.Static);
-                foreach (var method in methods)
-                {
-                    if (method.Name != "IsP2PPacketAvailable") continue;
-                    var param = method.GetParameters();
-                    // we expect (out uint, int) or (out uint) 
-                    if (param.Length >= 1 && param[0].IsOut && param[0].ParameterType.GetElementType() == typeof(uint))
-                    {
-                        isP2PPacketAvailableMethod = method;
-                        return;
-                    }
-                }
-                // fallback to first found
-                isP2PPacketAvailableMethod = steamNetworkingType.GetMethod("IsP2PPacketAvailable", BindingFlags.Public | BindingFlags.Static);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[ETGSteamP2P] Error discovering IsP2PPacketAvailable signature: {e.Message}");
-                // Fallback to original method
-                isP2PPacketAvailableMethod = steamNetworkingType.GetMethod("IsP2PPacketAvailable", BindingFlags.Public | BindingFlags.Static);
-            }
-        }
 
         /// <summary>
         /// Get current Steam user ID (cached to prevent log spam)
@@ -713,54 +648,5 @@ namespace GungeonTogether.Networking.Steam
                 return 0;
             }
         }
-        #region room and enemy data
-        public static Type GameManagerType => Type.GetType("GameManager, Assembly-CSharp");
-        public static Type RoomHandlerType => Type.GetType("RoomHandler, Assembly-CSharp");
-        public static Type EnemyType => Type.GetType("AIActor, Assembly-CSharp"); // adjust
-
-        private static PropertyInfo _currentRoomProperty;
-        private static FieldInfo _activeEnemiesField;
-        private static PropertyInfo _healthProperty;
-
-        public static void InitGameReflection()
-        {
-            var roomHandlerType = RoomHandlerType;
-            if (roomHandlerType != null)
-            {
-                _currentRoomProperty = roomHandlerType.GetProperty("CurrentRoom", BindingFlags.Public | BindingFlags.Static);
-                _activeEnemiesField = roomHandlerType.GetField("activeEnemies", BindingFlags.Public | BindingFlags.Instance);
-            }
-            var enemyType = EnemyType;
-            if (enemyType != null)
-            {
-                _healthProperty = enemyType.GetProperty("Health", BindingFlags.Public | BindingFlags.Instance);
-                // Position might be from transform
-            }
-        }
-        public static RoomHandler GetCurrentRoomHandler()
-        {
-            if (_currentRoomProperty == null)
-            {
-                _currentRoomProperty = GameManagerType?.GetProperty(
-                    "CurrentRoom",
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            }
-
-            var gameManager = GameManagerType?.GetProperty("Instance")?.GetValue(null, null);
-            return _currentRoomProperty?.GetValue(gameManager, null) as RoomHandler;
-        }
-
-        public static List<AIActor> GetActiveEnemies()
-        {
-            var room = GetCurrentRoomHandler();
-            if (room == null) return new List<AIActor>();
-            return _activeEnemiesField?.GetValue(room) as List<AIActor> ?? new List<AIActor>();
-        }
-
-        public static int GetEnemyHealth(AIActor enemy)
-        {
-            return (int)(_healthProperty?.GetValue(enemy, null) ?? 0);
-        }
-        #endregion
     }
 }

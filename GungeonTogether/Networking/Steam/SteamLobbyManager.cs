@@ -201,10 +201,6 @@ namespace GungeonTogether.Networking.Steam
         {
             try
             {
-                // Guard against leaking handlers if this is ever called more than once
-                // (e.g. a future reconnect/reset flow) - CreateCallback appends to a
-                // static list that otherwise never shrinks.
-                SteamCallbackRouter.Clear();
 
                 Type lobbyCreatedType = SteamReflectionHelper.LobbyCreatedCallbackType;
                 Type lobbyEnterType = SteamReflectionHelper.LobbyEnterCallbackType;
@@ -282,7 +278,20 @@ namespace GungeonTogether.Networking.Steam
         {
             try
             {
-                ulong lobbyId = ReadUlongField(callbackData, "m_ulSteamIDLobby", "m_SteamIDLobby", "m_ulSteamIDLobbyID");
+                var type = callbackData.GetType();
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"[SteamLobby] ========== LOBBY CREATED ==========");
+                sb.AppendLine($"Type: {type.FullName}");
+                sb.AppendLine("Fields:");
+                foreach (var f in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    var val = f.GetValue(callbackData);
+                    sb.AppendLine($"  {f.Name} ({f.FieldType.Name}) = {val}");
+                }
+                Debug.Log(sb.ToString());
+
+                // Now extract using known field names from the dump
+                ulong lobbyId = ReadUlongField(callbackData, "m_ulSteamIDLobby", "m_SteamIDLobby", "m_steamIDLobby");
                 uint result = ReadUIntField(callbackData, "m_eResult", "m_EResult");
 
                 if (lobbyId == 0)
@@ -290,7 +299,6 @@ namespace GungeonTogether.Networking.Steam
                     Debug.LogWarning("[SteamLobby] LobbyCreated callback but lobby id was 0");
                     return;
                 }
-
                 Debug.Log("[SteamLobby] Lobby created: " + lobbyId + " result=" + result);
 
                 CurrentLobbyId = lobbyId;
