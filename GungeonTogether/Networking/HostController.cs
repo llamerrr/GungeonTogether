@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using GungeonTogether.Networking.Interfaces;
@@ -56,7 +57,10 @@ namespace GungeonTogether.Networking
                         Debug.Log($"[Host] Accepted P2P session with {playerId}.");
                     }
                 }
-                catch { }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[Host] Failed to accept P2P session with {playerId}: {e.Message}");
+                }
                 
                 // Send accept packet
                 // Send initial state
@@ -67,11 +71,17 @@ namespace GungeonTogether.Networking
         {
             if (!_connectedClients.Contains(senderId))
             {
-                // If packets arrive before our ConnectionRequest route, still accept/log.
-                HandleJoinRequest(senderId);
+                // Don't auto-join on a bare position packet - that bypasses the
+                // ConnectionRequest/ConnectionAccepted handshake (and its protocol
+                // version check). Drop it and wait for a real handshake instead.
+                Debug.LogWarning($"[Host] Ignored position packet from unrecognised sender {senderId} (no active connection).");
+                return;
             }
 
             Debug.Log($"[Host] Position from {senderId}: ({packet.Position.x:0.00}, {packet.Position.y:0.00})");
+
+            // Relay this player's position to every other connected client.
+            Broadcast(packet, senderId, reliable: false);
         }
 
         public void SendPacket(ulong targetId, INetworkPacket packet, bool reliable = true)

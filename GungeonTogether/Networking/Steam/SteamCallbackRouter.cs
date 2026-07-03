@@ -9,6 +9,12 @@ namespace GungeonTogether.Networking.Steam
     {
         private static readonly List<Action<object>> _handlers = new List<Action<object>>();
 
+        public static void Clear()
+        {
+            GungeonTogether.Systems.Logging.Debug.Log("[SteamCallback] Clearing " + _handlers.Count + " registered handler(s)");
+            _handlers.Clear();
+        }
+
         public static void Invoke(int handlerIndex, object callbackData)
         {
             GungeonTogether.Systems.Logging.Debug.Log("[SteamCallback] Invoke called with handlerIndex=" + handlerIndex);

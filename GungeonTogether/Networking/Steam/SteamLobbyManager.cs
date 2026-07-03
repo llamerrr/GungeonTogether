@@ -157,7 +157,10 @@ namespace GungeonTogether.Networking.Steam
                     SteamReflectionHelper.LeaveLobbyMethod.Invoke(null, new object[] { lobbySteamId });
                 }
             }
-            catch { }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[SteamLobby] Failed to leave lobby cleanly: " + e.Message);
+            }
 
             IsInLobby = false;
             CurrentLobbyId = 0;
@@ -188,13 +191,21 @@ namespace GungeonTogether.Networking.Steam
                 object lobbySteamId = SteamReflectionHelper.CreateCSteamID(CurrentLobbyId);
                 method.Invoke(null, new object[] { lobbySteamId });
             }
-            catch { }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[SteamLobby] Failed to open invite dialog: " + e.Message);
+            }
         }
 
         private void HookCallbacks()
         {
             try
             {
+                // Guard against leaking handlers if this is ever called more than once
+                // (e.g. a future reconnect/reset flow) - CreateCallback appends to a
+                // static list that otherwise never shrinks.
+                SteamCallbackRouter.Clear();
+
                 Type lobbyCreatedType = SteamReflectionHelper.LobbyCreatedCallbackType;
                 Type lobbyEnterType = SteamReflectionHelper.LobbyEnterCallbackType;
                 Type richPresenceJoinRequestedType = SteamReflectionHelper.GameJoinRequestedCallbackType;
@@ -317,7 +328,6 @@ namespace GungeonTogether.Networking.Steam
             }
         }
 
-        // I'm getting upset :(
         private void OnLobbyEnter(object callbackData)
         {
             try
