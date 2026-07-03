@@ -125,12 +125,8 @@ namespace GungeonTogether.Networking
                 case PacketType.ConnectionRequest:
                     if (IsHost)
                     {
-                        Host.HandleJoinRequest(senderId);
-                        Host.SendPacket(senderId, new ConnectionAcceptedPacket
-                        {
-                            HostId = _p2p.LocalSteamID,
-                            ProtocolVersion = ProtocolVersion,
-                        }, reliable: true);
+                        var req = (ConnectionRequestPacket)packet;
+                        Host.HandleJoinRequest(senderId, req.ProtocolVersion);
                     }
                     break;
 
@@ -147,8 +143,10 @@ namespace GungeonTogether.Networking
                         Host.HandlePlayerPosition(senderId, (PlayerPositionPacket)packet);
                     }
                     break;
-                    
-                // ... other cases
+                case PacketType.Disconnect:
+                    if (IsHost)
+                        Host.HandleClientDisconnect(senderId);
+                    break;
             }
         }
 

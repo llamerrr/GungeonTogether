@@ -43,7 +43,8 @@ namespace GungeonTogether.Networking
             if (Time.realtimeSinceStartup < _nextPositionSendTime) return;
             _nextPositionSendTime = Time.realtimeSinceStartup + PositionSendInterval;
 
-            var player = GameManager.Instance ? GameManager.Instance.PrimaryPlayer : null;
+            GameManager gameManager = Object.FindObjectOfType<GameManager>();
+            var player = gameManager != null ? gameManager.PrimaryPlayer : null;
             if (player == null) return;
 
             Vector3 pos3 = player.transform.position;
@@ -69,6 +70,8 @@ namespace GungeonTogether.Networking
             if (packet.ProtocolVersion != NetworkManager.ProtocolVersion)
             {
                 Debug.LogWarning($"[Client] Protocol mismatch. Host={packet.ProtocolVersion} Local={NetworkManager.ProtocolVersion}");
+                Disconnect();
+                return;
             }
 
             IsConnected = true;
@@ -85,7 +88,7 @@ namespace GungeonTogether.Networking
         {
             if (IsConnected)
             {
-                // Send disconnect packet
+                SendPacket(_hostId, new DisconnectPacket(), reliable: true);
                 IsConnected = false;
                 Debug.Log("Disconnected from host.");
             }

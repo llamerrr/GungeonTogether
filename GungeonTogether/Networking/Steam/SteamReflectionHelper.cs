@@ -63,6 +63,7 @@ namespace GungeonTogether.Networking.Steam
                 steamMatchmakingType = steamworksAssembly.GetType("Steamworks.SteamMatchmaking", false);
                 steamUtilsType = steamworksAssembly.GetType("Steamworks.SteamUtils", false);
                 steamAppsType = steamworksAssembly.GetType("Steamworks.SteamApps", false);
+                p2pSessionConnectFailType = steamworksAssembly.GetType("Steamworks.P2PSessionConnectFail_t", false);
 
                 // Additional callback types
                 gameJoinRequestedCallbackType = steamworksAssembly.GetType("Steamworks.GameRichPresenceJoinRequested_t", false);
@@ -287,86 +288,20 @@ namespace GungeonTogether.Networking.Steam
         {
             try
             {
-                // Debug.Log("[ETGSteamP2P] Discovering IsP2PPacketAvailable method signature...");
-
-                var allMethodsTemp = steamNetworkingType.GetMethods(BindingFlags.Public | BindingFlags.Static);
-                var allMethodsList = new List<MethodInfo>();
-
-                // Filter methods with name "IsP2PPacketAvailable" without LINQ
-                foreach (var method in allMethodsTemp)
+                var methods = steamNetworkingType.GetMethods(BindingFlags.Public | BindingFlags.Static);
+                foreach (var method in methods)
                 {
-                    if (string.Equals(method.Name, "IsP2PPacketAvailable"))
+                    if (method.Name != "IsP2PPacketAvailable") continue;
+                    var param = method.GetParameters();
+                    // we expect (out uint, int) or (out uint) 
+                    if (param.Length >= 1 && param[0].IsOut && param[0].ParameterType.GetElementType() == typeof(uint))
                     {
-                        allMethodsList.Add(method);
+                        isP2PPacketAvailableMethod = method;
+                        return;
                     }
                 }
-
-                var allMethods = allMethodsList.ToArray();
-
-                // Debug.Log($"[ETGSteamP2P] Found {allMethods.Length} IsP2PPacketAvailable method(s)");
-
-                foreach (var method in allMethods)
-                {
-                    var parameters = method.GetParameters();
-                    var paramParts = new List<string>();
-
-                    // Build parameter string without LINQ
-                    foreach (var p in parameters)
-                    {
-                        string prefix = p.IsOut ? "out " : (p.ParameterType.IsByRef ? "ref " : "");
-                        paramParts.Add($"{prefix}{p.ParameterType.Name} {p.Name}");
-                    }
-
-                    var paramStr = string.Join(", ", paramParts.ToArray());
-
-                    // Debug.Log($"[ETGSteamP2P]   Signature: {method.ReturnType.Name} IsP2PPacketAvailable({paramStr})");
-
-                    // Look for the most common signature: bool IsP2PPacketAvailable(out uint, int)
-                    if (parameters.Length >= 1 && parameters.Length <= 2)
-                    {
-                        var firstParam = parameters[0];
-                        bool isOutUint = firstParam.IsOut &&
-                                        (firstParam.ParameterType.GetElementType().Equals(typeof(uint)) ||
-                                         firstParam.ParameterType.GetElementType().Equals(typeof(System.UInt32)));
-
-                        if (isOutUint)
-                        {
-                            isP2PPacketAvailableMethod = method;
-
-                            // Log the exact signature we selected for debugging
-                            var selectedParamStr = string.Join(", ", paramParts.ToArray());
-                            // Debug.Log($"[ETGSteamP2P] ✅ Selected IsP2PPacketAvailable with out uint parameter");
-                            // Debug.Log($"[ETGSteamP2P] ✅ Selected signature: {method.ReturnType.Name} IsP2PPacketAvailable({selectedParamStr})");
-                            // Debug.Log($"[ETGSteamP2P] ✅ Parameter count: {parameters.Length}");
-                            for (int i = 0; i < parameters.Length; i++)
-                            {
-                                var p = parameters[i];
-                                // Debug.Log($"[ETGSteamP2P] ✅ Param {i}: {(p.IsOut ? "out " : "")}{p.ParameterType.Name} {p.Name}");
-                            }
-                            return;
-                        }
-                    }
-                }
-
-                // Fallback: just take the first one if we can't find the ideal signature
-                if (allMethods.Length > 0)
-                {
-                    isP2PPacketAvailableMethod = allMethods[0];
-                    var fallbackParams = isP2PPacketAvailableMethod.GetParameters();
-                    var fallbackParamParts = new List<string>();
-                    foreach (var p in fallbackParams)
-                    {
-                        string prefix = p.IsOut ? "out " : (p.ParameterType.IsByRef ? "ref " : "");
-                        fallbackParamParts.Add($"{prefix}{p.ParameterType.Name} {p.Name}");
-                    }
-                    var fallbackParamStr = string.Join(", ", fallbackParamParts.ToArray());
-                    // Debug.Log($"[ETGSteamP2P] ⚠️ Using fallback IsP2PPacketAvailable method");
-                    // Debug.Log($"[ETGSteamP2P] ⚠️ Fallback signature: {isP2PPacketAvailableMethod.ReturnType.Name} IsP2PPacketAvailable({fallbackParamStr})");
-                }
-                else
-                {
-                    // Debug.LogWarning("[ETGSteamP2P] ❌ No IsP2PPacketAvailable method found!");
-                }
+                // fallback to first found
+                isP2PPacketAvailableMethod = steamNetworkingType.GetMethod("IsP2PPacketAvailable", BindingFlags.Public | BindingFlags.Static);
             }
             catch (Exception e)
             {
@@ -575,52 +510,21 @@ namespace GungeonTogether.Networking.Steam
         /// </summary>
         public static object ConvertToCSteamID(ulong steamId)
         {
-            try
-            {
-                if (!initialised)
-                {
-                    InitialiseSteamTypes();
-                }
+            if (!initialised)
+                InitialiseSteamTypes();
 
-                // Try to find CSteamID type using cached assembly
-                Assembly steamworksAssembly = cachedSteamworksAssembly;
+            if (cachedSteamworksAssembly == null)
+                throw new InvalidOperationException("Steamworks assembly not found.");
 
-                // If not cached, try to find it
-                if (ReferenceEquals(steamworksAssembly, null))
-                {
-                    Assembly[] assemblies = System.AppDomain.CurrentDomain.GetAssemblies();
+            var cSteamIDType = cachedSteamworksAssembly.GetType("Steamworks.CSteamID", false);
+            if (cSteamIDType == null)
+                throw new InvalidOperationException("Steamworks.CSteamID type not found.");
 
-                    for (int i = 0; i < assemblies.Length; i++)
-                    {
-                        if (string.Equals(assemblies[i].GetName().Name, "Assembly-CSharp-firstpass"))
-                        {
-                            steamworksAssembly = assemblies[i];
-                            cachedSteamworksAssembly = steamworksAssembly; // Cache it
-                            break;
-                        }
-                    }
-                }
+            var constructor = cSteamIDType.GetConstructor(new Type[] { typeof(ulong) });
+            if (constructor == null)
+                throw new MissingMethodException("Steamworks.CSteamID has no constructor taking a ulong.");
 
-                if (ReferenceEquals(steamworksAssembly, null))
-                    return steamId; // Fallback to raw ulong
-
-                var cSteamIDType = steamworksAssembly.GetType("Steamworks.CSteamID", false);
-                if (ReferenceEquals(cSteamIDType, null))
-                    return steamId; // Fallback to raw ulong
-
-                // Try to create CSteamID from ulong
-                var constructor = cSteamIDType.GetConstructor(new Type[] { typeof(ulong) });
-                if (!ReferenceEquals(constructor, null))
-                {
-                    return constructor.Invoke(new object[] { steamId });
-                }
-
-                return steamId; // Fallback to raw ulong
-            }
-            catch (Exception)
-            {
-                return steamId; // Fallback to raw ulong
-            }
+            return constructor.Invoke(new object[] { steamId });
         }
 
         /// <summary>
@@ -687,6 +591,9 @@ namespace GungeonTogether.Networking.Steam
         {
             return GetCurrentUserSteamId();
         }
+
+        private static Type p2pSessionConnectFailType;
+        public static Type P2PSessionConnectFailType => p2pSessionConnectFailType;
 
         /// <summary>
         /// Get current user Steam ID using reflection

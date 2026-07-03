@@ -6,6 +6,7 @@ namespace GungeonTogether.Networking.Enums
         PlayerPosition = 1,
         ConnectionRequest = 2,
         ConnectionAccepted = 3,
-        // Add more packet types here
+        ConnectionRejected = 4,
+        Disconnect = 5
     }
 }

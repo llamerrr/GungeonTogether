@@ -18,6 +18,7 @@ namespace GungeonTogether.Networking
         {
             _p2p = SteamP2PManager.Instance;
             _p2p.OnP2PSessionRequest += HandleP2PSessionRequest;
+            _p2p.OnP2PSessionFailed += HandleP2PSessionFailed;
             Debug.Log("HostController Initialised.");
         }
 
@@ -37,6 +38,7 @@ namespace GungeonTogether.Networking
             if (_p2p != null)
             {
                 _p2p.OnP2PSessionRequest -= HandleP2PSessionRequest;
+                _p2p.OnP2PSessionFailed -= HandleP2PSessionFailed;
             }
 
             foreach (var client in _connectedClients)
@@ -44,6 +46,11 @@ namespace GungeonTogether.Networking
                 // Send disconnect packet
             }
             _connectedClients.Clear();
+        }
+
+        private void HandleP2PSessionFailed(ulong clientId)
+        {
+            HandleClientDisconnect(clientId);
         }
 
         private void HandleP2PSessionRequest(ulong playerId)
@@ -71,16 +78,32 @@ namespace GungeonTogether.Networking
 
         public void HandleJoinRequest(ulong playerId)
         {
+            HandleJoinRequest(playerId, NetworkManager.ProtocolVersion);
+        }
+
+        public void HandleJoinRequest(ulong playerId, int protocolVersion)
+        {
+            if (protocolVersion != NetworkManager.ProtocolVersion)
+            {
+                // Send rejection
+                var reject = new ConnectionRejectedPacket { ProtocolVersion = NetworkManager.ProtocolVersion };
+                SendPacket(playerId, reject, reliable: true);
+                Debug.Log($"Rejected connection from {playerId} – protocol mismatch (got {protocolVersion}, expected {NetworkManager.ProtocolVersion})");
+                return;
+            }
+
             if (!_connectedClients.Contains(playerId))
             {
                 _connectedClients.Add(playerId);
                 Debug.Log($"Player {playerId} joined the session.");
-
-                // Ensure Steam will accept the P2P session even if the initial callback was missed.
-                AcceptP2PSession(playerId);
-                
-                // Send accept packet
-                // Send initial state
+                // send accept packet
+                var accept = new ConnectionAcceptedPacket
+                {
+                    HostId = SteamReflectionHelper.GetLocalSteamId(),
+                    ProtocolVersion = NetworkManager.ProtocolVersion
+                };
+                SendPacket(playerId, accept, reliable: true);
+                // send initial state...
             }
         }
 
@@ -116,6 +139,13 @@ namespace GungeonTogether.Networking
                 {
                     _p2p.SendPacket(client, data, reliable);
                 }
+            }
+        }
+        public void HandleClientDisconnect(ulong clientId)
+        {
+            if (_connectedClients.Remove(clientId))
+            {
+                Debug.Log($"Client {clientId} disconnected.");
             }
         }
     }

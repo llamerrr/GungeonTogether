@@ -36,6 +36,8 @@ namespace GungeonTogether.Networking.Steam
             }
         }
 
+        private object _p2pSessionConnectFailCallback;
+
         private const int CHANNEL_INDEX = 0;
         
         public bool IsInitialised { get; private set; }
@@ -168,12 +170,33 @@ namespace GungeonTogether.Networking.Steam
                 {
                     Debug.LogWarning("SteamP2PManager: Failed to register P2PSessionRequest callback.");
                 }
+
+                if (SteamReflectionHelper.P2PSessionConnectFailType != null)
+                {
+                    _p2pSessionConnectFailCallback = SteamCallbackRouter.CreateCallback(
+                        _steamworksAssembly,
+                        SteamReflectionHelper.P2PSessionConnectFailType,
+                        HandleP2PSessionConnectFail);
+                }
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"SteamP2PManager: Failed to hook P2PSessionRequest callback: {ex.Message}");
             }
         }
+
+        private void HandleP2PSessionConnectFail(object callbackData)
+        {
+            ulong remoteSteamId = ExtractSteamIDFromCallback(callbackData);
+            // Optionally read the error enum: m_eP2PSessionError
+            if (remoteSteamId != 0)
+            {
+                Debug.Log($"P2P session failed with {remoteSteamId}");
+                // Raise an event that the host can listen to
+                OnP2PSessionFailed?.Invoke(remoteSteamId);
+            }
+        }
+        public event Action<ulong> OnP2PSessionFailed;
 
         private Type ResolveP2PSessionRequestCallbackType()
         {
@@ -267,40 +290,37 @@ namespace GungeonTogether.Networking.Steam
 
                 if (isAvailableMethod == null || readMethod == null) return;
 
-                // Loop while packets are available
-                while (true)
+                const int MAX_PACKETS_PER_FRAME = 100;
+                int packetsRead = 0;
+
+                while (packetsRead++ < MAX_PACKETS_PER_FRAME)
                 {
                     uint msgSize = 0;
-                    object[] args = new object[] { msgSize, CHANNEL_INDEX };
-                    
-                    bool isAvailable = (bool)isAvailableMethod.Invoke(null, args);
+                    object[] availArgs = new object[] { msgSize, CHANNEL_INDEX };
+                    bool isAvailable = (bool)isAvailableMethod.Invoke(null, availArgs);
                     if (!isAvailable) break;
-
-                    msgSize = (uint)args[0]; // Get the size back
+                    msgSize = (uint)availArgs[0];
 
                     byte[] data = new byte[msgSize];
                     ulong senderId = 0;
-                    
-                    // Create a CSteamID instance to hold the sender
-                    object senderCSteamID = Activator.CreateInstance(SteamReflectionHelper.GetSteamworksAssembly().GetType("Steamworks.CSteamID"));
-                    object[] readArgs = new object[] { data, msgSize, 0u, senderCSteamID, CHANNEL_INDEX };
-                    
+                    object senderCSteamID = Activator.CreateInstance(
+                        SteamReflectionHelper.GetSteamworksAssembly().GetType("Steamworks.CSteamID"));
+
+                    // OUT parameter must be a variable, not a literal.
+                    uint actualMsgSize = 0;
+                    object[] readArgs = new object[] { data, msgSize, actualMsgSize, senderCSteamID, CHANNEL_INDEX };
                     bool readSuccess = (bool)readMethod.Invoke(null, readArgs);
-                    
+                    actualMsgSize = (uint)readArgs[2]; // updated size (may be less than msgSize)
+
                     if (readSuccess)
                     {
-                        // Extract Sender ID
-                        senderCSteamID = readArgs[3]; // Get the updated CSteamID
+                        senderCSteamID = readArgs[3];
                         senderId = ExtractSteamID(senderCSteamID);
-                        
                         OnPacketReceived?.Invoke(senderId, data);
                     }
                 }
             }
-            catch (Exception)
-            {
-                // Suppress spam
-            }
+            catch (Exception) { /* suppress spam */ }
         }
 
         public void SendPacket(ulong targetSteamId, byte[] data, bool reliable = true)
@@ -310,11 +330,9 @@ namespace GungeonTogether.Networking.Steam
             try
             {
                 object steamIdObj = SteamReflectionHelper.CreateCSteamID(targetSteamId);
-                // SendP2PPacket(CSteamID steamIDRemote, byte[] pubData, uint cubData, EP2PSend eP2PSendType, int nChannel)
-                // EP2PSend: 0 = Unreliable, 2 = Reliable
-                
-                // Use the helper to try different signatures as discovered
-                SteamReflectionHelper.TryDifferentSendSignatures(steamIdObj, data);
+                bool success = SteamReflectionHelper.TryDifferentSendSignatures(steamIdObj, data);
+                if (!success)
+                    Debug.LogError($"Failed to send P2P packet to {targetSteamId} – no matching SendP2PPacket signature.");
             }
             catch (Exception e)
             {

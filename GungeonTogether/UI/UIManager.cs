@@ -24,8 +24,9 @@ namespace GungeonTogether.UI
 		{
 			try
 			{
-				if (GameManager.Instance == null) return;
-				if (!GameManager.Instance.IsFoyer)
+				GameManager gameManager = Object.FindObjectOfType<GameManager>();
+				if (gameManager == null) return;
+				if (!gameManager.IsFoyer)
 				{
 					SetVisible(false);
 					return;
@@ -40,10 +41,11 @@ namespace GungeonTogether.UI
 		private static void EnsureBuilt()
 		{
 			if (_panel != null) return;
-			if (GameUIRoot.Instance == null) return;
-			if (GameUIRoot.Instance.Manager == null) return;
+			GameUIRoot uiRoot = Object.FindObjectOfType<GameUIRoot>();
+			if (uiRoot == null) return;
+			if (uiRoot.Manager == null) return;
 
-			dfGUIManager gui = GameUIRoot.Instance.Manager;
+			dfGUIManager gui = uiRoot.Manager;
 
 			// Find a button template for consistent styling.
 			dfButton template = null;
@@ -108,6 +110,7 @@ namespace GungeonTogether.UI
 		currentY += buttonHeight + buttonSpacing;
 
 		_leaveButton = CreateButtonFromTemplate(gui, _panel, template, "GT_LeaveButton", "LEAVE", 10f, currentY, buttonWidth, buttonHeight);
+		_leaveButton.Click += OnLeaveClicked;
 		}
 
 		private static void UpdateStatus()

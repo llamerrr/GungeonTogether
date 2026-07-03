@@ -269,9 +269,9 @@ namespace GungeonTogether.Networking.Steam
                 ulong lobbyId = ReadUlongField(callbackData, "m_ulSteamIDLobby", "m_SteamIDLobby", "m_ulSteamIDLobbyID");
                 uint result = ReadUIntField(callbackData, "m_eResult", "m_EResult");
 
-                if (lobbyId == 0)
+                if (lobbyId == 0 || result != 1) // 1 = k_EResultOK
                 {
-                    Debug.LogWarning("[SteamLobby] LobbyCreated callback but lobby id was 0");
+                    Debug.LogWarning($"Lobby creation failed with result {result}");
                     return;
                 }
 
