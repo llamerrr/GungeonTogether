@@ -488,6 +488,20 @@ namespace GungeonTogether.Networking.Steam
                 if (f == null) continue;
                 object v = f.GetValue(obj);
                 if (v == null) continue;
+
+                // If it's a CSteamID, extract its m_SteamID
+                if (v.GetType().Name == "CSteamID")
+                {
+                    var idField = v.GetType().GetField("m_SteamID", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    if (idField != null)
+                    {
+                        var idVal = idField.GetValue(v);
+                        if (idVal != null)
+                            return Convert.ToUInt64(idVal);
+                    }
+                }
+
+                // Try direct conversion
                 try { return Convert.ToUInt64(v); } catch { }
             }
             return 0;
