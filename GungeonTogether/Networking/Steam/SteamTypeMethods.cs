@@ -81,5 +81,8 @@ namespace GungeonTogether.Networking.Steam
         public static Type LobbyEnterCallbackType => lobbyEnterCallbackType;
         public static Type LobbyCreatedCallbackType => lobbyCreatedCallbackType;
         public static Type LobbyDataUpdateCallbackType => lobbyDataUpdateCallbackType;
+
+        private static Type gameLobbyJoinRequestedCallbackType;
+        public static Type GameLobbyJoinRequestedCallbackType => gameLobbyJoinRequestedCallbackType;
     }
 }

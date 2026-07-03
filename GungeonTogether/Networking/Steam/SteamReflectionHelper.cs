@@ -64,6 +64,7 @@ namespace GungeonTogether.Networking.Steam
                 steamUtilsType = steamworksAssembly.GetType("Steamworks.SteamUtils", false);
                 steamAppsType = steamworksAssembly.GetType("Steamworks.SteamApps", false);
                 p2pSessionConnectFailType = steamworksAssembly.GetType("Steamworks.P2PSessionConnectFail_t", false);
+                gameLobbyJoinRequestedCallbackType = steamworksAssembly.GetType("Steamworks.GameLobbyJoinRequested_t", false);
 
                 // Additional callback types
                 gameJoinRequestedCallbackType = steamworksAssembly.GetType("Steamworks.GameRichPresenceJoinRequested_t", false);
@@ -82,6 +83,7 @@ namespace GungeonTogether.Networking.Steam
                 Debug.Log($"  LobbyEnterCallback: {lobbyEnterCallbackType?.FullName ?? "NOT FOUND"}");
                 Debug.Log($"  LobbyCreatedCallback: {lobbyCreatedCallbackType?.FullName ?? "NOT FOUND"}");
                 Debug.Log($"  LobbyDataUpdateCallback: {lobbyDataUpdateCallbackType?.FullName ?? "NOT FOUND"}");
+                Debug.Log($"  GameLobbyJoinRequestedCallback: {gameLobbyJoinRequestedCallbackType?.FullName ?? "NOT FOUND"}");
 
                 // Cache frequently used methods using proper Steamworks.NET method names
                 CacheSteamUserMethods();

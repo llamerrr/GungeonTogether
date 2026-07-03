@@ -52,7 +52,6 @@ namespace GungeonTogether.Networking.Steam
             IsInLobby = false;
             CurrentLobbyId = 0;
         }
-
         public void Initialise()
         {
             if (IsInitialised) return;
@@ -76,7 +75,7 @@ namespace GungeonTogether.Networking.Steam
                 ? _steamApiType.GetMethod("RunCallbacks", BindingFlags.Public | BindingFlags.Static)
                 : null;
 
-            HookCallbacks();
+            HookCallbacks();   // <-- hook immediately, as before
 
             IsInitialised = true;
             Debug.Log("[SteamLobby] Initialised");
@@ -201,6 +200,11 @@ namespace GungeonTogether.Networking.Steam
         {
             try
             {
+                // Guard against leaking handlers if this is ever called more than once
+                // (e.g. a future reconnect/reset flow) - CreateCallback appends to a
+                // static list that otherwise never shrinks.
+                SteamCallbackRouter.Clear();
+
                 Type lobbyCreatedType = SteamReflectionHelper.LobbyCreatedCallbackType;
                 Type lobbyEnterType = SteamReflectionHelper.LobbyEnterCallbackType;
                 Type richPresenceJoinRequestedType = SteamReflectionHelper.GameJoinRequestedCallbackType;
@@ -254,6 +258,17 @@ namespace GungeonTogether.Networking.Steam
                 {
                     Debug.Log("[SteamLobby] Successfully hooked callbacks");
                 }
+                Type lobbyJoinRequestedType = SteamReflectionHelper.GameLobbyJoinRequestedCallbackType;
+                if (lobbyJoinRequestedType != null)
+                {
+                    Debug.Log("[SteamLobby] Creating GameLobbyJoinRequested callback...");
+                    _lobbyJoinRequestedCb = SteamCallbackRouter.CreateCallback(_steamworksAssembly, lobbyJoinRequestedType, OnGameLobbyJoinRequested);
+                    Debug.Log("[SteamLobby] GameLobbyJoinRequested callback created: " + (_lobbyJoinRequestedCb != null ? "SUCCESS" : "FAILED"));
+                }
+                else
+                {
+                    Debug.LogWarning("[SteamLobby] GameLobbyJoinRequestedCallbackType is null");
+                }
             }
             catch (Exception e)
             {
@@ -269,9 +284,9 @@ namespace GungeonTogether.Networking.Steam
                 ulong lobbyId = ReadUlongField(callbackData, "m_ulSteamIDLobby", "m_SteamIDLobby", "m_ulSteamIDLobbyID");
                 uint result = ReadUIntField(callbackData, "m_eResult", "m_EResult");
 
-                if (lobbyId == 0 || result != 1) // 1 = k_EResultOK
+                if (lobbyId == 0)
                 {
-                    Debug.LogWarning($"Lobby creation failed with result {result}");
+                    Debug.LogWarning("[SteamLobby] LobbyCreated callback but lobby id was 0");
                     return;
                 }
 
@@ -320,6 +335,42 @@ namespace GungeonTogether.Networking.Steam
             catch (Exception e)
             {
                 Debug.LogWarning("[SteamLobby] OnLobbyCreated error: " + e.Message);
+            }
+        }
+
+        private void OnGameLobbyJoinRequested(object callbackData)
+        {
+            try
+            {
+                var type = callbackData.GetType();
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"[SteamLobby] ========== GAME LOBBY JOIN REQUESTED ==========");
+                sb.AppendLine($"Type: {type.FullName}");
+                sb.AppendLine("Fields:");
+                foreach (var f in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    var val = f.GetValue(callbackData);
+                    sb.AppendLine($"  {f.Name} ({f.FieldType.Name}) = {val}");
+                }
+                Debug.Log(sb.ToString());
+
+                // After logging, we can attempt to extract using the actual field names.
+                // We'll use the field names found in the log to adjust the extraction.
+                // For now, we'll try to read them generically.
+                ulong lobbyId = ReadUlongField(callbackData, "m_steamIDLobby", "m_SteamIDLobby", "m_ulSteamIDLobby");
+                ulong friendId = ReadUlongField(callbackData, "m_steamIDFriend", "m_SteamIDFriend", "m_ulSteamIDFriend");
+
+                Debug.Log($"[SteamLobby] Extracted lobby: {lobbyId}, friend: {friendId}");
+
+                if (lobbyId != 0)
+                    JoinLobby(lobbyId);
+                else
+                    Debug.LogWarning("[SteamLobby] GameLobbyJoinRequested had null lobby ID");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SteamLobby] OnGameLobbyJoinRequested error: {e.Message}");
+                Debug.LogError($"[SteamLobby] Stack trace: {e.StackTrace}");
             }
         }
 
@@ -490,5 +541,7 @@ namespace GungeonTogether.Networking.Steam
             string digits = s.Substring(start, end - start);
             return ulong.TryParse(digits, out value);
         }
+        private object _lobbyJoinRequestedCb;
     }
+
 }

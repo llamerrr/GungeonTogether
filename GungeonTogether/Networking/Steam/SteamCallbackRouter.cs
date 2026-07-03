@@ -8,48 +8,31 @@ namespace GungeonTogether.Networking.Steam
     internal static class SteamCallbackRouter
     {
         private static readonly List<Action<object>> _handlers = new List<Action<object>>();
+        private static readonly List<object> _callbackObjects = new List<object>(); // Prevent GC
 
         public static void Clear()
         {
-            GungeonTogether.Systems.Logging.Debug.Log("[SteamCallback] Clearing " + _handlers.Count + " registered handler(s)");
+            GungeonTogether.Systems.Logging.Debug.Log("[SteamCallback] Clearing " + _handlers.Count + " handler(s) and " + _callbackObjects.Count + " callback object(s)");
             _handlers.Clear();
+            _callbackObjects.Clear();
         }
 
         public static void Invoke(int handlerIndex, object callbackData)
         {
-            GungeonTogether.Systems.Logging.Debug.Log("[SteamCallback] Invoke called with handlerIndex=" + handlerIndex);
+            if (callbackData != null)
+                GungeonTogether.Systems.Logging.Debug.Log($"[SteamCallback] Invoke called with handlerIndex={handlerIndex}, dataType={callbackData.GetType().Name}");
             if (handlerIndex < 0 || handlerIndex >= _handlers.Count)
             {
-                GungeonTogether.Systems.Logging.Debug.LogWarning("[SteamCallback] Invalid handler index: " + handlerIndex + " (count=" + _handlers.Count + ")");
+                GungeonTogether.Systems.Logging.Debug.LogWarning($"[SteamCallback] Invalid handler index {handlerIndex} (count={_handlers.Count})");
                 return;
             }
-            var handler = _handlers[handlerIndex];
-            if (handler == null)
-            {
-                GungeonTogether.Systems.Logging.Debug.LogWarning("[SteamCallback] Handler at index " + handlerIndex + " is NULL");
-                return;
-            }
-            GungeonTogether.Systems.Logging.Debug.Log("[SteamCallback] Executing handler " + handlerIndex);
-            handler(callbackData);
+            _handlers[handlerIndex]?.Invoke(callbackData);
         }
 
         public static object CreateCallback(Assembly steamworksAssembly, Type callbackStructType, Action<object> handler)
         {
-            if (steamworksAssembly == null)
-            {
-                GungeonTogether.Systems.Logging.Debug.LogWarning("[SteamCallback] CreateCallback: Assembly is null");
+            if (steamworksAssembly == null || callbackStructType == null || handler == null)
                 return null;
-            }
-            if (callbackStructType == null)
-            {
-                GungeonTogether.Systems.Logging.Debug.LogWarning("[SteamCallback] CreateCallback: Type is null");
-                return null;
-            }
-            if (handler == null)
-            {
-                GungeonTogether.Systems.Logging.Debug.LogWarning("[SteamCallback] CreateCallback: Handler is null");
-                return null;
-            }
 
             Type callbackGenericDef = steamworksAssembly.GetType("Steamworks.Callback`1", false);
             if (callbackGenericDef == null)
@@ -60,34 +43,45 @@ namespace GungeonTogether.Networking.Steam
 
             Type callbackClosedType = callbackGenericDef.MakeGenericType(callbackStructType);
 
-            // Steamworks.NET typically exposes: public static Callback<T> Create(DispatchDelegate func)
-            // Where DispatchDelegate is: delegate void DispatchDelegate(T param);
+            // Find the static Create method with a single parameter (the delegate)
             MethodInfo createMethod = null;
-            MethodInfo[] methods = callbackClosedType.GetMethods(BindingFlags.Public | BindingFlags.Static);
-            for (int i = 0; i < methods.Length; i++)
+            foreach (var m in callbackClosedType.GetMethods(BindingFlags.Public | BindingFlags.Static))
             {
-                if (!string.Equals(methods[i].Name, "Create")) continue;
-                var ps = methods[i].GetParameters();
-                if (ps != null && ps.Length == 1)
+                if (m.Name != "Create") continue;
+                var ps = m.GetParameters();
+                if (ps.Length == 1 && ps[0].ParameterType.IsSubclassOf(typeof(Delegate)))
                 {
-                    createMethod = methods[i];
+                    createMethod = m;
                     break;
+                }
+            }
+            // If not found, try with two parameters (delegate, bool)
+            if (createMethod == null)
+            {
+                foreach (var m in callbackClosedType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+                {
+                    if (m.Name != "Create") continue;
+                    var ps = m.GetParameters();
+                    if (ps.Length == 2 && ps[0].ParameterType.IsSubclassOf(typeof(Delegate)) && ps[1].ParameterType == typeof(bool))
+                    {
+                        createMethod = m;
+                        break;
+                    }
                 }
             }
 
             if (createMethod == null)
             {
-                GungeonTogether.Systems.Logging.Debug.LogWarning("[SteamCallback] Create method not found for " + callbackStructType.Name);
+                GungeonTogether.Systems.Logging.Debug.LogWarning($"[SteamCallback] No Create method found for {callbackStructType.Name}");
                 return null;
             }
 
             Type delegateType = createMethod.GetParameters()[0].ParameterType;
-
             int handlerIndex = _handlers.Count;
             _handlers.Add(handler);
-            GungeonTogether.Systems.Logging.Debug.Log("[SteamCallback] Registered handler index " + handlerIndex + " for " + callbackStructType.Name);
 
-            var dm = new DynamicMethod(
+            // Create a dynamic method that matches the delegate signature
+            DynamicMethod dm = new DynamicMethod(
                 "GT_Callback_" + callbackStructType.Name,
                 typeof(void),
                 new Type[] { callbackStructType },
@@ -98,24 +92,27 @@ namespace GungeonTogether.Networking.Steam
             il.Emit(OpCodes.Ldc_I4, handlerIndex);
             il.Emit(OpCodes.Ldarg_0);
             if (callbackStructType.IsValueType)
-            {
                 il.Emit(OpCodes.Box, callbackStructType);
-            }
             il.Emit(OpCodes.Call, typeof(SteamCallbackRouter).GetMethod("Invoke", BindingFlags.Public | BindingFlags.Static));
             il.Emit(OpCodes.Ret);
 
             Delegate del = dm.CreateDelegate(delegateType);
-            object callbackObj = createMethod.Invoke(null, new object[] { del });
-            
+            object callbackObj;
+            if (createMethod.GetParameters().Length == 1)
+                callbackObj = createMethod.Invoke(null, new object[] { del });
+            else
+                callbackObj = createMethod.Invoke(null, new object[] { del, true });
+
             if (callbackObj != null)
             {
-                GungeonTogether.Systems.Logging.Debug.Log("[SteamCallback] Successfully created callback for " + callbackStructType.Name);
+                _callbackObjects.Add(callbackObj);
+                GungeonTogether.Systems.Logging.Debug.Log($"[SteamCallback] Successfully created callback for {callbackStructType.Name} (stored, total {_callbackObjects.Count})");
             }
             else
             {
-                GungeonTogether.Systems.Logging.Debug.LogWarning("[SteamCallback] Callback creation returned null for " + callbackStructType.Name);
+                GungeonTogether.Systems.Logging.Debug.LogWarning($"[SteamCallback] Callback creation returned null for {callbackStructType.Name}");
             }
-            
+
             return callbackObj;
         }
     }
