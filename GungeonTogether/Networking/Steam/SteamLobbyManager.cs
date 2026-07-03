@@ -201,11 +201,6 @@ namespace GungeonTogether.Networking.Steam
         {
             try
             {
-                // Guard against leaking handlers if this is ever called more than once
-                // (e.g. a future reconnect/reset flow) - CreateCallback appends to a
-                // static list that otherwise never shrinks.
-                SteamCallbackRouter.Clear();
-
                 Type lobbyCreatedType = SteamReflectionHelper.LobbyCreatedCallbackType;
                 Type lobbyEnterType = SteamReflectionHelper.LobbyEnterCallbackType;
                 Type richPresenceJoinRequestedType = SteamReflectionHelper.GameJoinRequestedCallbackType;

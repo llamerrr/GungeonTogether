@@ -17,6 +17,7 @@ namespace GungeonTogether.Networking
         public void Initialise()
         {
             _p2p = SteamP2PManager.Instance;
+            _p2p.OnP2PSessionRequest += HandleP2PSessionRequest;
             Debug.Log("HostController Initialised.");
         }
 
@@ -33,11 +34,39 @@ namespace GungeonTogether.Networking
 
         public void Shutdown()
         {
+            if (_p2p != null)
+            {
+                _p2p.OnP2PSessionRequest -= HandleP2PSessionRequest;
+            }
+
             foreach (var client in _connectedClients)
             {
                 // Send disconnect packet
             }
             _connectedClients.Clear();
+        }
+
+        private void HandleP2PSessionRequest(ulong playerId)
+        {
+            Debug.Log($"[Host] Received P2P session request from {playerId}.");
+            AcceptP2PSession(playerId);
+        }
+
+        private void AcceptP2PSession(ulong playerId)
+        {
+            try
+            {
+                if (SteamReflectionHelper.AcceptP2PSessionMethod != null)
+                {
+                    object steamIdObj = SteamReflectionHelper.CreateCSteamID(playerId);
+                    SteamReflectionHelper.AcceptP2PSessionMethod.Invoke(null, new object[] { steamIdObj });
+                    Debug.Log($"[Host] Accepted P2P session with {playerId}.");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[Host] Failed to accept P2P session with {playerId}: {e.Message}");
+            }
         }
 
         public void HandleJoinRequest(ulong playerId)
@@ -47,20 +76,8 @@ namespace GungeonTogether.Networking
                 _connectedClients.Add(playerId);
                 Debug.Log($"Player {playerId} joined the session.");
 
-                // Ensure Steam will accept the P2P session.
-                try
-                {
-                    if (SteamReflectionHelper.AcceptP2PSessionMethod != null)
-                    {
-                        object steamIdObj = SteamReflectionHelper.CreateCSteamID(playerId);
-                        SteamReflectionHelper.AcceptP2PSessionMethod.Invoke(null, new object[] { steamIdObj });
-                        Debug.Log($"[Host] Accepted P2P session with {playerId}.");
-                    }
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning($"[Host] Failed to accept P2P session with {playerId}: {e.Message}");
-                }
+                // Ensure Steam will accept the P2P session even if the initial callback was missed.
+                AcceptP2PSession(playerId);
                 
                 // Send accept packet
                 // Send initial state

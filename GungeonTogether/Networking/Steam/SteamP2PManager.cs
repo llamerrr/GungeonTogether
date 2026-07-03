@@ -42,6 +42,8 @@ namespace GungeonTogether.Networking.Steam
         public ulong LocalSteamID { get; private set; }
         
         private bool _steamIdRetrieved = false;
+        private object _p2pSessionRequestCallback;
+        private Assembly _steamworksAssembly;
 
         // Events
         public event Action<ulong, byte[]> OnPacketReceived;
@@ -68,6 +70,9 @@ namespace GungeonTogether.Networking.Steam
                     return;
                 }
                 Debug.Log("SteamP2PManager: Steam Reflection Helper initialized.");
+
+                _steamworksAssembly = SteamReflectionHelper.GetSteamworksAssembly();
+                TryHookP2PSessionRequestCallback();
 
                 // Steam ID will be retrieved lazily in Update() once Steamworks is initialized
                 LocalSteamID = 0;
@@ -126,6 +131,133 @@ namespace GungeonTogether.Networking.Steam
             }
         }
 
+        private void TryHookP2PSessionRequestCallback()
+        {
+            try
+            {
+                if (_p2pSessionRequestCallback != null)
+                {
+                    return;
+                }
+
+                if (_steamworksAssembly == null)
+                {
+                    _steamworksAssembly = SteamReflectionHelper.GetSteamworksAssembly();
+                }
+
+                if (_steamworksAssembly == null)
+                {
+                    Debug.LogWarning("SteamP2PManager: Steamworks assembly not available; skipping P2P session callback hookup.");
+                    return;
+                }
+
+                Type callbackType = ResolveP2PSessionRequestCallbackType();
+                if (callbackType == null)
+                {
+                    Debug.LogWarning("SteamP2PManager: Could not resolve P2PSessionRequest callback type.");
+                    return;
+                }
+
+                _p2pSessionRequestCallback = SteamCallbackRouter.CreateCallback(_steamworksAssembly, callbackType, HandleP2PSessionRequestCallback);
+
+                if (_p2pSessionRequestCallback != null)
+                {
+                    Debug.Log("SteamP2PManager: Registered P2PSessionRequest callback.");
+                }
+                else
+                {
+                    Debug.LogWarning("SteamP2PManager: Failed to register P2PSessionRequest callback.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"SteamP2PManager: Failed to hook P2PSessionRequest callback: {ex.Message}");
+            }
+        }
+
+        private Type ResolveP2PSessionRequestCallbackType()
+        {
+            if (_steamworksAssembly == null) return null;
+
+            string[] candidateTypeNames =
+            {
+                "Steamworks.P2PSessionRequest_t",
+                "Steamworks.P2PSessionRequest",
+                "Steamworks.P2PSessionRequest_t"
+            };
+
+            foreach (string typeName in candidateTypeNames)
+            {
+                Type resolvedType = _steamworksAssembly.GetType(typeName, false);
+                if (resolvedType != null)
+                {
+                    return resolvedType;
+                }
+            }
+
+            foreach (Type type in _steamworksAssembly.GetTypes())
+            {
+                if (type != null && type.Name.Contains("P2PSessionRequest"))
+                {
+                    return type;
+                }
+            }
+
+            return null;
+        }
+
+        private void HandleP2PSessionRequestCallback(object callbackData)
+        {
+            ulong remoteSteamId = ExtractSteamIDFromCallback(callbackData);
+            if (remoteSteamId == 0)
+            {
+                Debug.LogWarning("SteamP2PManager: Received P2PSessionRequest callback without a valid remote Steam ID.");
+                return;
+            }
+
+            Debug.Log($"SteamP2PManager: Received P2PSessionRequest from {remoteSteamId}.");
+            TryAcceptP2PSession(remoteSteamId);
+            OnP2PSessionRequest?.Invoke(remoteSteamId);
+        }
+
+        private void TryAcceptP2PSession(ulong remoteSteamId)
+        {
+            if (remoteSteamId == 0) return;
+
+            try
+            {
+                if (SteamReflectionHelper.AcceptP2PSessionMethod != null)
+                {
+                    object steamIdObj = SteamReflectionHelper.CreateCSteamID(remoteSteamId);
+                    SteamReflectionHelper.AcceptP2PSessionMethod.Invoke(null, new object[] { steamIdObj });
+                    Debug.Log($"SteamP2PManager: Accepted P2P session with {remoteSteamId}.");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"SteamP2PManager: Failed to accept P2P session with {remoteSteamId}: {e.Message}");
+            }
+        }
+
+        private ulong ExtractSteamIDFromCallback(object callbackData)
+        {
+            if (callbackData == null) return 0;
+
+            Type callbackType = callbackData.GetType();
+            string[] fieldNames = { "m_steamIDRemote", "m_SteamIDRemote", "m_ulSteamIDRemote", "m_SteamID", "m_ulSteamIDLobby" };
+
+            foreach (string fieldName in fieldNames)
+            {
+                var field = callbackType.GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (field != null)
+                {
+                    return ExtractSteamID(field.GetValue(callbackData));
+                }
+            }
+
+            return 0;
+        }
+
         private void ReadPackets()
         {
             try
@@ -165,7 +297,7 @@ namespace GungeonTogether.Networking.Steam
                     }
                 }
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 // Suppress spam
             }
@@ -192,20 +324,59 @@ namespace GungeonTogether.Networking.Steam
 
         private ulong ExtractSteamID(object cSteamID)
         {
-            // Helper to get ulong from CSteamID object
+            if (cSteamID == null) return 0;
+
+            if (cSteamID is ulong ul)
+            {
+                return ul;
+            }
+
+            if (cSteamID is uint ui)
+            {
+                return ui;
+            }
+
+            if (cSteamID is long l)
+            {
+                return (ulong)l;
+            }
+
+            if (cSteamID is string s && ulong.TryParse(s, out ulong parsed))
+            {
+                return parsed;
+            }
+
             try
             {
-                var field = cSteamID.GetType().GetField("m_SteamID", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (field != null)
-                {
-                    return (ulong)field.GetValue(cSteamID);
-                }
-                return 0;
+                return Convert.ToUInt64(cSteamID);
             }
             catch
             {
-                return 0;
             }
+
+            try
+            {
+                string[] fieldNames = { "m_SteamID", "m_steamID", "SteamID", "steamID", "m_ulSteamID" };
+                Type type = cSteamID.GetType();
+
+                foreach (string fieldName in fieldNames)
+                {
+                    var field = type.GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    if (field != null)
+                    {
+                        object fieldValue = field.GetValue(cSteamID);
+                        if (fieldValue != null)
+                        {
+                            return ExtractSteamID(fieldValue);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return 0;
         }
     }
 }
