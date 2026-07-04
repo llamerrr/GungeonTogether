@@ -52,21 +52,8 @@ namespace GungeonTogether.Networking
             if (Time.realtimeSinceStartup < _nextPositionSendTime) return;
             _nextPositionSendTime = Time.realtimeSinceStartup + PositionSendInterval;
 
-            GameManager gameManager = Object.FindObjectOfType<GameManager>();
-            var player = gameManager != null ? gameManager.PrimaryPlayer : null;
-            if (player == null) return;
-
-            Vector3 pos3 = player.transform.position;
-            var packet = new PlayerPositionPacket
-            {
-                PlayerId = _p2p.LocalSteamID,
-                Position = new Vector2(pos3.x, pos3.y),
-                Velocity = Vector2.zero,
-                Rotation = player.transform.eulerAngles.z,
-                IsGrounded = true,
-                IsDodgeRolling = false,
-                AnimationState = 0
-            };
+            var packet = PlayerManager.Instance.CreateLocalPositionPacket(_p2p.LocalSteamID);
+            if (packet == null) return;
 
             SendPacket(_hostId, packet, reliable: false);
             Debug.Log($"[Client] Sent position packet: ({packet.Position.x:0.00}, {packet.Position.y:0.00})");

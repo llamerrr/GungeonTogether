@@ -16,6 +16,8 @@ namespace GungeonTogether.Networking.Packets
         public bool IsGrounded;
         public bool IsDodgeRolling;
         public int AnimationState;
+        public int SpriteId;
+        public bool FlipX;
 
         public void Serialize(BinaryWriter writer)
         {
@@ -28,6 +30,8 @@ namespace GungeonTogether.Networking.Packets
             writer.Write(IsGrounded);
             writer.Write(IsDodgeRolling);
             writer.Write(AnimationState);
+            writer.Write(SpriteId);
+            writer.Write(FlipX);
         }
 
         public void Deserialize(BinaryReader reader)
@@ -39,6 +43,8 @@ namespace GungeonTogether.Networking.Packets
             IsGrounded = reader.ReadBoolean();
             IsDodgeRolling = reader.ReadBoolean();
             AnimationState = reader.ReadInt32();
+            SpriteId = reader.ReadInt32();
+            FlipX = reader.ReadBoolean();
         }
     }
 }

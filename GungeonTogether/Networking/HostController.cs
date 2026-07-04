@@ -13,6 +13,8 @@ namespace GungeonTogether.Networking
     {
         private List<ulong> _connectedClients = new List<ulong>();
         private SteamP2PManager _p2p;
+        private float _nextPositionSendTime;
+        private const float PositionSendInterval = 0.25f;
 
         public void Initialise()
         {
@@ -29,7 +31,15 @@ namespace GungeonTogether.Networking
 
         public void Update()
         {
-            // Host specific logic (e.g. enemy spawning management)
+            if (_connectedClients.Count == 0) return;
+            if (Time.realtimeSinceStartup < _nextPositionSendTime) return;
+
+            _nextPositionSendTime = Time.realtimeSinceStartup + PositionSendInterval;
+            var packet = PlayerManager.Instance.CreateLocalPositionPacket(_p2p.LocalSteamID);
+            if (packet != null)
+            {
+                Broadcast(packet, reliable: false);
+            }
         }
 
         public void Shutdown()
@@ -144,6 +154,7 @@ namespace GungeonTogether.Networking
             }
 
             Debug.Log($"[Host] Position from {senderId}: ({packet.Position.x:0.00}, {packet.Position.y:0.00})");
+            PlayerManager.Instance.UpdateRemotePlayer(senderId, packet.Position, packet.Rotation, packet.SpriteId, packet.FlipX);
 
             // Relay this player's position to every other connected client.
             Broadcast(packet, senderId, reliable: false);

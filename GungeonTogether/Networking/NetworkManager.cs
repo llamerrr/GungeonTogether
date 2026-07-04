@@ -150,7 +150,7 @@ namespace GungeonTogether.Networking
                     var posPacket = (PlayerPositionPacket)packet;
                     if (IsClient && posPacket.PlayerId != SteamReflectionHelper.GetLocalSteamId())
                     {
-                        PlayerManager.Instance.UpdateRemotePlayer(posPacket.PlayerId, posPacket.Position, posPacket.Rotation);
+                        PlayerManager.Instance.UpdateRemotePlayer(posPacket.PlayerId, posPacket.Position, posPacket.Rotation, posPacket.SpriteId, posPacket.FlipX);
                     }
                     else if (IsHost)
                     {

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using GungeonTogether.Networking.Steam;
+using GungeonTogether.Networking.Packets;
 
 namespace GungeonTogether.Networking
 {
@@ -21,41 +22,60 @@ namespace GungeonTogether.Networking
             }
         }
 
-        private Dictionary<ulong, GameObject> _remotePlayers = new Dictionary<ulong, GameObject>();
+        private Dictionary<ulong, RemotePlayerAvatar> _remotePlayers = new Dictionary<ulong, RemotePlayerAvatar>();
+
+        public PlayerPositionPacket CreateLocalPositionPacket(ulong playerId)
+        {
+            GameManager gameManager = Object.FindObjectOfType<GameManager>();
+            PlayerController player = gameManager != null ? gameManager.PrimaryPlayer : null;
+            if (player == null) return null;
+
+            Vector3 pos3 = player.transform.position;
+            var packet = new PlayerPositionPacket
+            {
+                PlayerId = playerId,
+                Position = new Vector2(pos3.x, pos3.y),
+                Velocity = Vector2.zero,
+                Rotation = player.transform.eulerAngles.z,
+                IsGrounded = true,
+                IsDodgeRolling = player.IsDodgeRolling,
+                AnimationState = player.spriteAnimator != null ? player.spriteAnimator.CurrentFrame : 0,
+                SpriteId = player.sprite != null ? player.sprite.spriteId : -1,
+                FlipX = player.sprite != null && player.sprite.FlipX
+            };
+
+            return packet;
+        }
 
         public void SpawnRemotePlayer(ulong steamId, Vector2 position, float rotation)
         {
             if (_remotePlayers.ContainsKey(steamId)) return;
 
-            // Create a simple cube or capsule for testing
-            GameObject player = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            player.transform.position = new Vector3(position.x, position.y, 0f);
-            player.transform.rotation = Quaternion.Euler(0f, 0f, rotation);
-            player.name = $"RemotePlayer_{steamId}";
-
-            // Add a label above it (optional)
-            // For now, just a colored material to distinguish
-            var renderer = player.GetComponent<Renderer>();
-            renderer.material.color = Color.green;
-
+            RemotePlayerAvatar player = RemotePlayerAvatar.Create(steamId, position, rotation);
             _remotePlayers[steamId] = player;
             Debug.Log($"[PlayerManager] Spawned remote player {steamId} at {position}");
         }
 
-        public void UpdateRemotePlayer(ulong steamId, Vector2 position, float rotation)
+        public void UpdateRemotePlayer(ulong steamId, Vector2 position, float rotation, int spriteId = -1, bool flipX = false)
         {
-            if (_remotePlayers.TryGetValue(steamId, out GameObject player))
+            if (!_remotePlayers.ContainsKey(steamId))
             {
-                player.transform.position = new Vector3(position.x, position.y, 0f);
-                player.transform.rotation = Quaternion.Euler(0f, 0f, rotation);
+                SpawnRemotePlayer(steamId, position, rotation);
+            }
+
+            RemotePlayerAvatar player;
+            if (_remotePlayers.TryGetValue(steamId, out player))
+            {
+                player.Apply(position, rotation, spriteId, flipX);
             }
         }
 
         public void RemoveRemotePlayer(ulong steamId)
         {
-            if (_remotePlayers.TryGetValue(steamId, out GameObject player))
+            RemotePlayerAvatar player;
+            if (_remotePlayers.TryGetValue(steamId, out player))
             {
-                Destroy(player);
+                Destroy(player.gameObject);
                 _remotePlayers.Remove(steamId);
                 Debug.Log($"[PlayerManager] Removed remote player {steamId}");
             }
@@ -64,7 +84,7 @@ namespace GungeonTogether.Networking
         public void ClearAll()
         {
             foreach (var kvp in _remotePlayers)
-                Destroy(kvp.Value);
+                Destroy(kvp.Value.gameObject);
             _remotePlayers.Clear();
         }
     }
