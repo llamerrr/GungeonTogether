@@ -112,6 +112,8 @@ namespace GungeonTogether.Networking.Steam
 
             try
             {
+                EnableP2PPacketRelay("creating lobby");
+
                 // CreateLobby(ELobbyType, int)
                 object lobbyType = GetLobbyTypeEnum("k_ELobbyTypeFriendsOnly") ?? GetLobbyTypeEnum("k_ELobbyTypePublic");
                 SteamReflectionHelper.CreateLobbyMethod.Invoke(null, new object[] { lobbyType, maxMembers });
@@ -134,6 +136,8 @@ namespace GungeonTogether.Networking.Steam
 
             try
             {
+                EnableP2PPacketRelay("joining lobby");
+
                 object lobbySteamId = SteamReflectionHelper.CreateCSteamID(lobbyId);
                 SteamReflectionHelper.JoinLobbyMethod.Invoke(null, new object[] { lobbySteamId });
                 Debug.Log("[SteamLobby] Joining lobby " + lobbyId + "...");
@@ -303,6 +307,7 @@ namespace GungeonTogether.Networking.Steam
 
                 CurrentLobbyId = lobbyId;
                 IsInLobby = true;
+                EnableP2PPacketRelay("lobby created");
 
                 // Set some lobby data so clients can find the host
                 try
@@ -392,6 +397,7 @@ namespace GungeonTogether.Networking.Steam
 
                 CurrentLobbyId = lobbyId;
                 IsInLobby = true;
+                EnableP2PPacketRelay("entered lobby");
 
                 ulong ownerId = 0;
                 try
@@ -468,6 +474,19 @@ namespace GungeonTogether.Networking.Steam
             catch
             {
                 return null;
+            }
+        }
+
+        private void EnableP2PPacketRelay(string reason)
+        {
+            try
+            {
+                Debug.Log("[SteamLobby] Enabling P2P packet relay while " + reason + "...");
+                SteamReflectionHelper.AllowP2PPacketRelay(true);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[SteamLobby] Failed to enable P2P packet relay while " + reason + ": " + e.Message);
             }
         }
 

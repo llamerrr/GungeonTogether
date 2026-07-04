@@ -100,8 +100,6 @@ namespace GungeonTogether.Networking.Sync
 
         private void ApplyNow(WorldStatePacket packet)
         {
-            Debug.Log($"[WorldSync] Client applying world state: isFoyer={packet.IsFoyer}, floor={packet.FloorIndex}, room={packet.RoomIdentifier}, pos={packet.Position}");
-
             // If we need to change floor or foyer
             if (packet.IsFoyer)
             {
@@ -130,7 +128,7 @@ namespace GungeonTogether.Networking.Sync
             }
         }
 
-        private System.Collections.IEnumerator SetPositionAfterDelay(Vector2 pos, float rot, float delay)
+        private IEnumerator SetPositionAfterDelay(Vector2 pos, float rot, float delay)
         {
             yield return new WaitForSeconds(delay);
             ETGReflectionHelper.TeleportToPosition(pos, rot);

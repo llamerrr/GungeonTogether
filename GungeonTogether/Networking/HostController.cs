@@ -17,7 +17,6 @@ namespace GungeonTogether.Networking
         public void Initialise()
         {
             _p2p = SteamP2PManager.Instance;
-            _p2p.OnP2PSessionRequest += HandleP2PSessionRequest;
             _p2p.OnP2PSessionFailed += HandleP2PSessionFailed;
             Debug.Log("HostController Initialised.");
         }
@@ -37,7 +36,6 @@ namespace GungeonTogether.Networking
         {
             if (_p2p != null)
             {
-                _p2p.OnP2PSessionRequest -= HandleP2PSessionRequest;
                 _p2p.OnP2PSessionFailed -= HandleP2PSessionFailed;
             }
 
@@ -51,12 +49,6 @@ namespace GungeonTogether.Networking
         private void HandleP2PSessionFailed(ulong clientId)
         {
             HandleClientDisconnect(clientId);
-        }
-
-        private void HandleP2PSessionRequest(ulong playerId)
-        {
-            Debug.Log($"[Host] Received P2P session request from {playerId}.");
-            AcceptP2PSession(playerId);
         }
 
         private void AcceptP2PSession(ulong playerId)
@@ -83,61 +75,61 @@ namespace GungeonTogether.Networking
 
         public void HandleJoinRequest(ulong playerId, int protocolVersion)
         {
+            Debug.Log($"[Host] HandleJoinRequest from {playerId}, version={protocolVersion}, expected={NetworkManager.ProtocolVersion}");
+
             if (protocolVersion != NetworkManager.ProtocolVersion)
             {
-                // Send rejection
                 var reject = new ConnectionRejectedPacket { ProtocolVersion = NetworkManager.ProtocolVersion };
                 SendPacket(playerId, reject, reliable: true);
-                Debug.Log($"Rejected connection from {playerId} – protocol mismatch (got {protocolVersion}, expected {NetworkManager.ProtocolVersion})");
+                Debug.Log($"[Host] Rejected {playerId} – protocol mismatch");
                 return;
             }
 
-            if (!_connectedClients.Contains(playerId))
+            if (_connectedClients.Contains(playerId))
             {
-                _connectedClients.Add(playerId);
-                Debug.Log($"Player {playerId} joined the session.");
-                // send accept packet
-                var accept = new ConnectionAcceptedPacket
-                {
-                    HostId = SteamReflectionHelper.GetLocalSteamId(),
-                    ProtocolVersion = NetworkManager.ProtocolVersion
-                };
-                SendPacket(playerId, accept, reliable: true);
-                // send initial state..
-
-                // Spawn for host's own view
-                Vector2 spawnPos = new Vector2(UnityEngine.Random.Range(-2f, 2f), UnityEngine.Random.Range(-2f, 2f)); // or get from game
-                PlayerManager.Instance.SpawnRemotePlayer(playerId, spawnPos, 0f);
-
-                // Broadcast to all clients (including the new one)
-                var joinPacket = new PlayerJoinPacket
-                {
-                    PlayerId = playerId,
-                    Position = spawnPos,
-                    Rotation = 0f
-                };
-                Broadcast(joinPacket, excludeId: 0, reliable: true);
+                Debug.Log($"[Host] Player {playerId} already connected");
+                return;
             }
-            // Send current world state to the new client
+
+            _connectedClients.Add(playerId);
+            Debug.Log($"[Host] Player {playerId} added to connected clients (total {_connectedClients.Count})");
+
+            // Accept the P2P session (already accepted via callback, but ensure it)
+            AcceptP2PSession(playerId);
+
+            // Send ConnectionAcceptedPacket
+            var accept = new ConnectionAcceptedPacket
+            {
+                HostId = SteamReflectionHelper.GetLocalSteamId(),
+                ProtocolVersion = NetworkManager.ProtocolVersion
+            };
+            SendPacket(playerId, accept, reliable: true);
+
+            // Now broadcast current world state to the new client
+            SendCurrentWorldState(playerId);
+        }
+
+        private void SendCurrentWorldState(ulong targetId)
+        {
             var gm = ETGReflectionHelper.GetGameManager();
-            if (gm != null)
-            {
-                bool isFoyer = ETGReflectionHelper.IsInFoyer();
-                int floorIndex = ETGReflectionHelper.GetCurrentFloorIndex();
-                string roomId = ETGReflectionHelper.GetCurrentRoomIdentifier();
-                Vector3 pos = ETGReflectionHelper.GetPlayerPosition();
-                float rot = ETGReflectionHelper.GetPlayerRotation();
+            if (gm == null) return;
 
-                var packet = new WorldStatePacket
-                {
-                    IsFoyer = isFoyer,
-                    FloorIndex = floorIndex,
-                    RoomIdentifier = roomId,
-                    Position = new Vector2(pos.x, pos.y),
-                    Rotation = rot
-                };
-                SendPacket(playerId, packet, reliable: true);
-            }
+            bool isFoyer = ETGReflectionHelper.IsInFoyer();
+            int floorIndex = ETGReflectionHelper.GetCurrentFloorIndex();
+            string roomId = ETGReflectionHelper.GetCurrentRoomIdentifier();
+            Vector3 pos = ETGReflectionHelper.GetPlayerPosition();
+            float rot = ETGReflectionHelper.GetPlayerRotation();
+
+            var packet = new WorldStatePacket
+            {
+                IsFoyer = isFoyer,
+                FloorIndex = floorIndex,
+                RoomIdentifier = roomId,
+                Position = new Vector2(pos.x, pos.y),
+                Rotation = rot
+            };
+            SendPacket(targetId, packet, reliable: true);
+            Debug.Log($"[Host] Sent initial world state to {targetId}: isFoyer={isFoyer}, floor={floorIndex}");
         }
 
         public void HandlePlayerPosition(ulong senderId, PlayerPositionPacket packet)
@@ -166,13 +158,16 @@ namespace GungeonTogether.Networking
         public void Broadcast(INetworkPacket packet, ulong excludeId = 0, bool reliable = true)
         {
             byte[] data = Serialization.PacketSerializer.Serialize(packet);
+            int count = 0;
             foreach (var client in _connectedClients)
             {
                 if (client != excludeId)
                 {
                     _p2p.SendPacket(client, data, reliable);
+                    count++;
                 }
             }
+            Debug.Log($"[Host] Broadcasted {packet.Type} to {count} clients (excluded {excludeId})");
         }
         public void HandleClientDisconnect(ulong clientId)
         {

@@ -250,6 +250,7 @@ namespace GungeonTogether.Networking.Steam
                 getLobbyOwnerMethod = steamMatchmakingType.GetMethod("GetLobbyOwner", BindingFlags.Public | BindingFlags.Static);
                 getLobbyMemberCountMethod = steamMatchmakingType.GetMethod("GetNumLobbyMembers", BindingFlags.Public | BindingFlags.Static);
                 getLobbyMemberByIndexMethod = steamMatchmakingType.GetMethod("GetLobbyMemberByIndex", BindingFlags.Public | BindingFlags.Static);
+                _allowP2PPacketRelayMethod = steamNetworkingType.GetMethod("AllowP2PPacketRelay", BindingFlags.Public | BindingFlags.Static);
             }
         }
 
@@ -372,7 +373,7 @@ namespace GungeonTogether.Networking.Steam
         /// <summary>
         /// Try different SendP2PPacket method signatures to find one that works
         /// </summary>
-        public static bool TryDifferentSendSignatures(object steamIdParam, byte[] data)
+        public static bool TryDifferentSendSignatures(object steamIdParam, byte[] data, bool reliable)
         {
             try
             {
@@ -394,7 +395,7 @@ namespace GungeonTogether.Networking.Steam
                 // If we have a working signature, try it first
                 if (workingSendSignatureIndex >= 0 && workingSendSignatureIndex < sendMethods.Count)
                 {
-                    if (TrySendWithSignature(sendMethods[workingSendSignatureIndex], steamIdParam, data))
+                    if (TrySendWithSignature(sendMethods[workingSendSignatureIndex], steamIdParam, data, reliable))
                     {
                         return true;
                     }
@@ -405,7 +406,7 @@ namespace GungeonTogether.Networking.Steam
                 {
                     if (i == workingSendSignatureIndex) continue; // Already tried this one
 
-                    if (TrySendWithSignature(sendMethods[i], steamIdParam, data))
+                    if (TrySendWithSignature(sendMethods[i], steamIdParam, data, reliable))
                     {
                         workingSendSignatureIndex = i;
                         return true;
@@ -421,16 +422,17 @@ namespace GungeonTogether.Networking.Steam
             }
         }
 
-        private static bool TrySendWithSignature(MethodInfo method, object steamIdParam, byte[] data)
+        private static bool TrySendWithSignature(MethodInfo method, object steamIdParam, byte[] data, bool reliable)
         {
             try
             {
                 var parameters = method.GetParameters();
+                object sendType = CreateP2PSendType(parameters, reliable);
 
-                // Try different parameter combinations based on common Steamworks patterns
-                if (parameters.Length == 5) // Common: steamid, data, length, channel, sendtype
+                // Steamworks.NET net35: steamid, data, length, EP2PSend, channel.
+                if (parameters.Length == 5)
                 {
-                    object result = method.Invoke(null, new object[] { steamIdParam, data, (uint)data.Length, 0, 2 });
+                    object result = method.Invoke(null, new object[] { steamIdParam, data, (uint)data.Length, sendType, 0 });
                     return result is bool success && success;
                 }
                 else if (parameters.Length == 4) // steamid, data, length, channel
@@ -450,6 +452,27 @@ namespace GungeonTogether.Networking.Steam
             {
                 return false; // This signature didn't work
             }
+        }
+
+        private static object CreateP2PSendType(ParameterInfo[] parameters, bool reliable)
+        {
+            Type sendType = null;
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                if (parameters[i].ParameterType.Name == "EP2PSend")
+                {
+                    sendType = parameters[i].ParameterType;
+                    break;
+                }
+            }
+
+            int value = reliable ? 2 : 0; // k_EP2PSendReliable / k_EP2PSendUnreliable
+            if (sendType != null && sendType.IsEnum)
+            {
+                return Enum.ToObject(sendType, value);
+            }
+
+            return value;
         }
 
         /// <summary>
@@ -646,6 +669,31 @@ namespace GungeonTogether.Networking.Steam
             {
                 Debug.LogError($"[ETGSteamP2P] Error getting Steam ID: {e.GetType().Name}: {e.Message}");
                 return 0;
+            }
+        }
+        private static MethodInfo _allowP2PPacketRelayMethod;
+        public static void AllowP2PPacketRelay(bool allow)
+        {
+            if (_allowP2PPacketRelayMethod != null)
+            {
+                try
+                {
+                    object result = _allowP2PPacketRelayMethod.Invoke(null, new object[] { allow });
+                    Debug.Log($"[ETGSteamP2P] AllowP2PPacketRelay({allow}) returned {(result is bool b ? b.ToString() : "unknown")}");
+                }
+                catch (TargetInvocationException e)
+                {
+                    string innerMessage = e.InnerException != null ? e.InnerException.Message : e.Message;
+                    Debug.LogWarning($"[ETGSteamP2P] AllowP2PPacketRelay skipped: {innerMessage}");
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"[ETGSteamP2P] AllowP2PPacketRelay failed: {e.Message}");
+                }
+            }
+            else
+            {
+                Debug.LogWarning("[ETGSteamP2P] AllowP2PPacketRelay method not found.");
             }
         }
     }

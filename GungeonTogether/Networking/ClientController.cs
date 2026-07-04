@@ -24,31 +24,28 @@ namespace GungeonTogether.Networking
 
         private bool _connectPending = false;
         private float _connectRetryTimer = 0f;
+        private const float ConnectRetryInterval = 1f;
 
         public void Connect(ulong hostId)
         {
             _hostId = hostId;
             IsConnected = false;
             _connectPending = true;
-            _connectRetryTimer = 0.5f; // wait half a second before sending
-            Debug.Log($"Will send connection request to {hostId} in 0.5s...");
+            _connectRetryTimer = 0f;
+            Debug.Log($"[Client] Connect called to {hostId}, sending initial connection request...");
         }
 
         public void Update()
         {
-            if (_connectPending)
+            if (_connectPending && Time.realtimeSinceStartup >= _connectRetryTimer)
             {
-                _connectRetryTimer -= Time.deltaTime;
-                if (_connectRetryTimer <= 0f)
+                _connectRetryTimer = Time.realtimeSinceStartup + ConnectRetryInterval;
+                Debug.Log($"Sending connection request to {_hostId}...");
+                SendPacket(_hostId, new ConnectionRequestPacket
                 {
-                    _connectPending = false;
-                    Debug.Log($"Sending connection request to {_hostId}...");
-                    SendPacket(_hostId, new ConnectionRequestPacket
-                    {
-                        ClientId = _p2p.LocalSteamID,
-                        ProtocolVersion = NetworkManager.ProtocolVersion
-                    }, reliable: true);
-                }
+                    ClientId = _p2p.LocalSteamID,
+                    ProtocolVersion = NetworkManager.ProtocolVersion
+                }, reliable: true);
             }
             if (!IsConnected) return;
 
@@ -87,6 +84,7 @@ namespace GungeonTogether.Networking
             }
 
             IsConnected = true;
+            _connectPending = false;
             _nextPositionSendTime = 0;
             Debug.Log($"[Client] Connection accepted by host {senderId}.");
         }

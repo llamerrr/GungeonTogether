@@ -63,6 +63,7 @@ namespace GungeonTogether.Networking.Steam
 
             try
             {
+
                 Debug.Log("SteamP2PManager: Initializing Steam Reflection Helper...");
                 SteamReflectionHelper.InitialiseSteamTypes();
                 
@@ -299,8 +300,14 @@ namespace GungeonTogether.Networking.Steam
             return 0;
         }
 
+        private int _readPacketsCallCount = 0;
+        private const int READ_PACKETS_LOG_INTERVAL = 60;
+
         private void ReadPackets()
         {
+            _readPacketsCallCount++;
+            if (_readPacketsCallCount % READ_PACKETS_LOG_INTERVAL == 0)
+                Debug.Log("[SteamP2P] ReadPackets called, checking for packets...");
             try
             {
                 var isAvailableMethod = SteamReflectionHelper.IsP2PPacketAvailableMethod;
@@ -313,10 +320,12 @@ namespace GungeonTogether.Networking.Steam
 
                 while (packetsRead++ < MAX_PACKETS_PER_FRAME)
                 {
+                    
                     uint msgSize = 0;
                     object[] availArgs = new object[] { msgSize, CHANNEL_INDEX };
                     bool isAvailable = (bool)isAvailableMethod.Invoke(null, availArgs);
                     if (!isAvailable) break;
+                    Debug.Log($"[SteamP2P] Packet available from some sender, size {msgSize}");
                     msgSize = (uint)availArgs[0];
 
                     byte[] data = new byte[msgSize];
@@ -324,21 +333,33 @@ namespace GungeonTogether.Networking.Steam
                     object senderCSteamID = Activator.CreateInstance(
                         SteamReflectionHelper.GetSteamworksAssembly().GetType("Steamworks.CSteamID"));
 
-                    // OUT parameter must be a variable, not a literal.
                     uint actualMsgSize = 0;
                     object[] readArgs = new object[] { data, msgSize, actualMsgSize, senderCSteamID, CHANNEL_INDEX };
                     bool readSuccess = (bool)readMethod.Invoke(null, readArgs);
-                    actualMsgSize = (uint)readArgs[2]; // updated size (may be less than msgSize)
+                    actualMsgSize = (uint)readArgs[2];
 
                     if (readSuccess)
                     {
                         senderCSteamID = readArgs[3];
                         senderId = ExtractSteamID(senderCSteamID);
+                        Debug.Log($"[SteamP2P] Received packet from {senderId}, size={actualMsgSize}");
+                        if (actualMsgSize != data.Length)
+                        {
+                            byte[] trimmedData = new byte[actualMsgSize];
+                            Array.Copy(data, trimmedData, actualMsgSize);
+                            data = trimmedData;
+                        }
                         OnPacketReceived?.Invoke(senderId, data);
                     }
                 }
+
+                // Optionally log if no packets every 60 frames (to confirm polling works)
+                // We'll skip for brevity.
             }
-            catch (Exception) { /* suppress spam */ }
+            catch (Exception)
+            {
+                // suppress spam
+            }
         }
 
         public void SendPacket(ulong targetSteamId, byte[] data, bool reliable = true)
@@ -347,10 +368,13 @@ namespace GungeonTogether.Networking.Steam
 
             try
             {
+                Debug.Log($"[SteamP2P] SendPacket to {targetSteamId}, size={data.Length}");
                 object steamIdObj = SteamReflectionHelper.CreateCSteamID(targetSteamId);
-                bool success = SteamReflectionHelper.TryDifferentSendSignatures(steamIdObj, data);
+                bool success = SteamReflectionHelper.TryDifferentSendSignatures(steamIdObj, data, reliable);
                 if (!success)
-                    Debug.LogError($"Failed to send P2P packet to {targetSteamId} – no matching SendP2PPacket signature.");
+                    Debug.LogError($"[SteamP2P] Failed to send P2P packet to {targetSteamId}");
+                else
+                    Debug.Log($"[SteamP2P] SendPacket to {targetSteamId} succeeded");
             }
             catch (Exception e)
             {

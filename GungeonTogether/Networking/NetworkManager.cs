@@ -110,9 +110,14 @@ namespace GungeonTogether.Networking
         {
             try
             {
+                Debug.Log($"[NetworkManager] HandlePacket from {senderId}, data length={data.Length}");
                 INetworkPacket packet = PacketSerializer.Deserialize(data);
-                if (packet == null) return;
-
+                if (packet == null)
+                {
+                    Debug.LogWarning($"[NetworkManager] Failed to deserialize packet from {senderId}");
+                    return;
+                }
+                Debug.Log($"[NetworkManager] Received packet type: {packet.Type} from {senderId}");
                 ProcessPacket(senderId, packet);
             }
             catch (Exception e)
@@ -130,10 +135,10 @@ namespace GungeonTogether.Networking
                     if (IsHost)
                     {
                         var req = (ConnectionRequestPacket)packet;
+                        Debug.Log($"[NetworkManager] Host received ConnectionRequest from {senderId}, version={req.ProtocolVersion}");
                         Host.HandleJoinRequest(senderId, req.ProtocolVersion);
                     }
                     break;
-
                 case PacketType.ConnectionAccepted:
                     if (IsClient)
                     {
@@ -216,11 +221,11 @@ namespace GungeonTogether.Networking
                     var death = (EnemyDeathPacket)packet;
                     NetworkEntityManager.Instance.RemoveRemote(death.EnemyId);
                     break;
-
                 case PacketType.WorldState:
-                    var world = (WorldStatePacket)packet;
                     if (IsClient)
                     {
+                        var world = (WorldStatePacket)packet;
+                        Debug.Log($"[Client] Received WorldStatePacket: isFoyer={world.IsFoyer}, floor={world.FloorIndex}, pos={world.Position}");
                         WorldSyncManager.Instance.ApplyWorldState(world);
                     }
                     break;

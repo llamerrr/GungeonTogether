@@ -16,32 +16,26 @@ namespace GungeonTogether.Core
         private void Awake()
         {
             Instance = this;
-            Logger.LogInfo("Gungeon Together started!");
             
             try
             {
                 // Initialise Logging
                 GungeonTogether.Systems.Logging.Logger.Initialise(base.Logger);
-                Logger.LogInfo("Logging initialized.");
+                Logger.LogInfo("Gungeon Together starting...");
 
                 // Initialise Networking
-                Logger.LogInfo("Initializing NetworkManager...");
                 NetworkManager.Instance.Initialise();
-                Logger.LogInfo("NetworkManager initialized.");
 
                 // Initialise UI
-                Logger.LogInfo("Initializing UIManager...");
                 UIManager.Initialise();
-                Logger.LogInfo("UIManager initialized.");
                 
-                Logger.LogInfo("Gungeon Together fully initialized!");
-
                 //initialise room sync
                 RoomSyncManager.Instance.gameObject.SetActive(true);
                 WorldSyncManager.Instance.gameObject.SetActive(true);
                 PlayerSyncManager.Instance.gameObject.SetActive(true);
-                LoadingSyncManager.Instance.gameObject.SetActive(true);
-                
+                LoadingSyncManager.Instance.gameObject.SetActive(true);           
+
+                Logger.LogInfo("Gungeon Together ready.");
             }
             catch (System.Exception ex)
             {
