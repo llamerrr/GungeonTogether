@@ -136,7 +136,7 @@ namespace GungeonTogether.Networking
                     {
                         var req = (ConnectionRequestPacket)packet;
                         Debug.Log($"[NetworkManager] Host received ConnectionRequest from {senderId}, version={req.ProtocolVersion}");
-                        Host.HandleJoinRequest(senderId, req.ProtocolVersion);
+                        Host.HandleJoinRequest(senderId, req.ClientId, req.ProtocolVersion);
                     }
                     break;
                 case PacketType.ConnectionAccepted:
@@ -150,7 +150,7 @@ namespace GungeonTogether.Networking
                     var posPacket = (PlayerPositionPacket)packet;
                     if (IsClient && posPacket.PlayerId != SteamReflectionHelper.GetLocalSteamId())
                     {
-                        PlayerManager.Instance.UpdateRemotePlayer(posPacket.PlayerId, posPacket.Position, posPacket.Rotation, posPacket.SpriteId, posPacket.FlipX);
+                        PlayerManager.Instance.UpdateRemotePlayer(posPacket.PlayerId, posPacket.Position, posPacket.Rotation, posPacket.FlipX);
                     }
                     else if (IsHost)
                     {

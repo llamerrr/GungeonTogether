@@ -52,7 +52,10 @@ namespace GungeonTogether.Networking
             if (Time.realtimeSinceStartup < _nextPositionSendTime) return;
             _nextPositionSendTime = Time.realtimeSinceStartup + PositionSendInterval;
 
-            var packet = PlayerManager.Instance.CreateLocalPositionPacket(_p2p.LocalSteamID);
+            ulong localId = _p2p.LocalSteamID != 0 ? _p2p.LocalSteamID : SteamReflectionHelper.GetLocalSteamId();
+            if (localId == 0) return;
+
+            var packet = PlayerManager.Instance.CreateLocalPositionPacket(localId);
             if (packet == null) return;
 
             SendPacket(_hostId, packet, reliable: false);

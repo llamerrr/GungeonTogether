@@ -12,6 +12,7 @@ namespace GungeonTogether.Networking
     public class HostController : IHost
     {
         private List<ulong> _connectedClients = new List<ulong>();
+        private Dictionary<ulong, ulong> _clientPlayerIds = new Dictionary<ulong, ulong>();
         private SteamP2PManager _p2p;
         private float _nextPositionSendTime;
         private const float PositionSendInterval = 0.25f;
@@ -35,7 +36,8 @@ namespace GungeonTogether.Networking
             if (Time.realtimeSinceStartup < _nextPositionSendTime) return;
 
             _nextPositionSendTime = Time.realtimeSinceStartup + PositionSendInterval;
-            var packet = PlayerManager.Instance.CreateLocalPositionPacket(_p2p.LocalSteamID);
+            ulong localId = _p2p.LocalSteamID != 0 ? _p2p.LocalSteamID : SteamReflectionHelper.GetLocalSteamId();
+            var packet = PlayerManager.Instance.CreateLocalPositionPacket(localId);
             if (packet != null)
             {
                 Broadcast(packet, reliable: false);
@@ -54,6 +56,7 @@ namespace GungeonTogether.Networking
                 // Send disconnect packet
             }
             _connectedClients.Clear();
+            _clientPlayerIds.Clear();
         }
 
         private void HandleP2PSessionFailed(ulong clientId)
@@ -80,32 +83,38 @@ namespace GungeonTogether.Networking
 
         public void HandleJoinRequest(ulong playerId)
         {
-            HandleJoinRequest(playerId, NetworkManager.ProtocolVersion);
+            HandleJoinRequest(playerId, playerId, NetworkManager.ProtocolVersion);
         }
 
         public void HandleJoinRequest(ulong playerId, int protocolVersion)
+        {
+            HandleJoinRequest(playerId, playerId, protocolVersion);
+        }
+
+        public void HandleJoinRequest(ulong transportId, ulong playerId, int protocolVersion)
         {
             Debug.Log($"[Host] HandleJoinRequest from {playerId}, version={protocolVersion}, expected={NetworkManager.ProtocolVersion}");
 
             if (protocolVersion != NetworkManager.ProtocolVersion)
             {
                 var reject = new ConnectionRejectedPacket { ProtocolVersion = NetworkManager.ProtocolVersion };
-                SendPacket(playerId, reject, reliable: true);
+                SendPacket(transportId, reject, reliable: true);
                 Debug.Log($"[Host] Rejected {playerId} – protocol mismatch");
                 return;
             }
 
-            if (_connectedClients.Contains(playerId))
+            if (_connectedClients.Contains(transportId))
             {
                 Debug.Log($"[Host] Player {playerId} already connected");
                 return;
             }
 
-            _connectedClients.Add(playerId);
+            _connectedClients.Add(transportId);
+            _clientPlayerIds[transportId] = playerId != 0 ? playerId : transportId;
             Debug.Log($"[Host] Player {playerId} added to connected clients (total {_connectedClients.Count})");
 
             // Accept the P2P session (already accepted via callback, but ensure it)
-            AcceptP2PSession(playerId);
+            AcceptP2PSession(transportId);
 
             // Send ConnectionAcceptedPacket
             var accept = new ConnectionAcceptedPacket
@@ -113,10 +122,10 @@ namespace GungeonTogether.Networking
                 HostId = SteamReflectionHelper.GetLocalSteamId(),
                 ProtocolVersion = NetworkManager.ProtocolVersion
             };
-            SendPacket(playerId, accept, reliable: true);
+            SendPacket(transportId, accept, reliable: true);
 
             // Now broadcast current world state to the new client
-            SendCurrentWorldState(playerId);
+            SendCurrentWorldState(transportId);
         }
 
         private void SendCurrentWorldState(ulong targetId)
@@ -144,17 +153,24 @@ namespace GungeonTogether.Networking
 
         public void HandlePlayerPosition(ulong senderId, PlayerPositionPacket packet)
         {
-            if (!_connectedClients.Contains(senderId))
+            ulong playerId = packet.PlayerId != 0 ? packet.PlayerId : senderId;
+            ulong registeredPlayerId;
+            if (_clientPlayerIds.TryGetValue(senderId, out registeredPlayerId) && registeredPlayerId != 0)
+            {
+                playerId = registeredPlayerId;
+            }
+
+            if (!_connectedClients.Contains(senderId) && !_connectedClients.Contains(playerId))
             {
                 // Don't auto-join on a bare position packet - that bypasses the
                 // ConnectionRequest/ConnectionAccepted handshake (and its protocol
                 // version check). Drop it and wait for a real handshake instead.
-                Debug.LogWarning($"[Host] Ignored position packet from unrecognised sender {senderId} (no active connection).");
+                Debug.LogWarning($"[Host] Ignored position packet from unrecognised sender {senderId} / player {playerId} (no active connection).");
                 return;
             }
 
-            Debug.Log($"[Host] Position from {senderId}: ({packet.Position.x:0.00}, {packet.Position.y:0.00})");
-            PlayerManager.Instance.UpdateRemotePlayer(senderId, packet.Position, packet.Rotation, packet.SpriteId, packet.FlipX);
+            Debug.Log($"[Host] Position from {playerId}: ({packet.Position.x:0.00}, {packet.Position.y:0.00})");
+            PlayerManager.Instance.UpdateRemotePlayer(playerId, packet.Position, packet.Rotation, packet.FlipX);
 
             // Relay this player's position to every other connected client.
             Broadcast(packet, senderId, reliable: false);
@@ -184,6 +200,7 @@ namespace GungeonTogether.Networking
         {
             if (_connectedClients.Remove(clientId))
             {
+                _clientPlayerIds.Remove(clientId);
                 Debug.Log($"Client {clientId} disconnected.");
             }
         }

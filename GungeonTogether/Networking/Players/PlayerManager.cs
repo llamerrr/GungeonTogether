@@ -40,7 +40,7 @@ namespace GungeonTogether.Networking
                 IsGrounded = true,
                 IsDodgeRolling = player.IsDodgeRolling,
                 AnimationState = player.spriteAnimator != null ? player.spriteAnimator.CurrentFrame : 0,
-                SpriteId = player.sprite != null ? player.sprite.spriteId : -1,
+                SpriteId = -1,
                 FlipX = player.sprite != null && player.sprite.FlipX
             };
 
@@ -56,7 +56,7 @@ namespace GungeonTogether.Networking
             Debug.Log($"[PlayerManager] Spawned remote player {steamId} at {position}");
         }
 
-        public void UpdateRemotePlayer(ulong steamId, Vector2 position, float rotation, int spriteId = -1, bool flipX = false)
+        public void UpdateRemotePlayer(ulong steamId, Vector2 position, float rotation, bool flipX = false)
         {
             if (!_remotePlayers.ContainsKey(steamId))
             {
@@ -66,7 +66,7 @@ namespace GungeonTogether.Networking
             RemotePlayerAvatar player;
             if (_remotePlayers.TryGetValue(steamId, out player))
             {
-                player.Apply(position, rotation, spriteId, flipX);
+                player.Apply(position, rotation, flipX);
             }
         }
 

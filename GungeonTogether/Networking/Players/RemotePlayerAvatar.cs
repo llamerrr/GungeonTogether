@@ -5,6 +5,7 @@ namespace GungeonTogether.Networking
     public class RemotePlayerAvatar : MonoBehaviour
     {
         private tk2dSprite _sprite;
+        private Transform _spriteTransform;
         private Vector3 _targetPosition;
         private bool _hasTarget;
 
@@ -31,15 +32,23 @@ namespace GungeonTogether.Networking
                 return;
             }
 
-            _sprite = gameObject.AddComponent<tk2dSprite>();
+            GameObject spriteObject = new GameObject("Sprite");
+            spriteObject.transform.parent = transform;
+            spriteObject.transform.localPosition = sourceSprite.transform.localPosition;
+            spriteObject.transform.localRotation = sourceSprite.transform.localRotation;
+            spriteObject.transform.localScale = sourceSprite.transform.localScale;
+            _spriteTransform = spriteObject.transform;
+
+            _sprite = spriteObject.AddComponent<tk2dSprite>();
             _sprite.SetSprite(sourceSprite.Collection, sourceSprite.spriteId);
             _sprite.HeightOffGround = sourceSprite.HeightOffGround;
             _sprite.SortingOrder = sourceSprite.SortingOrder;
             _sprite.FlipX = sourceSprite.FlipX;
-            _sprite.color = new Color(0.55f, 0.95f, 1f, 1f);
+            _sprite.scale = sourceSprite.scale;
+            _sprite.color = sourceSprite.color;
         }
 
-        public void Apply(Vector2 position, float rotation, int spriteId, bool flipX)
+        public void Apply(Vector2 position, float rotation, bool flipX)
         {
             _targetPosition = new Vector3(position.x, position.y, 0f);
             _hasTarget = true;
@@ -47,11 +56,6 @@ namespace GungeonTogether.Networking
 
             if (_sprite != null)
             {
-                if (spriteId >= 0 && _sprite.spriteId != spriteId)
-                {
-                    _sprite.SetSprite(spriteId);
-                }
-
                 _sprite.FlipX = flipX;
             }
         }
