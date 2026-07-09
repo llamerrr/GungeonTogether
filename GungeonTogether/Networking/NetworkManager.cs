@@ -145,7 +145,13 @@ namespace GungeonTogether.Networking
                         Client.HandleConnectionAccepted(senderId, (ConnectionAcceptedPacket)packet);
                     }
                     break;
-                
+                case PacketType.ConnectionRejected:
+                    if (IsClient)
+                    {
+                        Client.HandleConnectionRejected(senderId, (ConnectionRejectedPacket)packet);
+                    }
+                    break;
+
                 case PacketType.PlayerPosition:
                     var posPacket = (PlayerPositionPacket)packet;
                     if (IsClient && posPacket.PlayerId != SteamReflectionHelper.GetLocalSteamId())

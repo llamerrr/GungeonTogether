@@ -79,6 +79,19 @@ namespace GungeonTogether.Networking
             Debug.Log($"[Client] Connection accepted by host {senderId}.");
         }
 
+        public void HandleConnectionRejected(ulong senderId, ConnectionRejectedPacket packet)
+        {
+            if (senderId != _hostId) return;
+
+            // The host explicitly turned us away - stop hammering it with retries.
+            // Without this the connect loop in Update() re-sends ConnectionRequest
+            // every ConnectRetryInterval forever, since _connectPending is otherwise
+            // only cleared on ConnectionAccepted.
+            _connectPending = false;
+            IsConnected = false;
+            Debug.LogWarning($"[Client] Connection rejected by host {senderId} (host protocol={packet.ProtocolVersion}, local={NetworkManager.ProtocolVersion}). Halting connection attempts.");
+        }
+
         public void Shutdown()
         {
             Disconnect();
